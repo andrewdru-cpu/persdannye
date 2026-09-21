@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { addLead } from "@/lib/leads-store";
+import { notifyNewLead } from "@/lib/notify";
+
+export const dynamic = "force-dynamic";
 
 const schema = z.object({
   name: z.string().min(2, "Укажите имя"),
@@ -41,6 +44,9 @@ export async function POST(req: Request) {
       consent: true,
       source: parsed.data.source || "landing",
     });
+
+    await notifyNewLead(lead);
+
     return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ошибка сервера";

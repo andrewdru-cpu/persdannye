@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cormorant_Garamond, Manrope, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -9,9 +9,17 @@ import { AnalyticsGate } from "@/components/layout/AnalyticsGate";
 import { SiteAtmosphere } from "@/components/motion/SiteAtmosphere";
 import { company } from "@/lib/company";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
+});
+
+const display = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin", "cyrillic"],
+  weight: ["500", "600", "700"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -25,7 +33,7 @@ export const metadata: Metadata = {
     template: `%s · ${company.brand}`,
   },
   description:
-    "Сканер соответствия сайтов 152-ФЗ и практике Роскомнадзора. Найдите нарушения и устраните риски с юристами ПерсДанные.",
+    "Премиальный сканер соответствия сайтов 152-ФЗ и практике Роскомнадзора. Находите риски и устраняйте их с юристами ПерсДанные.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
 };
 
@@ -37,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} relative min-h-screen bg-ink-950 text-foreground antialiased`}
+        className={`${manrope.variable} ${display.variable} ${geistMono.variable} relative min-h-screen bg-ink-950 text-foreground antialiased`}
       >
         <SiteAtmosphere />
         <div className="relative z-[1]">

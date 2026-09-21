@@ -3,6 +3,8 @@ import { z } from "zod";
 import { createCheck } from "@/lib/parser-client";
 import { normalizeUrl } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 const bodySchema = z.object({
   url: z.string().min(3, "Укажите URL сайта"),
 });

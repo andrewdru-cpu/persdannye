@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCheck } from "@/lib/parser-client";
+import { notifyScanIfNeeded } from "@/lib/notify";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: Request,
@@ -14,6 +17,10 @@ export async function GET(
     if (!job) {
       return NextResponse.json({ error: "Проверка не найдена" }, { status: 404 });
     }
+
+    // Immediate manager alert when a scan finishes with risks (or clean if enabled).
+    await notifyScanIfNeeded(job);
+
     return NextResponse.json(job);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ошибка сервера";

@@ -53,7 +53,7 @@ function FindingCard({ f }: { f: Finding }) {
     <motion.li
       initial={{ opacity: 0, x: -8, filter: "blur(4px)" }}
       animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-      className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
+      className="glass-card p-4"
     >
       <div className="mb-1 flex flex-wrap items-center gap-2">
         <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono text-xs text-amber-200">
@@ -161,7 +161,7 @@ export function UrlChecker({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="example.ru или https://example.ru"
-          className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 outline-none ring-amber-400/40 focus:ring-2"
+          className="flex-1 rounded-2xl border border-amber-200/20 bg-white/[0.06] px-4 py-3 text-white placeholder:text-white/35 outline-none ring-amber-400/40 focus:ring-2"
           aria-label="URL сайта"
         />
         <Button
@@ -181,11 +181,11 @@ export function UrlChecker({
             initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className="relative mt-6 overflow-hidden rounded-2xl border border-white/10 bg-ink-900/60 p-5"
+            className="glass-card relative mt-6 overflow-hidden p-5"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="font-display text-2xl font-semibold text-white">
                   Проверяем {domain}…
                 </h3>
                 <p className="mt-1 text-sm text-white/60">{job.phaseMessage}</p>
@@ -214,7 +214,7 @@ export function UrlChecker({
             </div>
             <div className="mt-1.5 text-right text-xs text-white/40">{progress}%</div>
 
-            <ol className="mt-4 grid gap-2 sm:grid-cols-2">
+            <ol className={cn("mt-4 grid gap-2", compact ? "grid-cols-1" : "sm:grid-cols-2")}>
               {PHASE_STEPS.map((s, i) => {
                 const active = i === step;
                 const doneStep = i < step || job.phase === "done";
@@ -257,9 +257,13 @@ export function UrlChecker({
             {job.warning && (
               <p className="mt-3 text-xs text-amber-200/80">{job.warning}</p>
             )}
-            {job.mock && (
+            {job.mock ? (
               <p className="mt-3 text-xs text-white/40">
                 Демо-режим (PARSER_API_BASE не задан). Подключите парсер через env.
+              </p>
+            ) : (
+              <p className="mt-3 text-xs text-amber-200/70">
+                Живой парсер · фазы queued → open → extract → rules → pdf
               </p>
             )}
           </motion.div>
@@ -275,10 +279,10 @@ export function UrlChecker({
           >
             <div
               className={cn(
-                "relative overflow-hidden rounded-2xl border p-5",
+                "glass-card relative overflow-hidden p-5",
                 job.hasRisks
-                  ? "border-rose-400/30 bg-rose-500/10"
-                  : "border-emerald-400/30 bg-emerald-500/10"
+                  ? "border-rose-400/35 bg-rose-500/10"
+                  : "border-emerald-400/35 bg-emerald-500/10"
               )}
             >
               <Burst tone={job.hasRisks ? "risk" : "success"} />
@@ -288,7 +292,7 @@ export function UrlChecker({
                 className="relative flex flex-wrap items-end justify-between gap-3"
               >
                 <div>
-                  <h3 className="text-xl font-semibold text-white">
+                  <h3 className="font-display text-2xl font-semibold text-white md:text-3xl">
                     {job.hasRisks
                       ? `${domain} — не соответствует`
                       : `${domain} — соответствует`}
@@ -302,7 +306,7 @@ export function UrlChecker({
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 380, damping: 16, delay: 0.15 }}
                   >
-                    <div className="text-3xl font-bold text-white">{job.score}</div>
+                    <div className="font-display text-4xl font-semibold text-white">{job.score}</div>
                     <div className="text-xs text-white/50">балл соответствия</div>
                   </motion.div>
                 )}
@@ -316,14 +320,23 @@ export function UrlChecker({
                 ))}
               </ul>
             ) : (
-              <p className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4 text-sm text-emerald-100">
+              <p className="glass-card border-emerald-400/20 bg-emerald-500/5 p-4 text-sm text-emerald-100">
                 Критичных нарушений в экспресс-проверке не найдено. Полный аудит
                 юриста может выявить дополнительные риски.
               </p>
             )}
 
-            <div className="rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-400/10 to-transparent p-5">
-              <h4 className="text-lg font-semibold text-white">
+            {job.pdfReady && !job.mock && (
+              <a
+                href={`/api/checks/${job.id}/pdf`}
+                className="inline-flex items-center justify-center rounded-2xl border border-amber-300/30 bg-amber-400/10 px-5 py-3 text-sm font-semibold text-amber-50 transition hover:border-amber-200/50 hover:bg-amber-400/20"
+              >
+                Скачать PDF-отчёт
+              </a>
+            )}
+
+            <div className="glass-card glass-card-gold p-5">
+              <h4 className="font-display text-2xl font-semibold text-white">
                 {job.hasRisks ? "Помочь устранить" : "Получить полный отчёт"}
               </h4>
               <p className="mt-1 text-sm text-white/65">
@@ -347,10 +360,10 @@ export function UrlChecker({
             key="err"
             initial={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-            className="relative mt-6 overflow-hidden rounded-2xl border border-rose-400/30 bg-rose-500/10 p-5"
+            className="glass-card relative mt-6 overflow-hidden border-rose-400/30 bg-rose-500/10 p-5"
           >
             <Burst tone="error" />
-            <h3 className="relative text-lg font-semibold text-white">
+            <h3 className="relative font-display text-2xl font-semibold text-white">
               {domain ? `Не удалось проверить ${domain}` : "Ошибка проверки"}
             </h3>
             <p className="relative mt-1 text-sm text-white/70">

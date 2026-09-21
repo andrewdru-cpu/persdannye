@@ -18,10 +18,9 @@ type Props = {
 };
 
 const variants = {
-  primary:
-    "bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-ink-950 shadow-glow hover:brightness-110",
+  primary: "btn-gold hover:brightness-110",
   secondary:
-    "bg-white/5 text-white border border-white/15 hover:bg-white/10 hover:border-amber-400/40",
+    "bg-white/5 text-white border border-amber-200/20 hover:bg-white/10 hover:border-amber-300/45",
   ghost: "bg-transparent text-white/80 hover:text-white hover:bg-white/5",
   danger: "bg-rose-600/90 text-white hover:bg-rose-500",
 };

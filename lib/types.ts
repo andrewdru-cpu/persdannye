@@ -22,6 +22,8 @@ export interface CheckJob {
   /** true if risks for landing: push===true OR findings length > 0 when done */
   hasRisks: boolean;
   push?: boolean;
+  /** True when parser has a PDF report ready to fetch server-side. */
+  pdfReady?: boolean;
   warning?: string | null;
   error?: string | null;
   createdAt: string;
