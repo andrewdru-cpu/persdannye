@@ -1,4 +1,4 @@
-import { getParserBase, isParserConfigured, parserFetch } from "./parser-auth";
+import { getParserBase, isParserConfigured, parserFetch, parserJson, readParserBody, throwIfNgrok } from "./parser-auth";
 import { mockCreateScan, mockGetScan } from "./mock-parser";
 import {
   friendlyPhaseMessage,
@@ -113,10 +113,10 @@ export async function createCheck(url: string): Promise<CheckJob> {
     body: JSON.stringify({ url }),
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Не удалось создать сканирование: ${res.status} ${text}`);
+    const text = await readParserBody(res);
+    throw new Error(`Не удалось создать сканирование: ${res.status} ${text}`.slice(0, 400));
   }
-  const data = (await res.json()) as UpstreamCreate;
+  const data = await parserJson<UpstreamCreate>(res);
   const scanId = data.scan_id || data.id;
   if (!scanId) {
     throw new Error("Parser API не вернул scan_id");
@@ -160,14 +160,15 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
   const scanId = meta?.scanId || id;
   const res = await parserFetch(`/api/scans/${scanId}`, { method: "GET" });
   if (res.status === 404) {
-    const mock = mockGetScan(id);
-    return mock;
+    const text = await res.text().catch(() => "");
+    throwIfNgrok(res, text);
+    return mockGetScan(id);
   }
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Ошибка статуса скана: ${res.status} ${text}`);
+    const text = await readParserBody(res);
+    throw new Error(`Ошибка статуса скана: ${res.status} ${text}`.slice(0, 400));
   }
-  const data = (await res.json()) as UpstreamScan;
+  const data = await parserJson<UpstreamScan>(res);
   const url = meta?.url || data.url || "";
   const createdAt = meta?.createdAt || new Date().toISOString();
   if (!meta) {
@@ -194,10 +195,18 @@ export async function getCheckPdf(
     method: "GET",
     headers: { Accept: "application/pdf" },
   });
-  if (res.status === 404 || res.status === 409) return null;
-  if (!res.ok) {
+  if (res.status === 404 || res.status === 409) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Не удалось получить PDF: ${res.status} ${text}`);
+    throwIfNgrok(res, text);
+    return null;
+  }
+  if (!res.ok) {
+    const text = await readParserBody(res);
+    throw new Error(`Не удалось получить PDF: ${res.status} ${text}`.slice(0, 400));
+  }
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  if (ct.includes("text/html")) {
+    throw new Error("Parser вернул HTML вместо PDF (туннель ngrok или ошибка).");
   }
   const buffer = Buffer.from(await res.arrayBuffer());
   if (!buffer.length) return null;

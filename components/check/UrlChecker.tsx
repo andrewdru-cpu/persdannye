@@ -257,9 +257,13 @@ export function UrlChecker({
             {job.warning && (
               <p className="mt-3 text-xs text-amber-200/80">{job.warning}</p>
             )}
-            {job.mock && (
+            {job.mock ? (
               <p className="mt-3 text-xs text-white/40">
                 Демо-режим (PARSER_API_BASE не задан). Подключите парсер через env.
+              </p>
+            ) : (
+              <p className="mt-3 text-xs text-amber-200/70">
+                Живой парсер · фазы queued → open → extract → rules → pdf
               </p>
             )}
           </motion.div>

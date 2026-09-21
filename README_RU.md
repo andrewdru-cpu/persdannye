@@ -51,6 +51,8 @@ npm run dev
 
 Если `PARSER_API_BASE` задан, BFF логинится в парсер, создаёт скан и маппит фазы `queued | open | extract | rules | pdf` (+ `done | error | blocked`).
 
+Для **ngrok free** (`*.ngrok-free.dev`) BFF на каждом серверном запросе к парсеру ставит заголовок `ngrok-skip-browser-warning: true` и `User-Agent: PersDannye-BFF/1.0`, чтобы не упираться в interstitial. Токены по-прежнему только на сервере.
+
 ## Что есть на сайте
 
 - `/` — лендинг с проверкой URL, FAQ, формой заявки

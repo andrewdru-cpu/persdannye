@@ -42,6 +42,8 @@ When `PARSER_API_BASE` is set, the BFF:
 3. Polls: `GET {BASE}/api/scans/{scan_id}` until `phase` ∈ `done|error|blocked`
 4. PDF: `GET {BASE}/api/scans/{scan_id}/pdf` (only from the BFF)
 
+All parser fetches send `ngrok-skip-browser-warning: true` so free ngrok tunnels work from Vercel/Node (no browser interstitial).
+
 Phases: `queued|open|extract|rules|pdf` (+ terminal). Landing risks = `push===true` OR `findings.length>0` when `phase===done`.
 
 Without a public `PARSER_API_BASE` the site uses a polished mock parser.

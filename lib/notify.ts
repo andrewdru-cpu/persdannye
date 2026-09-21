@@ -44,6 +44,7 @@ function formatScanMessage(job: CheckJob, lead?: Lead | null): string {
     `Время: ${formatTs(job.updatedAt)}`,
   ];
   if (job.mock) lines.push("Режим: mock (PARSER_API_BASE не задан)");
+  else lines.push("Режим: live parser");
   if (job.scanId) lines.push(`Scan ID: ${job.scanId}`);
 
   if (job.findings.length > 0) {

@@ -126,7 +126,7 @@ export function LeadForm({
       </label>
       {error && <p className="text-sm text-rose-300 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={status === "loading"}>
+        <Button type="submit" disabled={status === "loading"} pulse>
           {status === "loading" ? "Отправляем…" : cta}
         </Button>
       </div>
