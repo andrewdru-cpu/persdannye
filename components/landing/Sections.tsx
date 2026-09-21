@@ -104,7 +104,7 @@ export function Hero() {
   return (
     <section className="relative overflow-hidden pb-16 pt-12 md:pb-28 md:pt-20">
       <HeroBackdrop />
-      <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 md:px-6 lg:grid-cols-12">
+      <div className="relative mx-auto grid max-w-6xl items-start gap-10 px-4 md:px-6 lg:grid-cols-12">
         <motion.div
           initial="hidden"
           animate="show"
@@ -172,12 +172,12 @@ export function Hero() {
         </motion.div>
 
         <motion.div
-          className="lg:col-span-5"
+          className="min-w-0 lg:col-span-5"
           initial={reduce ? false : { opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ delay: 0.35, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
         >
-          <GlassCard gold className="p-5 md:p-6">
+          <GlassCard gold className="p-5 md:p-6 lg:mt-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <div className="font-display text-2xl font-semibold text-white">

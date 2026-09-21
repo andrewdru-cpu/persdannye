@@ -214,7 +214,7 @@ export function UrlChecker({
             </div>
             <div className="mt-1.5 text-right text-xs text-white/40">{progress}%</div>
 
-            <ol className="mt-4 grid gap-2 sm:grid-cols-2">
+            <ol className={cn("mt-4 grid gap-2", compact ? "grid-cols-1" : "sm:grid-cols-2")}>
               {PHASE_STEPS.map((s, i) => {
                 const active = i === step;
                 const doneStep = i < step || job.phase === "done";

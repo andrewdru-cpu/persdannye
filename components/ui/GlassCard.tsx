@@ -15,7 +15,7 @@ export function GlassCard({
   return (
     <div
       className={cn(
-        "glass-card relative overflow-hidden rounded-3xl p-5 md:p-6",
+        "glass-card relative rounded-3xl p-5 md:p-6",
         gold ? "glass-card-gold" : "",
         className
       )}
