@@ -1,0 +1,276 @@
+@import "tailwindcss";
+
+:root {
+  --background: #070b14;
+  --foreground: #e8eef7;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ink-950: #070b14;
+  --color-ink-975: #050810;
+  --color-ink-900: #0c1220;
+  --color-amber-300: #fcd34d;
+  --color-amber-400: #fbbf24;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --shadow-glow: 0 0 40px rgba(251, 191, 36, 0.25);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  min-height: 100vh;
+  position: relative;
+}
+
+::selection {
+  background: rgba(251, 191, 36, 0.35);
+  color: #fff;
+}
+
+details summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Soft noise overlay */
+.noise-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+}
+
+/* Moving aurora blobs */
+.aurora {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  opacity: 0.55;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+  animation: aurora-drift 22s ease-in-out infinite;
+}
+
+.aurora-blob:nth-child(1) {
+  top: -10%;
+  left: 10%;
+  width: 42vw;
+  height: 42vw;
+  max-width: 520px;
+  max-height: 520px;
+  background: rgba(251, 191, 36, 0.14);
+  animation-duration: 26s;
+}
+
+.aurora-blob:nth-child(2) {
+  top: 35%;
+  right: -5%;
+  width: 38vw;
+  height: 38vw;
+  max-width: 460px;
+  max-height: 460px;
+  background: rgba(34, 211, 238, 0.1);
+  animation-duration: 32s;
+  animation-delay: -8s;
+}
+
+.aurora-blob:nth-child(3) {
+  bottom: -15%;
+  left: 30%;
+  width: 45vw;
+  height: 45vw;
+  max-width: 560px;
+  max-height: 560px;
+  background: rgba(167, 139, 250, 0.08);
+  animation-duration: 28s;
+  animation-delay: -14s;
+}
+
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(4%, -3%, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-3%, 4%, 0) scale(0.94);
+  }
+}
+
+/* Hero floating orbs */
+@keyframes float-orb {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(12px, -18px, 0);
+  }
+}
+
+@keyframes float-orb-alt {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-16px, 10px, 0);
+  }
+}
+
+.float-orb {
+  animation: float-orb 9s ease-in-out infinite;
+  will-change: transform;
+}
+
+.float-orb-alt {
+  animation: float-orb-alt 11s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Grid parallax subtle shift */
+@keyframes grid-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(12px, 8px, 0);
+  }
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 20%, transparent 75%);
+  animation: grid-drift 18s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* CTA glow pulse */
+@keyframes cta-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.35), 0 0 28px rgba(251, 191, 36, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(251, 191, 36, 0), 0 0 40px rgba(251, 191, 36, 0.35);
+  }
+}
+
+.cta-pulse {
+  animation: cta-pulse 2.4s ease-in-out infinite;
+}
+
+/* Marquee */
+@keyframes marquee-scroll {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 32s linear infinite;
+  will-change: transform;
+}
+
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* Shimmer progress bar */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(251, 191, 36, 0.35) 0%,
+    rgba(253, 224, 71, 0.95) 40%,
+    rgba(255, 255, 255, 0.9) 50%,
+    rgba(253, 224, 71, 0.95) 60%,
+    rgba(251, 191, 36, 0.35) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Scan pulse particles */
+@keyframes scan-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+}
+
+.scan-dot {
+  animation: scan-pulse 1.2s ease-in-out infinite;
+}
+
+.scan-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.scan-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .aurora-blob,
+  .float-orb,
+  .float-orb-alt,
+  .hero-grid,
+  .cta-pulse,
+  .marquee-track,
+  .shimmer-bar,
+  .scan-dot {
+    animation: none !important;
+  }
+
+  .noise-overlay {
+    opacity: 0.02;
+  }
+}

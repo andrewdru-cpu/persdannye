@@ -1,0 +1,11 @@
+[
+  {
+    "name": "Тест",
+    "email": "test@example.com",
+    "url": "demo-shop.ru",
+    "consent": true,
+    "source": "smoke",
+    "id": "c5ec6a81-4c5d-4eba-a3cb-0daa51cec63c",
+    "createdAt": "2026-09-21T14:39:58.428Z"
+  }
+]
