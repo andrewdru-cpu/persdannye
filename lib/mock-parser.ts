@@ -97,6 +97,7 @@ export function mockGetScan(id: string): CheckJob | null {
       findings,
       hasRisks: findings.length > 0,
       push: findings.length > 0,
+      pdfReady: false,
       createdAt: new Date(state.createdAt).toISOString(),
       updatedAt: new Date().toISOString(),
       mock: true,

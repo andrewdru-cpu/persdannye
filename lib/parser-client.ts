@@ -3,6 +3,7 @@ import { mockCreateScan, mockGetScan } from "./mock-parser";
 import {
   friendlyPhaseMessage,
   isTerminal,
+  normalizePhase,
   type ParserPhase,
 } from "./phases";
 import type { CheckJob, Finding } from "./types";
@@ -12,7 +13,8 @@ import { randomUUID } from "crypto";
 export { isParserConfigured, getParserBase };
 
 interface UpstreamCreate {
-  scan_id: string;
+  scan_id?: string;
+  id?: string;
   queued?: boolean;
   warning?: string | null;
 }
@@ -21,7 +23,8 @@ interface UpstreamScan {
   scan_id?: string;
   id?: string;
   url?: string;
-  phase: string;
+  phase?: string;
+  status?: string;
   phase_message?: string | null;
   score?: number | null;
   findings?: Finding[];
@@ -29,6 +32,9 @@ interface UpstreamScan {
   warning?: string | null;
   error?: string | null;
   message?: string | null;
+  pdf_ready?: boolean;
+  pdfReady?: boolean;
+  has_pdf?: boolean;
 }
 
 /** In-memory map: our check id → upstream scan_id (or mock) */
@@ -36,6 +42,13 @@ const jobMeta = new Map<
   string,
   { url: string; scanId: string; mock: boolean; createdAt: string; warning?: string | null }
 >();
+
+function resolvePdfReady(data: UpstreamScan, phase: string): boolean {
+  if (typeof data.pdf_ready === "boolean") return data.pdf_ready;
+  if (typeof data.pdfReady === "boolean") return data.pdfReady;
+  if (typeof data.has_pdf === "boolean") return data.has_pdf;
+  return phase === "done";
+}
 
 function mapUpstream(
   checkId: string,
@@ -46,7 +59,7 @@ function mapUpstream(
   warning?: string | null
 ): CheckJob {
   const domain = domainFromUrl(url);
-  const phase = (data.phase || "queued") as ParserPhase | string;
+  const phase = normalizePhase(data.phase || data.status || "queued") as ParserPhase | string;
   const findings = Array.isArray(data.findings) ? data.findings : [];
   const push = Boolean(data.push);
   const done = phase === "done";
@@ -56,7 +69,7 @@ function mapUpstream(
     id: checkId,
     url,
     domain,
-    scanId: data.scan_id || data.id,
+    scanId: data.scan_id || data.id || checkId,
     phase,
     phaseMessage: friendlyPhaseMessage(
       phase,
@@ -67,6 +80,7 @@ function mapUpstream(
     findings,
     hasRisks,
     push,
+    pdfReady: mock ? false : resolvePdfReady(data, phase),
     warning: data.warning ?? warning ?? null,
     error: data.error ?? (phase === "error" ? data.message : null) ?? null,
     createdAt,
@@ -75,14 +89,21 @@ function mapUpstream(
   };
 }
 
+function remember(
+  checkId: string,
+  meta: { url: string; scanId: string; mock: boolean; createdAt: string; warning?: string | null }
+) {
+  jobMeta.set(checkId, meta);
+}
+
 export async function createCheck(url: string): Promise<CheckJob> {
-  const id = randomUUID();
   const createdAt = new Date().toISOString();
   const domain = domainFromUrl(url);
 
   if (!isParserConfigured()) {
+    const id = randomUUID();
     mockCreateScan(id, url);
-    jobMeta.set(id, { url, scanId: id, mock: true, createdAt });
+    remember(id, { url, scanId: id, mock: true, createdAt });
     const job = mockGetScan(id)!;
     return { ...job, id, createdAt };
   }
@@ -96,9 +117,16 @@ export async function createCheck(url: string): Promise<CheckJob> {
     throw new Error(`Не удалось создать сканирование: ${res.status} ${text}`);
   }
   const data = (await res.json()) as UpstreamCreate;
-  jobMeta.set(id, {
+  const scanId = data.scan_id || data.id;
+  if (!scanId) {
+    throw new Error("Parser API не вернул scan_id");
+  }
+
+  // Use upstream scan_id as public check id so serverless polls can recover.
+  const id = scanId;
+  remember(id, {
     url,
-    scanId: data.scan_id,
+    scanId,
     mock: false,
     createdAt,
     warning: data.warning,
@@ -108,12 +136,13 @@ export async function createCheck(url: string): Promise<CheckJob> {
     id,
     url,
     domain,
-    scanId: data.scan_id,
+    scanId,
     phase: "queued",
     phaseMessage: friendlyPhaseMessage("queued", domain),
     score: null,
     findings: [],
     hasRisks: false,
+    pdfReady: false,
     warning: data.warning ?? null,
     createdAt,
     updatedAt: createdAt,
@@ -123,24 +152,62 @@ export async function createCheck(url: string): Promise<CheckJob> {
 
 export async function getCheck(id: string): Promise<CheckJob | null> {
   const meta = jobMeta.get(id);
-  if (!meta) {
-    // allow recovering mock by id if process kept mock map
-    const mock = mockGetScan(id);
-    return mock;
-  }
 
-  if (meta.mock || !isParserConfigured()) {
+  if (meta?.mock || !isParserConfigured()) {
     return mockGetScan(id);
   }
 
-  const res = await parserFetch(`/api/scans/${meta.scanId}`, { method: "GET" });
-  if (res.status === 404) return null;
+  const scanId = meta?.scanId || id;
+  const res = await parserFetch(`/api/scans/${scanId}`, { method: "GET" });
+  if (res.status === 404) {
+    const mock = mockGetScan(id);
+    return mock;
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Ошибка статуса скана: ${res.status} ${text}`);
   }
   const data = (await res.json()) as UpstreamScan;
-  return mapUpstream(id, meta.url, data, false, meta.createdAt, meta.warning);
+  const url = meta?.url || data.url || "";
+  const createdAt = meta?.createdAt || new Date().toISOString();
+  if (!meta) {
+    remember(id, {
+      url,
+      scanId,
+      mock: false,
+      createdAt,
+      warning: data.warning,
+    });
+  }
+  return mapUpstream(id, url, data, false, createdAt, meta?.warning);
+}
+
+export async function getCheckPdf(
+  id: string
+): Promise<{ buffer: Buffer; filename: string; contentType: string } | null> {
+  if (!isParserConfigured()) return null;
+  const meta = jobMeta.get(id);
+  if (meta?.mock) return null;
+
+  const scanId = meta?.scanId || id;
+  const res = await parserFetch(`/api/scans/${scanId}/pdf`, {
+    method: "GET",
+    headers: { Accept: "application/pdf" },
+  });
+  if (res.status === 404 || res.status === 409) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Не удалось получить PDF: ${res.status} ${text}`);
+  }
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (!buffer.length) return null;
+  const domain = meta?.url ? domainFromUrl(meta.url) : "report";
+  const safe = domain.replace(/[^a-z0-9.-]/gi, "_") || "report";
+  return {
+    buffer,
+    filename: `persdannye-${safe}.pdf`,
+    contentType: res.headers.get("content-type") || "application/pdf",
+  };
 }
 
 export function checkIsTerminal(job: CheckJob): boolean {

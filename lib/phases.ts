@@ -43,8 +43,55 @@ export const PHASE_STEPS: {
 
 export const TERMINAL_PHASES: ParserPhase[] = ["done", "error", "blocked"];
 
+const PHASE_ALIASES: Record<string, ParserPhase> = {
+  queued: "queued",
+  pending: "queued",
+  created: "queued",
+  new: "queued",
+  waiting: "queued",
+  open: "open",
+  opening: "open",
+  fetch: "open",
+  fetching: "open",
+  crawl: "open",
+  crawling: "open",
+  browse: "open",
+  browsing: "open",
+  extract: "extract",
+  extracting: "extract",
+  parse: "extract",
+  parsing: "extract",
+  analyze: "extract",
+  analyzing: "extract",
+  rules: "rules",
+  checking: "rules",
+  scoring: "rules",
+  score: "rules",
+  pdf: "pdf",
+  report: "pdf",
+  rendering: "pdf",
+  render: "pdf",
+  done: "done",
+  complete: "done",
+  completed: "done",
+  finished: "done",
+  success: "done",
+  error: "error",
+  failed: "error",
+  fail: "error",
+  blocked: "blocked",
+  unavailable: "blocked",
+};
+
+/** Map upstream phase names onto queued|open|extract|rules|pdf (+ terminal). */
+export function normalizePhase(raw: string | null | undefined): ParserPhase | string {
+  if (!raw) return "queued";
+  const key = String(raw).trim().toLowerCase();
+  return PHASE_ALIASES[key] || raw;
+}
+
 export function isTerminal(phase: string): boolean {
-  return TERMINAL_PHASES.includes(phase as ParserPhase);
+  return TERMINAL_PHASES.includes(normalizePhase(phase) as ParserPhase);
 }
 
 export function phaseIndex(phase: string): number {

@@ -8,8 +8,11 @@ export function SiteAtmosphere() {
 
   return (
     <>
+      <div className="luxury-vignette" aria-hidden />
       {!reduce && (
         <div className="aurora" aria-hidden>
+          <div className="aurora-blob" />
+          <div className="aurora-blob" />
           <div className="aurora-blob" />
           <div className="aurora-blob" />
           <div className="aurora-blob" />

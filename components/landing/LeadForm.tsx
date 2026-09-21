@@ -73,7 +73,7 @@ export function LeadForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Имя *"
-        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50"
+        className="rounded-xl border border-amber-200/15 bg-white/[0.06] px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50"
       />
       <input
         required
@@ -81,32 +81,32 @@ export function LeadForm({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Email *"
-        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50"
+        className="rounded-xl border border-amber-200/15 bg-white/[0.06] px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50"
       />
       <input
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="Телефон"
-        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50"
+        className="rounded-xl border border-amber-200/15 bg-white/[0.06] px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50"
       />
       <input
         value={companyName}
         onChange={(e) => setCompanyName(e.target.value)}
         placeholder="Компания"
-        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50"
+        className="rounded-xl border border-amber-200/15 bg-white/[0.06] px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50"
       />
       <input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="Сайт"
-        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50 sm:col-span-2"
+        className="rounded-xl border border-amber-200/15 bg-white/[0.06] px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50 sm:col-span-2"
       />
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Комментарий"
         rows={3}
-        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50 sm:col-span-2"
+        className="rounded-xl border border-amber-200/15 bg-white/[0.06] px-3 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-amber-400/50 sm:col-span-2"
       />
       <label className="flex items-start gap-2 text-xs leading-relaxed text-white/65 sm:col-span-2">
         <input

@@ -1,0 +1,27 @@
+"use client";
+
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
+
+export function GlassCard({
+  children,
+  className,
+  gold = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  gold?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "glass-card relative overflow-hidden rounded-3xl p-5 md:p-6",
+        gold ? "glass-card-gold" : "",
+        className
+      )}
+    >
+      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent" />
+      {children}
+    </div>
+  );
+}

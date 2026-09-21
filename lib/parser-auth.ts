@@ -14,6 +14,10 @@ export function isParserConfigured(): boolean {
   return Boolean(getParserBase());
 }
 
+function clearParserToken() {
+  cachedToken = null;
+}
+
 async function loginWithPassword(base: string): Promise<string> {
   const email = process.env.PARSER_API_EMAIL?.trim();
   const password = process.env.PARSER_API_PASSWORD;
@@ -71,14 +75,38 @@ export async function parserFetch(
 ): Promise<Response> {
   const base = getParserBase();
   if (!base) throw new Error("PARSER_API_BASE не задан");
-  const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-  if (auth) {
-    const token = await getParserBearer();
-    headers.set("Authorization", `Bearer ${token}`);
+
+  const doFetch = async (): Promise<Response> => {
+    const headers = new Headers(init.headers);
+    if (!headers.has("Accept")) headers.set("Accept", "application/json");
+    if (auth) {
+      const token = await getParserBearer();
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    if (init.body && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25_000);
+    if (init.signal) {
+      init.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+    try {
+      return await fetch(`${base}${path}`, {
+        ...init,
+        headers,
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  let res = await doFetch();
+  if (auth && res.status === 401) {
+    clearParserToken();
+    res = await doFetch();
   }
-  if (init.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  return fetch(`${base}${path}`, { ...init, headers, cache: "no-store" });
+  return res;
 }

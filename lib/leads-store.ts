@@ -38,3 +38,22 @@ export async function addLead(
   await fs.writeFile(DATA_PATH, JSON.stringify(leads, null, 2) + "\n", "utf8");
   return lead;
 }
+
+export async function findLeadForCheck(
+  checkId?: string,
+  url?: string
+): Promise<Lead | null> {
+  const leads = await listLeads();
+  if (checkId) {
+    const byCheck = leads.find((l) => l.checkId === checkId);
+    if (byCheck) return byCheck;
+  }
+  if (url) {
+    const needle = url.replace(/\/$/, "").toLowerCase();
+    const byUrl = leads.find(
+      (l) => l.url && l.url.replace(/\/$/, "").toLowerCase() === needle
+    );
+    if (byUrl) return byUrl;
+  }
+  return null;
+}
