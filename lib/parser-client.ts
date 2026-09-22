@@ -76,12 +76,6 @@ export function isUnknownFieldRejection(status: number, text: string): boolean {
   );
 }
 
-/** A 400/422 that is about the URL itself should not be retried without mode/lead. */
-function isClearlyUrlError(text: string): boolean {
-  if (isUnknownFieldRejection(400, text) || isUnknownFieldRejection(422, text)) return false;
-  return /url|домен|некоррект|invalid host|protocol/i.test(text);
-}
-
 function resolvePdfReady(data: UpstreamScan, phase: string): boolean {
   if (typeof data.pdf_ready === "boolean") return data.pdf_ready;
   if (typeof data.pdfReady === "boolean") return data.pdfReady;
@@ -155,8 +149,9 @@ async function postScan(body: Record<string, unknown>): Promise<Response> {
 }
 
 /**
- * Prefer `{ url, mode: "quick", lead? }`. If the parser build rejects unknown
- * fields, drop `lead` and then `mode` and retry with `{ url }`.
+ * Landing checks always ask for quick mode. Lead contacts go with the same
+ * body when the visitor filled them. An older parser that rejects unknown
+ * fields is retried without `lead`, then with `{ url }` only.
  */
 async function createUpstreamScan(
   url: string,
@@ -179,10 +174,7 @@ async function createUpstreamScan(
     const text = await readParserBody(res);
     lastStatus = res.status;
     lastText = text;
-    const canFallback =
-      i < attempts.length - 1 &&
-      (res.status === 400 || res.status === 422) &&
-      !isClearlyUrlError(text);
+    const canFallback = i < attempts.length - 1 && isUnknownFieldRejection(res.status, text);
     if (!canFallback) break;
     console.info(
       `[parser] create scan rejected extra fields (${res.status}), retrying a simpler body`

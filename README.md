@@ -38,7 +38,7 @@ Client never sees tokens. Browser calls only:
 When `PARSER_API_BASE` is set, the BFF:
 
 1. Authenticates with `PARSER_API_EMAIL` + `PARSER_API_PASSWORD` via `POST {BASE}/api/auth/login` (JWT cached server-side), **or** uses `PARSER_API_TOKEN` as Bearer
-2. Creates scan: `POST {BASE}/api/scans` `{ "url", "mode": "quick", "lead?": { name, email, phone, source: "landing" } }`. If the parser rejects unknown fields, the BFF retries without `lead`, then with `{ "url" }` only.
+2. Creates scan: `POST {BASE}/api/scans` always `{ "url", "mode": "quick" }`, plus `lead: { name, email, phone, source: "landing" }` when the visitor left contacts. If an older parser rejects those fields, the BFF retries without `lead`, then with `{ "url" }` only.
 3. Polls: `GET {BASE}/api/scans/{scan_id}` until `phase` ∈ `done|error|blocked`
 4. PDF: `GET {BASE}/api/scans/{scan_id}/pdf` (only from the BFF)
 
