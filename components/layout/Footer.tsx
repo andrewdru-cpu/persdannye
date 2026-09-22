@@ -3,9 +3,9 @@ import { company } from "@/lib/company";
 
 export function Footer() {
   return (
-    <footer className="border-t border-amber-200/10 bg-ink-975">
+    <footer className="border-t border-amber-200/15 bg-ink-975">
       <div className="gold-hairline" />
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 md:grid-cols-3 md:px-6">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 md:grid-cols-3 md:px-6">
         <div>
           <div className="mb-3 font-display text-2xl font-semibold text-white">{company.brand}</div>
           <p className="text-sm leading-relaxed text-white/60">

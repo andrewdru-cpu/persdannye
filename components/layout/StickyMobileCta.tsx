@@ -9,7 +9,7 @@ export function StickyMobileCta() {
 
   return (
     <motion.div
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-ink-950/95 p-3 backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-amber-200/30 bg-ink-950/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-24px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl md:hidden"
       initial={reduce ? false : { y: 80, opacity: 0 }}
       animate={reduce ? undefined : { y: 0, opacity: 1 }}
       transition={

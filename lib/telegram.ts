@@ -19,10 +19,6 @@ function getChatId(): string | null {
   return id || null;
 }
 
-export function notifyOnCleanEnabled(): boolean {
-  return process.env.TELEGRAM_NOTIFY_ON_CLEAN === "true";
-}
-
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }

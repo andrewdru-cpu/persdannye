@@ -9,35 +9,45 @@ export type ParserPhase =
   | "error"
   | "blocked";
 
+/** How often the landing polls an in-progress scan. */
+export const ACTIVE_POLL_MS = 1500;
+
 export const PHASE_STEPS: {
   id: ParserPhase;
   label: string;
   description: string;
+  /** Typical duration shown while the step is active. */
+  eta: string;
 }[] = [
   {
     id: "queued",
     label: "В очереди",
     description: "Задача принята, ждём свободный воркер",
+    eta: "1–2 с",
   },
   {
     id: "open",
     label: "Открываем сайт",
     description: "Загружаем страницы и cookie-баннеры",
+    eta: "3–8 с",
   },
   {
     id: "extract",
     label: "Извлекаем данные",
     description: "Собираем формы, политики, скрипты и согласия",
+    eta: "4–10 с",
   },
   {
     id: "rules",
     label: "Проверяем правила 152-ФЗ",
     description: "Сверяем с актуальной базой требований РКН",
+    eta: "3–8 с",
   },
   {
     id: "pdf",
     label: "Формируем отчёт",
     description: "Готовим сводку нарушений и рекомендаций",
+    eta: "2–6 с",
   },
 ];
 

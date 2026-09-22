@@ -20,7 +20,7 @@ type Props = {
 const variants = {
   primary: "btn-gold hover:brightness-110",
   secondary:
-    "bg-white/5 text-white border border-amber-200/20 hover:bg-white/10 hover:border-amber-300/45",
+    "bg-[#14110c]/80 text-[#f7f1e6] border border-amber-200/40 hover:bg-amber-200/10 hover:border-amber-100/70",
   ghost: "bg-transparent text-white/80 hover:text-white hover:bg-white/5",
   danger: "bg-rose-600/90 text-white hover:bg-rose-500",
 };
@@ -28,7 +28,7 @@ const variants = {
 const sizes = {
   sm: "px-3 py-1.5 text-sm rounded-lg",
   md: "px-5 py-2.5 text-sm rounded-xl",
-  lg: "px-6 py-3.5 text-base rounded-2xl",
+  lg: "min-h-12 px-7 py-3.5 text-base rounded-2xl",
 };
 
 export function Button({

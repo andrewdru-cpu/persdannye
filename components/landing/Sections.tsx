@@ -102,9 +102,9 @@ export function Hero() {
   const reduce = useReducedMotion();
 
   return (
-    <section className="relative overflow-hidden pb-16 pt-12 md:pb-28 md:pt-20">
+    <section className="relative overflow-hidden pb-20 pt-14 md:pb-32 md:pt-24">
       <HeroBackdrop />
-      <div className="relative mx-auto grid max-w-6xl items-start gap-10 px-4 md:px-6 lg:grid-cols-12">
+      <div className="relative mx-auto grid max-w-6xl items-start gap-12 px-4 md:px-6 lg:grid-cols-12 lg:gap-16">
         <motion.div
           initial="hidden"
           animate="show"
@@ -115,80 +115,108 @@ export function Hero() {
             variants={reduce ? undefined : heroLine}
             initial={reduce ? false : "hidden"}
             animate="show"
-            className="inline-flex items-center gap-2 rounded-full border border-amber-300/35 bg-amber-400/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100"
+            className="inline-flex items-center gap-2 rounded-full border border-amber-200/35 bg-amber-100/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-50"
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.9)]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_12px_rgba(231,211,161,0.9)]" />
             Закрытый контур · 152-ФЗ / РКН
           </motion.div>
-          <motion.h1
+          <motion.p
             custom={1}
             variants={reduce ? undefined : heroLine}
             initial={reduce ? false : "hidden"}
             animate="show"
-            className="mt-6 font-display text-5xl font-semibold leading-[1.05] text-white md:text-7xl"
+            className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-200/80"
           >
-            Найдите несоответствие{" "}
-            <span className={reduce ? "text-amber-200" : "gold-text-sheen"}>
-              Роскомнадзора
-            </span>{" "}
-            до штрафа, не после
-          </motion.h1>
-          <motion.div
+            До штрафа — не после
+          </motion.p>
+          <motion.h1
             custom={2}
             variants={reduce ? undefined : heroLine}
             initial={reduce ? false : "hidden"}
             animate="show"
-            className="mt-5 h-px w-28 bg-gradient-to-r from-amber-200 via-amber-400 to-transparent"
-          />
-          <motion.p
+            className="mt-3 max-w-xl font-display text-[2.7rem] font-semibold leading-[0.98] text-white sm:text-6xl md:text-7xl"
+          >
+            Найдите несоответствие{" "}
+            <span className={reduce ? "text-amber-100" : "gold-text-sheen"}>
+              Роскомнадзора
+            </span>
+          </motion.h1>
+          <motion.div
             custom={3}
             variants={reduce ? undefined : heroLine}
             initial={reduce ? false : "hidden"}
             animate="show"
-            className="mt-5 max-w-xl text-base leading-relaxed text-white/70 md:text-lg"
-          >
-            «ПерсДанные» проводит премиальный экспресс-аудит сайта: политики, cookie,
-            формы и согласия. Показываем факты, готовим план устранения. Требования
-            РКН актуализируем каждый день. Нам доверяют уже 1000+ компаний.
-          </motion.p>
-          <motion.div
+            className="mt-6 h-px w-36 bg-gradient-to-r from-amber-100 via-amber-400/80 to-transparent"
+          />
+          <motion.p
             custom={4}
             variants={reduce ? undefined : heroLine}
             initial={reduce ? false : "hidden"}
             animate="show"
-            className="mt-8 flex flex-wrap gap-3"
+            className="mt-6 max-w-xl text-base leading-relaxed text-white/72 md:text-lg"
           >
-            <Link href="/check">
-              <Button size="lg" pulse>
+            «ПерсДанные» проводит экспресс-аудит сайта для собственника и юриста:
+            политики, cookie, формы и согласия. Факты — сразу, план устранения — с
+            нашей командой. Базу требований РКН обновляем каждый день.
+          </motion.p>
+          <motion.div
+            custom={5}
+            variants={reduce ? undefined : heroLine}
+            initial={reduce ? false : "hidden"}
+            animate="show"
+            className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap"
+          >
+            <Link href="/check" className="w-full sm:w-auto">
+              <Button size="lg" pulse className="w-full sm:w-auto">
                 Проверить свой сайт
               </Button>
             </Link>
-            <Link href="/#lead">
-              <Button size="lg" variant="secondary">
+            <Link href="/#lead" className="w-full sm:w-auto">
+              <Button size="lg" variant="secondary" className="w-full sm:w-auto">
                 Получить полный отчёт
               </Button>
             </Link>
           </motion.div>
+          <motion.dl
+            custom={6}
+            variants={reduce ? undefined : heroLine}
+            initial={reduce ? false : "hidden"}
+            animate="show"
+            className="mt-8 grid grid-cols-3 gap-3 border-t border-amber-200/15 pt-5"
+          >
+            {[
+              ["1000+", "компаний"],
+              ["минуты", "до рисков"],
+              ["24/7", "база РКН"],
+            ].map(([k, v]) => (
+              <div key={v}>
+                <dt className="font-display text-2xl text-amber-100 sm:text-3xl">{k}</dt>
+                <dd className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/50 sm:text-xs">
+                  {v}
+                </dd>
+              </div>
+            ))}
+          </motion.dl>
         </motion.div>
 
         <motion.div
           className="min-w-0 lg:col-span-5"
-          initial={reduce ? false : { opacity: 0, y: 28, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ delay: 0.35, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+          initial={reduce ? false : { opacity: 0, y: 28 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={reduce ? { duration: 0 } : { delay: 0.35, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
         >
-          <GlassCard gold className="p-5 md:p-6 lg:mt-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          <GlassCard gold className="p-5 md:p-7 lg:mt-4">
+            <div className="mb-5 flex items-start justify-between gap-3">
               <div>
-                <div className="font-display text-2xl font-semibold text-white">
+                <div className="font-display text-3xl font-semibold text-white">
                   Экспресс-проверка
                 </div>
-                <p className="mt-1 text-sm text-white/55">
-                  Введите URL — статус и находки за минуты
+                <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/55">
+                  URL достаточно. Статус и находки обновляются по ходу проверки.
                 </p>
               </div>
-              <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-100">
-                Live
+              <span className="shrink-0 rounded-full border border-amber-200/35 bg-amber-100/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-50">
+                Быстро
               </span>
             </div>
             <UrlChecker compact pulseCta />
@@ -203,23 +231,24 @@ export function Trust() {
   return (
     <>
       <TrustMarquee />
-      <section className="border-b border-amber-200/10 bg-white/[0.015] py-12">
-        <div className="mx-auto max-w-6xl px-4 md:px-6">
-          <Stagger className="grid gap-4 md:grid-cols-3">
-            {trustItems.map((item) => (
-              <StaggerItem key={item.t}>
-                <GlassCard className="h-full p-6 transition hover:border-amber-300/35">
-                  <div className="font-display text-4xl font-semibold text-amber-200">
-                    {item.k}
-                  </div>
-                  <div className="mt-1 text-sm font-semibold uppercase tracking-[0.16em] text-white/80">
-                    {item.t}
-                  </div>
-                  <p className="mt-3 text-sm leading-relaxed text-white/60">{item.d}</p>
-                </GlassCard>
-              </StaggerItem>
-            ))}
-          </Stagger>
+      <section className="trust-bar" aria-label="Почему нам доверяют">
+        <div className="mx-auto grid max-w-6xl md:grid-cols-3">
+          {trustItems.map((item, i) => (
+            <div
+              key={item.t}
+              className={`px-5 py-8 md:px-8 md:py-10 ${
+                i > 0 ? "border-t border-amber-200/15 md:border-t-0 md:border-l" : ""
+              }`}
+            >
+              <div className="font-display text-4xl font-semibold text-amber-100 md:text-5xl">
+                {item.k}
+              </div>
+              <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">
+                {item.t}
+              </div>
+              <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/55">{item.d}</p>
+            </div>
+          ))}
         </div>
       </section>
     </>
@@ -230,7 +259,7 @@ export function HowItWorks() {
   const reduce = useReducedMotion();
 
   return (
-    <section id="how" className="scroll-mt-24 py-16 md:py-24">
+    <section id="how" className="scroll-mt-24 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
@@ -286,7 +315,7 @@ export function HowItWorks() {
 
 export function WhatWeCheck() {
   return (
-    <section id="checks" className="scroll-mt-24 border-y border-amber-200/10 bg-ink-975/80 py-16 md:py-24">
+    <section id="checks" className="scroll-mt-24 border-y border-amber-200/10 bg-ink-975/80 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
@@ -317,7 +346,7 @@ export function WhatWeCheck() {
 
 export function ExampleResult() {
   return (
-    <section className="py-16 md:py-24">
+    <section className="py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
@@ -371,7 +400,7 @@ export function ExampleResult() {
 
 export function WhoFor() {
   return (
-    <section className="border-y border-amber-200/10 py-16 md:py-24">
+    <section className="border-y border-amber-200/10 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
@@ -398,7 +427,7 @@ export function WhoFor() {
 
 export function FixWithUs() {
   return (
-    <section className="py-16 md:py-24">
+    <section className="py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <GlassCard gold className="p-8 md:p-12">
@@ -433,7 +462,7 @@ export function FixWithUs() {
 
 export function FAQ() {
   return (
-    <section id="faq" className="scroll-mt-24 border-t border-amber-200/10 py-16 md:py-24">
+    <section id="faq" className="scroll-mt-24 border-t border-amber-200/10 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
@@ -462,7 +491,7 @@ export function FAQ() {
 
 export function LeadSection() {
   return (
-    <section id="lead" className="scroll-mt-24 bg-ink-975 py-16 md:py-24">
+    <section id="lead" className="scroll-mt-24 bg-ink-975 py-20 md:py-28">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 md:grid-cols-2 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">

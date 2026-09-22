@@ -11,16 +11,16 @@ export function HeroBackdrop() {
       {!reduce && <div className="hero-rays" />}
 
       <div
-        className={`absolute left-1/2 top-[-18%] h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-amber-400/25 blur-[130px] ${reduce ? "" : "float-orb"}`}
+        className={`absolute left-1/2 top-[-18%] h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-amber-200/20 blur-[130px] ${reduce ? "" : "float-orb"}`}
       />
       <div
-        className={`absolute bottom-[-8%] right-[-8%] h-80 w-80 rounded-full bg-amber-500/15 blur-[110px] ${reduce ? "" : "float-orb-alt"}`}
+        className={`absolute bottom-[-8%] right-[-8%] h-80 w-80 rounded-full bg-amber-700/25 blur-[110px] ${reduce ? "" : "float-orb-alt"}`}
       />
       <div
-        className={`absolute left-[4%] top-[36%] h-56 w-56 rounded-full bg-violet-500/12 blur-[90px] ${reduce ? "" : "float-orb"}`}
+        className={`absolute left-[4%] top-[36%] h-56 w-56 rounded-full bg-amber-100/10 blur-[90px] ${reduce ? "" : "float-orb"}`}
       />
       <div
-        className={`absolute right-[18%] top-[12%] h-40 w-40 rounded-full bg-yellow-200/10 blur-[70px] ${reduce ? "" : "float-orb-alt"}`}
+        className={`absolute right-[18%] top-[12%] h-40 w-40 rounded-full bg-amber-50/10 blur-[70px] ${reduce ? "" : "float-orb-alt"}`}
       />
 
       {!reduce && (

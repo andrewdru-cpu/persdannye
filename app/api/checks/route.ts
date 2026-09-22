@@ -7,6 +7,13 @@ export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   url: z.string().min(3, "Укажите URL сайта"),
+  lead: z
+    .object({
+      name: z.string().trim().max(120).optional(),
+      email: z.string().trim().max(200).optional(),
+      phone: z.string().trim().max(40).optional(),
+    })
+    .optional(),
 });
 
 export async function POST(req: Request) {
@@ -25,7 +32,14 @@ export async function POST(req: Request) {
     } catch {
       return NextResponse.json({ error: "Некорректный URL" }, { status: 400 });
     }
-    const job = await createCheck(url);
+    const lead = parsed.data.lead;
+    const name = lead?.name || undefined;
+    const email = lead?.email || undefined;
+    const phone = lead?.phone || undefined;
+    const job = await createCheck(
+      url,
+      name || email || phone ? { name, email, phone } : undefined
+    );
     return NextResponse.json(job, { status: 201 });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ошибка сервера";

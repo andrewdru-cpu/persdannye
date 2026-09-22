@@ -10,19 +10,19 @@ export const metadata: Metadata = {
 
 export default function CheckPage() {
   return (
-    <div className="relative overflow-hidden py-14 md:py-24">
-      <div className="pointer-events-none absolute left-1/2 top-6 h-80 w-[640px] -translate-x-1/2 rounded-full bg-amber-400/18 blur-[110px]" />
+    <div className="relative overflow-hidden py-16 md:py-28">
+      <div className="pointer-events-none absolute left-1/2 top-0 h-80 w-[680px] -translate-x-1/2 rounded-full bg-amber-200/15 blur-[120px]" />
       <div className="relative mx-auto max-w-3xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-200/80">
             Экспресс-аудит
           </p>
-          <h1 className="mt-3 font-display text-4xl font-semibold text-white md:text-6xl">
+          <h1 className="mt-3 font-display text-4xl font-semibold leading-[1.02] text-white md:text-6xl">
             Проверить свой сайт
           </h1>
-          <p className="mt-4 text-white/65">
-            Введите URL — покажем статус соответствия, список находок и предложим
-            полный отчёт или помощь с устранением.
+          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/65">
+            Введите URL — статус, балл и находки обновляются по ходу. Страницу
+            можно листать: проверка не блокирует экран.
           </p>
         </Reveal>
         <Reveal delay={0.08} className="mt-8">

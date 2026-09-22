@@ -9,6 +9,14 @@ export interface Finding {
   severity: FindingSeverity;
 }
 
+/** Contacts captured on the landing at the moment a scan is created. */
+export interface ScanContact {
+  name?: string;
+  email?: string;
+  phone?: string;
+  source?: string;
+}
+
 export interface CheckJob {
   id: string;
   url: string;
@@ -26,6 +34,8 @@ export interface CheckJob {
   pdfReady?: boolean;
   warning?: string | null;
   error?: string | null;
+  /** Lead fields supplied with the check, if any. */
+  contact?: ScanContact | null;
   createdAt: string;
   updatedAt: string;
   mock: boolean;

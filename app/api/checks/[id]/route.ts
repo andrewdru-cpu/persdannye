@@ -18,7 +18,7 @@ export async function GET(
       return NextResponse.json({ error: "Проверка не найдена" }, { status: 404 });
     }
 
-    // Immediate manager alert when a scan finishes with risks (or clean if enabled).
+    // Every finished landing scan alerts the manager (risks or not).
     await notifyScanIfNeeded(job);
 
     return NextResponse.json(job);

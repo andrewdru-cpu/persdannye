@@ -17,10 +17,11 @@ const nav = [
 export function Header() {
   const [open, setOpen] = useState(false);
   return (
-    <header className="sticky top-0 z-40 border-b border-amber-200/10 bg-ink-950/70 backdrop-blur-2xl">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 md:px-6">
+    <header className="sticky top-0 z-40 border-b border-amber-200/15 bg-ink-950/75 backdrop-blur-2xl">
+      <div className="gold-hairline" />
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5 md:px-6 md:py-4">
         <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-200 via-amber-400 to-amber-700 text-sm font-bold text-ink-950 shadow-glow">
+          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-50 via-amber-300 to-amber-600 text-sm font-bold text-ink-950 shadow-glow">
             ПД
           </span>
           <span className="font-display text-xl font-semibold text-white">{company.brand}</span>

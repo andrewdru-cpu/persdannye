@@ -6,8 +6,15 @@ import {
   normalizePhase,
   type ParserPhase,
 } from "./phases";
-import type { CheckJob, Finding } from "./types";
+import type { CheckJob, Finding, ScanContact } from "./types";
 import { domainFromUrl } from "./utils";
+import {
+  findScanContact,
+  hasScanContact,
+  mergeScanContact,
+  normalizeScanContact,
+  saveScanContact,
+} from "./scan-contacts";
 import { randomUUID } from "crypto";
 
 export { isParserConfigured, getParserBase };
@@ -35,13 +42,45 @@ interface UpstreamScan {
   pdf_ready?: boolean;
   pdfReady?: boolean;
   has_pdf?: boolean;
+  lead?: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    source?: string | null;
+  } | null;
 }
 
+type JobMeta = {
+  url: string;
+  scanId: string;
+  mock: boolean;
+  createdAt: string;
+  warning?: string | null;
+  lead?: ScanContact | null;
+};
+
 /** In-memory map: our check id → upstream scan_id (or mock) */
-const jobMeta = new Map<
-  string,
-  { url: string; scanId: string; mock: boolean; createdAt: string; warning?: string | null }
->();
+const jobMeta = new Map<string, JobMeta>();
+
+export type CreateScanLead = {
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+};
+
+/** 400/422 that complains about fields the parser build does not know yet. */
+export function isUnknownFieldRejection(status: number, text: string): boolean {
+  if (status !== 400 && status !== 422) return false;
+  return /unknown|unexpected|additional|extra[_\s-]?forbidden|extra inputs|unrecognized|not permitted|not allowed|unexpected field|additional propert|\bmode\b|\blead\b|неизвестн|лишн|не поддерж/i.test(
+    text
+  );
+}
+
+/** A 400/422 that is about the URL itself should not be retried without mode/lead. */
+function isClearlyUrlError(text: string): boolean {
+  if (isUnknownFieldRejection(400, text) || isUnknownFieldRejection(422, text)) return false;
+  return /url|домен|некоррект|invalid host|protocol/i.test(text);
+}
 
 function resolvePdfReady(data: UpstreamScan, phase: string): boolean {
   if (typeof data.pdf_ready === "boolean") return data.pdf_ready;
@@ -83,40 +122,129 @@ function mapUpstream(
     pdfReady: mock ? false : resolvePdfReady(data, phase),
     warning: data.warning ?? warning ?? null,
     error: data.error ?? (phase === "error" ? data.message : null) ?? null,
+    contact: normalizeScanContact(data.lead),
     createdAt,
     updatedAt: new Date().toISOString(),
     mock,
   };
 }
 
-function remember(
-  checkId: string,
-  meta: { url: string; scanId: string; mock: boolean; createdAt: string; warning?: string | null }
-) {
+function scanCreateBody(
+  url: string,
+  contact: ScanContact | null,
+  opts: { mode: boolean; lead: boolean }
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { url };
+  if (opts.mode) body.mode = "quick";
+  if (opts.lead && contact) {
+    body.lead = {
+      ...(contact.name ? { name: contact.name } : {}),
+      ...(contact.email ? { email: contact.email } : {}),
+      ...(contact.phone ? { phone: contact.phone } : {}),
+      source: "landing",
+    };
+  }
+  return body;
+}
+
+async function postScan(body: Record<string, unknown>): Promise<Response> {
+  return parserFetch("/api/scans", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Prefer `{ url, mode: "quick", lead? }`. If the parser build rejects unknown
+ * fields, drop `lead` and then `mode` and retry with `{ url }`.
+ */
+async function createUpstreamScan(
+  url: string,
+  contact: ScanContact | null
+): Promise<UpstreamCreate> {
+  const attempts: Record<string, unknown>[] = [
+    scanCreateBody(url, contact, { mode: true, lead: Boolean(contact) }),
+  ];
+  if (contact) {
+    attempts.push(scanCreateBody(url, null, { mode: true, lead: false }));
+  }
+  attempts.push({ url });
+
+  let lastStatus = 0;
+  let lastText = "";
+  for (let i = 0; i < attempts.length; i++) {
+    const res = await postScan(attempts[i]);
+    if (res.ok) return parserJson<UpstreamCreate>(res);
+
+    const text = await readParserBody(res);
+    lastStatus = res.status;
+    lastText = text;
+    const canFallback =
+      i < attempts.length - 1 &&
+      (res.status === 400 || res.status === 422) &&
+      !isClearlyUrlError(text);
+    if (!canFallback) break;
+    console.info(
+      `[parser] create scan rejected extra fields (${res.status}), retrying a simpler body`
+    );
+  }
+
+  throw new Error(
+    `Не удалось создать сканирование: ${lastStatus} ${lastText}`.slice(0, 400)
+  );
+}
+
+async function rememberContact(
+  id: string,
+  url: string,
+  contact: ScanContact | null
+): Promise<void> {
+  if (!hasScanContact(contact) || !contact) return;
+  try {
+    await saveScanContact(id, url, contact);
+  } catch (err) {
+    console.error("[scan-contact] save failed", err);
+  }
+}
+
+async function resolveContact(
+  id: string,
+  metaLead?: ScanContact | null,
+  upstream?: ScanContact | null
+): Promise<ScanContact | null> {
+  let stored = hasScanContact(metaLead) ? metaLead : null;
+  if (!stored) {
+    try {
+      stored = await findScanContact(id);
+    } catch (err) {
+      console.error("[scan-contact] read failed", err);
+    }
+  }
+  return mergeScanContact(stored, upstream);
+}
+
+function remember(checkId: string, meta: JobMeta) {
   jobMeta.set(checkId, meta);
 }
 
-export async function createCheck(url: string): Promise<CheckJob> {
+export async function createCheck(
+  url: string,
+  lead?: CreateScanLead | null
+): Promise<CheckJob> {
   const createdAt = new Date().toISOString();
   const domain = domainFromUrl(url);
+  const contact = normalizeScanContact(lead);
 
   if (!isParserConfigured()) {
     const id = randomUUID();
     mockCreateScan(id, url);
-    remember(id, { url, scanId: id, mock: true, createdAt });
+    remember(id, { url, scanId: id, mock: true, createdAt, lead: contact });
+    await rememberContact(id, url, contact);
     const job = mockGetScan(id)!;
-    return { ...job, id, createdAt };
+    return { ...job, id, createdAt, contact };
   }
 
-  const res = await parserFetch("/api/scans", {
-    method: "POST",
-    body: JSON.stringify({ url }),
-  });
-  if (!res.ok) {
-    const text = await readParserBody(res);
-    throw new Error(`Не удалось создать сканирование: ${res.status} ${text}`.slice(0, 400));
-  }
-  const data = await parserJson<UpstreamCreate>(res);
+  const data = await createUpstreamScan(url, contact);
   const scanId = data.scan_id || data.id;
   if (!scanId) {
     throw new Error("Parser API не вернул scan_id");
@@ -130,7 +258,9 @@ export async function createCheck(url: string): Promise<CheckJob> {
     mock: false,
     createdAt,
     warning: data.warning,
+    lead: contact,
   });
+  await rememberContact(id, url, contact);
 
   return {
     id,
@@ -144,6 +274,7 @@ export async function createCheck(url: string): Promise<CheckJob> {
     hasRisks: false,
     pdfReady: false,
     warning: data.warning ?? null,
+    contact,
     createdAt,
     updatedAt: createdAt,
     mock: false,
@@ -154,7 +285,10 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
   const meta = jobMeta.get(id);
 
   if (meta?.mock || !isParserConfigured()) {
-    return mockGetScan(id);
+    const job = mockGetScan(id);
+    if (!job) return null;
+    const contact = await resolveContact(id, meta?.lead, job.contact);
+    return { ...job, contact };
   }
 
   const scanId = meta?.scanId || id;
@@ -180,7 +314,9 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
       warning: data.warning,
     });
   }
-  return mapUpstream(id, url, data, false, createdAt, meta?.warning);
+  const mapped = mapUpstream(id, url, data, false, createdAt, meta?.warning);
+  const contact = await resolveContact(id, meta?.lead, mapped.contact);
+  return { ...mapped, contact };
 }
 
 export async function getCheckPdf(

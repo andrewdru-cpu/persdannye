@@ -1,18 +1,16 @@
 /**
  * Manager alerts from the Next.js BFF. Never expose Telegram/parser tokens.
+ * Every finished landing scan (phase === done) is a new client to pick up.
  */
 
 import { findLeadForCheck } from "./leads-store";
 import { getCheckPdf } from "./parser-client";
-import {
-  isTelegramConfigured,
-  notifyOnCleanEnabled,
-  sendTelegramDocument,
-  sendTelegramMessage,
-} from "./telegram";
-import type { CheckJob, Lead } from "./types";
+import { findScanContact, hasScanContact, mergeScanContact } from "./scan-contacts";
+import { isTelegramConfigured, sendTelegramDocument, sendTelegramMessage } from "./telegram";
+import type { CheckJob, Lead, ScanContact } from "./types";
 
 const notifiedScans = new Set<string>();
+const skippedScans = new Set<string>();
 
 function formatTs(iso?: string): string {
   const d = iso ? new Date(iso) : new Date();
@@ -24,28 +22,60 @@ function scanHasRisks(job: CheckJob): boolean {
 }
 
 export function shouldNotifyScan(job: CheckJob): boolean {
-  if (String(job.phase) !== "done") return false;
-  if (scanHasRisks(job)) return true;
-  return notifyOnCleanEnabled();
+  return String(job.phase) === "done";
 }
 
-function formatScanMessage(job: CheckJob, lead?: Lead | null): string {
+function logTelegramSkipped(kind: "scan" | "lead"): void {
+  console.warn(
+    `[notify] TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID не заданы — пропуск алерта (${kind})`
+  );
+}
+
+type ContactBits = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+};
+
+async function contactsForJob(job: CheckJob): Promise<ContactBits> {
+  const lead = await findLeadForCheck(job.id, job.url);
+  let scan: ScanContact | null = hasScanContact(job.contact) ? job.contact || null : null;
+  if (!scan) {
+    try {
+      scan =
+        (await findScanContact(job.scanId || job.id)) ||
+        (job.scanId && job.scanId !== job.id ? await findScanContact(job.id) : null);
+    } catch (err) {
+      console.error("[notify] scan contact lookup failed", err);
+    }
+  }
+  const merged = mergeScanContact(
+    lead
+      ? { name: lead.name, email: lead.email, phone: lead.phone, source: lead.source }
+      : null,
+    scan
+  );
+  return {
+    name: merged?.name,
+    email: merged?.email,
+    phone: merged?.phone,
+    company: lead?.company,
+  };
+}
+
+function formatScanMessage(job: CheckJob, contact?: ContactBits | null): string {
   const risks = scanHasRisks(job);
   const lines: string[] = [
-    risks
-      ? "⚠️ ПерсДанные · найдены риски"
-      : "✅ ПерсДанные · проверка без рисков",
+    "🆕 Новый клиент с лендинга",
     "",
-    `Домен: ${job.domain}`,
-    `URL: ${job.url}`,
+    "Проверка сайта завершена — возьмите клиента в работу.",
+    "",
+    `Домен: ${job.domain || "—"}`,
+    `Ссылка: ${job.url || "—"}`,
     `Балл: ${typeof job.score === "number" ? job.score : "—"}`,
-    `Фаза: ${job.phase}`,
-    `Источник: landing`,
-    `Время: ${formatTs(job.updatedAt)}`,
+    `Риски: ${risks ? "да" : "нет"}`,
   ];
-  if (job.mock) lines.push("Режим: mock (PARSER_API_BASE не задан)");
-  else lines.push("Режим: live parser");
-  if (job.scanId) lines.push(`Scan ID: ${job.scanId}`);
 
   if (job.findings.length > 0) {
     lines.push("", "Находки:");
@@ -56,28 +86,34 @@ function formatScanMessage(job: CheckJob, lead?: Lead | null): string {
     if (job.findings.length > 18) {
       lines.push(`… ещё ${job.findings.length - 18}`);
     }
+  } else {
+    lines.push("", "Находки: нет");
   }
 
-  if (lead && (lead.name || lead.phone || lead.email || lead.company)) {
+  if (contact && (contact.name || contact.phone || contact.email || contact.company)) {
     lines.push("", "Контакты:");
-    if (lead.name) lines.push(`Имя: ${lead.name}`);
-    if (lead.phone) lines.push(`Телефон: ${lead.phone}`);
-    if (lead.email) lines.push(`Email: ${lead.email}`);
-    if (lead.company) lines.push(`Компания: ${lead.company}`);
+    if (contact.name) lines.push(`Имя: ${contact.name}`);
+    if (contact.phone) lines.push(`Телефон: ${contact.phone}`);
+    if (contact.email) lines.push(`Email: ${contact.email}`);
+    if (contact.company) lines.push(`Компания: ${contact.company}`);
   }
 
+  lines.push("", `Время: ${formatTs(job.updatedAt)}`);
+  if (job.mock) lines.push("Режим: mock (PARSER_API_BASE не задан)");
   return lines.join("\n");
 }
 
 export function formatLeadMessage(lead: Lead): string {
   const lines = [
-    "🆕 ПерсДанные · новая заявка",
+    "🆕 Новый клиент с лендинга",
+    "",
+    "Новая заявка с формы — возьмите клиента в работу.",
     "",
     `Имя: ${lead.name}`,
     lead.phone ? `Телефон: ${lead.phone}` : null,
     `Email: ${lead.email}`,
     lead.company ? `Компания: ${lead.company}` : null,
-    lead.url ? `Сайт: ${lead.url}` : null,
+    lead.url ? `Ссылка: ${lead.url}` : null,
     lead.checkId ? `Check ID: ${lead.checkId}` : null,
     lead.message ? `Комментарий: ${lead.message}` : null,
     `Источник: ${lead.source || "landing"}`,
@@ -87,29 +123,35 @@ export function formatLeadMessage(lead: Lead): string {
 }
 
 /**
- * Notify manager as soon as a scan finishes with risks (or clean, if enabled).
- * Sends text first, then PDF via sendDocument if pdf_ready.
+ * Notify the manager as soon as a landing scan finishes — with or without risks.
+ * Text always. PDF via sendDocument only when pdf_ready and the scan has risks.
  */
 export async function notifyScanIfNeeded(job: CheckJob): Promise<void> {
-  if (!isTelegramConfigured()) return;
   if (!shouldNotifyScan(job)) return;
 
   const key = job.scanId || job.id;
+  if (!isTelegramConfigured()) {
+    if (!skippedScans.has(key)) {
+      skippedScans.add(key);
+      logTelegramSkipped("scan");
+    }
+    return;
+  }
   if (notifiedScans.has(key)) return;
   notifiedScans.add(key);
 
   try {
-    const lead = await findLeadForCheck(job.id, job.url);
-    await sendTelegramMessage(formatScanMessage(job, lead));
+    const contact = await contactsForJob(job);
+    await sendTelegramMessage(formatScanMessage(job, contact));
 
-    if (job.pdfReady && !job.mock) {
+    if (job.pdfReady && !job.mock && scanHasRisks(job)) {
       try {
         const pdf = await getCheckPdf(job.id);
         if (pdf) {
           await sendTelegramDocument(
             pdf.buffer,
             pdf.filename,
-            `${job.domain} · балл ${job.score ?? "—"} · landing`
+            `${job.domain} · риски: да · балл ${job.score ?? "—"} · новый клиент с лендинга`
           );
         }
       } catch (err) {
@@ -123,7 +165,10 @@ export async function notifyScanIfNeeded(job: CheckJob): Promise<void> {
 }
 
 export async function notifyNewLead(lead: Lead): Promise<void> {
-  if (!isTelegramConfigured()) return;
+  if (!isTelegramConfigured()) {
+    logTelegramSkipped("lead");
+    return;
+  }
   try {
     await sendTelegramMessage(formatLeadMessage(lead));
   } catch (err) {

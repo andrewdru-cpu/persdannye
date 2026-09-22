@@ -59,7 +59,7 @@ export function mockGetScan(id: string): CheckJob | null {
   if (!state) return null;
 
   const elapsed = Date.now() - state.createdAt;
-  const stepMs = 2200;
+  const stepMs = 1500;
   const domain = state.domain;
 
   if (state.variant === "blocked" && elapsed > stepMs * 1.5) {
