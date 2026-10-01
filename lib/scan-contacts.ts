@@ -7,8 +7,9 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { ScanContact } from "./types";
+import { dataFilePath } from "./data-dir";
 
-const DATA_PATH = path.join(process.cwd(), "data", "scan-contacts.json");
+const DATA_PATH = dataFilePath("scan-contacts.json");
 
 type Store = Record<string, ScanContact & { url?: string; savedAt?: string }>;
 

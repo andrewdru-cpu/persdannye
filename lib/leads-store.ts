@@ -2,8 +2,9 @@ import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import type { Lead } from "./types";
+import { dataFilePath } from "./data-dir";
 
-const DATA_PATH = path.join(process.cwd(), "data", "leads.json");
+const DATA_PATH = dataFilePath("leads.json");
 
 async function ensureFile(): Promise<void> {
   try {
@@ -15,8 +16,14 @@ async function ensureFile(): Promise<void> {
 }
 
 export async function listLeads(): Promise<Lead[]> {
-  await ensureFile();
-  const raw = await fs.readFile(DATA_PATH, "utf8");
+  let raw: string;
+  try {
+    await ensureFile();
+    raw = await fs.readFile(DATA_PATH, "utf8");
+  } catch (err) {
+    console.error("[leads] read failed", err);
+    return [];
+  }
   try {
     const parsed = JSON.parse(raw) as Lead[];
     return Array.isArray(parsed) ? parsed : [];
@@ -35,7 +42,12 @@ export async function addLead(
     createdAt: new Date().toISOString(),
   };
   leads.unshift(lead);
-  await fs.writeFile(DATA_PATH, JSON.stringify(leads, null, 2) + "\n", "utf8");
+  try {
+    await fs.writeFile(DATA_PATH, JSON.stringify(leads, null, 2) + "\n", "utf8");
+  } catch (err) {
+    // Serverless FS is read-only/ephemeral: never lose the request over storage.
+    console.error("[leads] save failed, continuing", err);
+  }
   return lead;
 }
 
