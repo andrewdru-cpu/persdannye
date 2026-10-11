@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { UnsubscribeForm } from "@/components/subject/UnsubscribeForm";
 import { legalContent } from "@/content/legal";
-import { company } from "@/lib/company";
+import { privacyContactLabel } from "@/lib/company";
 import { SUBJECT_PAGE_REFERRER, SUBJECT_PAGE_ROBOTS } from "@/lib/subject-request";
 
 export const metadata: Metadata = {
@@ -32,11 +33,11 @@ export default function UnsubscribePage() {
           {legalContent.privacyRequestTitle}
         </Link>
       </p>
-      <p className="mt-2 text-sm text-white/70">
-        <a className="text-amber-200 hover:underline" href={`mailto:${company.dpoEmail}`}>
-          {company.dpoEmail}
-        </a>
-      </p>
+      {privacyContactLabel() ? (
+        <p className="mt-2 text-sm text-white/70">
+          <PrivacyContactLink className="text-amber-200 hover:underline" />
+        </p>
+      ) : null}
     </article>
   );
 }

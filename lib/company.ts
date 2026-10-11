@@ -7,7 +7,11 @@ export const company = {
   ogrn: "1207700000000",
   address: "123112, г. Москва, Пресненская наб., д. 12, этаж 1, офис 1",
   email: "info@persdannye.ru",
-  dpoEmail: "dpo@persdannye.ru",
+  /**
+   * Contact for subject requests. Keep empty until the mailbox domain is owned.
+   * Empty: nothing in production, `TODO: privacy_contact_email` on Vercel preview.
+   */
+  privacy_contact_email: "",
   phone: "+7 (495) 000-00-00",
   phoneHref: "tel:+74950000000",
   website: "https://persdannye.ru",
@@ -16,3 +20,16 @@ export const company = {
 } as const;
 
 export type Company = typeof company;
+
+export const PRIVACY_CONTACT_TODO = "TODO: privacy_contact_email";
+
+/** Address to show, the preview TODO, or null when production has no address. */
+export function privacyContactLabel(
+  email: string = company.privacy_contact_email,
+  vercelEnv: string | undefined = process.env.VERCEL_ENV
+): string | null {
+  const value = email.trim();
+  if (value) return value;
+  if (vercelEnv === "preview") return PRIVACY_CONTACT_TODO;
+  return null;
+}
