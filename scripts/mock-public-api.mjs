@@ -158,6 +158,16 @@ export function createMockPublicApi() {
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/public/subject-request") {
+      const type = body?.type;
+      if (type !== "unsubscribe" && type !== "access" && type !== "delete") {
+        send(res, 400, { error: "bad_type" });
+        return;
+      }
+      send(res, 202, { request_id: randomBytes(16).toString("hex") });
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/public/lead") {
       const consent = body?.consent;
       if (consent?.accepted !== true || typeof consent?.text_version !== "string" || !consent.text_version) {
