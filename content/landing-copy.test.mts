@@ -17,6 +17,7 @@ import {
   resetChecksCountCache,
   resolveVisibleChecksCount,
 } from "../lib/checks-count.ts";
+import { dbipFooterAttribution } from "../lib/dbip-attribution.ts";
 import { safeHref } from "../lib/safe-href.ts";
 import { company, privacyContactLabel, PRIVACY_CONTACT_TODO } from "../lib/company.ts";
 import { HERO_SUBLINE_NARROW, heroChecksPhrase, heroSublineNarrowWithCount, heroSublineWithCount } from "../lib/hero-checks.ts";
@@ -452,6 +453,51 @@ describe("publication flags", () => {
       paragraph,
       `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`,
     );
+  });
+});
+
+describe("DB-IP attribution", () => {
+  const flag = "NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION";
+  const verbatim =
+    "Данные о стране и сети IP-адресов: IP Geolocation by DB-IP, лицензия CC BY 4.0.";
+
+  function withFlag(value: string | undefined, run: () => void) {
+    const previous = process.env[flag];
+    const preview = process.env.VERCEL_ENV;
+    if (value === undefined) delete process.env[flag];
+    else process.env[flag] = value;
+    try {
+      run();
+    } finally {
+      if (previous === undefined) delete process.env[flag];
+      else process.env[flag] = previous;
+      if (preview === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = preview;
+    }
+  }
+
+  it("renders nothing when the flag is off, including on preview", () => {
+    withFlag(undefined, () => {
+      process.env.VERCEL_ENV = "preview";
+      assert.equal(dbipFooterAttribution(), null);
+    });
+    withFlag("false", () => {
+      assert.equal(dbipFooterAttribution(), null);
+    });
+  });
+
+  it("renders the verbatim footer line and both links when the flag is on", () => {
+    withFlag("true", () => {
+      const item = dbipFooterAttribution();
+      if (!item) throw new Error("expected attribution");
+      const text = `${item.before}${item.homeLabel}${item.between}${item.licenseLabel}${item.after}`;
+      assert.equal(text, verbatim);
+      assert.equal(item.homeHref, safeHref("https://db-ip.com"));
+      assert.equal(item.licenseHref, safeHref("https://creativecommons.org/licenses/by/4.0/"));
+      assert.equal(item.homeLabel, "IP Geolocation by DB-IP");
+      assert.equal(item.licenseLabel, "CC BY 4.0");
+      assert.equal(item.rel, "noopener noreferrer");
+    });
   });
 });
 

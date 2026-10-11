@@ -2,6 +2,7 @@ import Link from "next/link";
 import { footerParagraphs } from "@/content/blocks";
 import { footerBlurb } from "@/content/landing";
 import { fillPlaceholders } from "@/content/placeholders";
+import { DbipAttribution } from "@/components/layout/DbipAttribution";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
@@ -69,6 +70,7 @@ export function Footer() {
               Политика обработки персональных данных
             </Link>
           </p>
+          <DbipAttribution />
         </div>
         <p className="mt-3 text-center text-xs text-white/45">
           © {new Date().getFullYear()} {company.legalName}. Все права защищены.
