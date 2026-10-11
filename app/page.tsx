@@ -20,7 +20,13 @@ export default function HomePage() {
 
   return (
     <>
-      <Hero headline={hero.headline} highlight={hero.highlight} subline={hero.subline} />
+      <Hero
+        headline={hero.headline}
+        highlight={hero.highlight}
+        subline={hero.subline}
+        ctaLabel={hero.cta}
+        hideTimers={hero.hideNearbyTimers}
+      />
       <Trust />
       <HowItWorks />
       <WhatWeCheck />
