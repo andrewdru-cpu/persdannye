@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { company } from "@/lib/company";
+import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
+import { company, privacyContactLabel } from "@/lib/company";
 
 export function Footer() {
   return (
@@ -49,12 +50,11 @@ export function Footer() {
                 {company.email}
               </a>
             </li>
-            <li>
-              ДПО:{" "}
-              <a className="hover:text-amber-300" href={`mailto:${company.dpoEmail}`}>
-                {company.dpoEmail}
-              </a>
-            </li>
+            {privacyContactLabel() ? (
+              <li>
+                ДПО: <PrivacyContactLink className="hover:text-amber-300" />
+              </li>
+            ) : null}
             <li>
               <a className="hover:text-amber-300" href={company.phoneHref}>
                 {company.phone}

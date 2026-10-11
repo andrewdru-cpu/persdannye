@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rejectDirectModeBff } from "@/lib/bff-guard";
 import { getCheckPdf } from "@/lib/parser-client";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,8 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const blocked = rejectDirectModeBff();
+  if (blocked) return blocked;
   try {
     const { id } = await ctx.params;
     if (!id) {

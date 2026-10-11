@@ -1,5 +1,6 @@
+import { jobHasRisks, normalizeFindings, normalizeInventory } from "./finding-status";
 import type { CheckJob, Finding } from "./types";
-import { friendlyPhaseMessage, phaseIndex, PHASE_STEPS } from "./phases";
+import { friendlyPhaseMessage, LIMITED_SCAN_MESSAGE, phaseIndex, PHASE_STEPS } from "./phases";
 import { domainFromUrl } from "./utils";
 
 const MOCK_FINDINGS: Finding[] = [
@@ -29,18 +30,133 @@ const MOCK_FINDINGS: Finding[] = [
   },
 ];
 
+const REVIEW_FINDINGS: Finding[] = [
+  {
+    rule_id: "F08",
+    title: "Форма обратной связи",
+    fact: "Текст согласия на форме нужно сверить вручную.",
+    severity: "critical",
+    status: "needs_check",
+  },
+  {
+    rule_id: "C11",
+    title: "Сторонний виджет",
+    fact: "Скрипт не открылся, правило не применялось.",
+    severity: "high",
+    status: "not_checked",
+  },
+];
+
+const PARTIAL_FINDINGS: Finding[] = [
+  {
+    rule_id: "P01",
+    title: "Нет политики обработки ПДн",
+    fact: "Документ по ст. 18.1 не найден.",
+    severity: "high",
+    status: "violation",
+  },
+  {
+    rule_id: "F08",
+    title: "Форма обратной связи",
+    fact: "Текст согласия на форме нужно сверить вручную.",
+    severity: "critical",
+    status: "needs_check",
+  },
+  {
+    rule_id: "C11",
+    title: "Сторонний виджет",
+    fact: "Скрипт не открылся, правило не применялось.",
+    severity: "medium",
+    status: "not_checked",
+  },
+  {
+    rule_id: "X99",
+    title: "Новое правило",
+    fact: "Статус ещё не описан в контракте.",
+    severity: "high",
+    status: "later_added",
+  },
+];
+
+/** Raw GET /public/check shape: Disallow: / is a partial result, not blocked_by_robots. */
+const ROBOTS_PARTIAL_RAW = [
+  {
+    rule_id: "H01",
+    title: "Главная страница",
+    fact: "На главной нет ссылки на политику обработки ПДн.",
+    severity: "S",
+    status: "violation",
+    status_basis: "proven",
+    fine_norm: "ч. 3 ст. 13.11 КоАП",
+    fine_interpretation: false,
+    fine_amount_text: null,
+    meta: { disclaimer: "Проверены главная страница и документ политики." },
+  },
+  {
+    rule_id: "P01",
+    title: "Политика обработки ПДн",
+    fact: "В политике не указан срок обработки.",
+    severity: "B",
+    status: "violation",
+    status_basis: "likely",
+    fine_norm: "ч. 3 ст. 13.11 КоАП",
+    fine_interpretation: true,
+    fine_amount_text: "до 300 000 ₽",
+    meta: { disclaimer: "Квалификацию этой формулировки оценивает юрист." },
+  },
+  {
+    rule_id: "F03",
+    title: "Формы на внутренних страницах",
+    fact: "Страницы не открывались: robots.txt содержит Disallow: /.",
+    severity: "A",
+    status: "not_checked",
+    reason: "robots_disallow",
+    fine_norm: "ч. 2 ст. 13.11 КоАП",
+  },
+  {
+    rule_id: "C02",
+    title: "Cookie на внутренних страницах",
+    fact: "Правило не применялось, обход остальных страниц запрещён.",
+    severity: "low",
+    status: "not_checked",
+    reason: "robots_disallow",
+  },
+];
+
+/** Informational rows. Extra keys must not reach the screen. */
+const INVENTORY_RAW = [
+  {
+    checklist_item_id: "policy-link",
+    title: "Ссылка на политику",
+    detail: "На главной ссылка есть в подвале.",
+    status: "violation",
+    fine_norm: "ч. 1 ст. 13.11 КоАП",
+    hidden: true,
+    email: "secret@example.com",
+  },
+  {
+    checklist_item_id: "cookie-note",
+    title: "Упоминание cookie",
+    detail: "В подвале есть короткое упоминание cookie.",
+  },
+];
+
 type MockState = {
   createdAt: number;
   url: string;
   domain: string;
-  variant: "risks" | "ok" | "blocked";
+  variant: "risks" | "ok" | "blocked" | "partial" | "review" | "robots" | "siteblock";
 };
 
 const mockJobs = new Map<string, MockState>();
 
 function pickVariant(url: string): MockState["variant"] {
   const host = domainFromUrl(url).toLowerCase();
+  if (host.includes("robots") || host.includes("disallow")) return "robots";
+  if (host.includes("siteblock")) return "siteblock";
   if (host.includes("blocked") || host.includes("fail")) return "blocked";
+  if (host.includes("partial") || host.includes("fallback")) return "partial";
+  if (host.includes("review")) return "review";
   if (host.includes("ok") || host.includes("compliant")) return "ok";
   return "risks";
 }
@@ -84,9 +200,59 @@ export function mockGetScan(id: string): CheckJob | null {
     Math.floor(elapsed / stepMs)
   );
 
+  if (step >= PHASE_STEPS.length && state.variant === "robots") {
+    const findings = normalizeFindings(ROBOTS_PARTIAL_RAW);
+    return {
+      id,
+      url: state.url,
+      domain,
+      phase: "done",
+      phaseMessage: friendlyPhaseMessage("done", domain),
+      score: 64,
+      findings,
+      inventory: normalizeInventory(INVENTORY_RAW),
+      hasRisks: jobHasRisks({ phase: "done", push: false, findings }),
+      staticFallback: true,
+      rulesVersion: "2026.10",
+      error: null,
+      pdfReady: false,
+      createdAt: new Date(state.createdAt).toISOString(),
+      updatedAt: new Date().toISOString(),
+      mock: true,
+    };
+  }
+
+  if (step >= PHASE_STEPS.length && state.variant === "siteblock") {
+    return {
+      id,
+      url: state.url,
+      domain,
+      phase: "blocked_by_site",
+      phaseMessage: LIMITED_SCAN_MESSAGE,
+      score: null,
+      findings: [],
+      hasRisks: false,
+      staticFallback: false,
+      rulesVersion: null,
+      error: null,
+      pdfReady: false,
+      createdAt: new Date(state.createdAt).toISOString(),
+      updatedAt: new Date().toISOString(),
+      mock: true,
+    };
+  }
+
   if (step >= PHASE_STEPS.length) {
-    const findings = state.variant === "ok" ? [] : MOCK_FINDINGS;
-    const score = state.variant === "ok" ? 96 : 42;
+    const findings =
+      state.variant === "ok"
+        ? []
+        : state.variant === "partial"
+          ? PARTIAL_FINDINGS
+          : state.variant === "review"
+            ? REVIEW_FINDINGS
+            : MOCK_FINDINGS;
+    const score = state.variant === "ok" ? 96 : state.variant === "partial" ? 71 : state.variant === "review" ? 90 : 42;
+    const partialNotice = state.variant === "partial" || state.variant === "review";
     return {
       id,
       url: state.url,
@@ -95,8 +261,10 @@ export function mockGetScan(id: string): CheckJob | null {
       phaseMessage: friendlyPhaseMessage("done", domain),
       score,
       findings,
-      hasRisks: findings.length > 0,
-      push: findings.length > 0,
+      hasRisks: jobHasRisks({ phase: "done", push: state.variant === "risks", findings }),
+      push: state.variant === "risks",
+      staticFallback: partialNotice,
+      rulesVersion: partialNotice ? "2026.10" : null,
       pdfReady: false,
       createdAt: new Date(state.createdAt).toISOString(),
       updatedAt: new Date().toISOString(),

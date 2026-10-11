@@ -1,5 +1,9 @@
-/** Version of the URL-check contact consent text shown next to the checkbox. */
-export const CONSENT_TEXT_VERSION = "2026-10-11";
+import { CONSENT_TEXT_VERSION } from "../content/consent";
+
+export { CONSENT_POLICY_LABEL, CONSENT_TEXT, CONSENT_TEXT_VERSION } from "../content/consent";
+
+/** Lead-form checkbox uses the same versioned sentence. */
+export const LEAD_CONSENT_TEXT_VERSION = CONSENT_TEXT_VERSION;
 
 export class ScanConsentRequiredError extends Error {
   constructor() {

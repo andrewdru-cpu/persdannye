@@ -2,11 +2,19 @@ import { getParserBase, isParserConfigured, parserFetch, parserJson, readParserB
 import { mockCreateScan, mockGetScan } from "./mock-parser";
 import {
   friendlyPhaseMessage,
+  isLimitedScan,
   isTerminal,
   normalizePhase,
   type ParserPhase,
 } from "./phases";
-import type { CheckJob, Finding, ScanContact } from "./types";
+import type { CheckJob, ScanContact } from "./types";
+import {
+  jobHasRisks,
+  normalizeFindings,
+  normalizeInventory,
+  readRulesVersion,
+  readStaticFallback,
+} from "./finding-status";
 import { domainFromUrl } from "./utils";
 import {
   findScanContact,
@@ -35,8 +43,12 @@ interface UpstreamScan {
   status?: string;
   phase_message?: string | null;
   score?: number | null;
-  findings?: Finding[];
+  findings?: unknown;
+  inventory?: unknown;
   push?: boolean;
+  mode?: unknown;
+  rules_version?: unknown;
+  show_amounts?: unknown;
   warning?: string | null;
   error?: string | null;
   message?: string | null;
@@ -71,10 +83,26 @@ export type CreateScanLead = {
   consent_text_version?: string | null;
 };
 
-/** Browser payload: never include contacts read from data/ or /tmp. */
+/**
+ * Browser payload. Scan responses (parser PR #9) keep phones empty and emails
+ * role-based or empty — those fields are not part of the UI.
+ */
 export function publicCheckJob(job: CheckJob): Omit<CheckJob, "contact"> {
-  const view = { ...job };
+  const view = { ...job } as CheckJob & {
+    phone?: unknown;
+    email?: unknown;
+    lead?: unknown;
+    contacts?: unknown;
+    inn?: unknown;
+    org_name?: unknown;
+  };
   delete view.contact;
+  delete view.phone;
+  delete view.email;
+  delete view.lead;
+  delete view.contacts;
+  delete view.inn;
+  delete view.org_name;
   return view;
 }
 
@@ -92,7 +120,7 @@ function consentedScanContact(lead?: CreateScanLead | null): ScanContact | null 
 /** 400/422 that complains about fields the parser build does not know yet. */
 export function isUnknownFieldRejection(status: number, text: string): boolean {
   if (status !== 400 && status !== 422) return false;
-  return /unknown|unexpected|additional|extra[_\s-]?forbidden|extra inputs|unrecognized|not permitted|not allowed|unexpected field|additional propert|\bmode\b|\blead\b|неизвестн|лишн|не поддерж/i.test(
+  return /unknown|unexpected|additional|extra[_\s-]?forbidden|extra inputs|unrecognized|not permitted|not allowed|unexpected field|additional propert|\bmode\b|\blead\b|\borigin\b|неизвестн|лишн|не поддерж/i.test(
     text
   );
 }
@@ -114,10 +142,9 @@ function mapUpstream(
 ): CheckJob {
   const domain = domainFromUrl(url);
   const phase = normalizePhase(data.phase || data.status || "queued") as ParserPhase | string;
-  const findings = Array.isArray(data.findings) ? data.findings : [];
+  const findings = normalizeFindings(data.findings, data.show_amounts);
   const push = Boolean(data.push);
-  const done = phase === "done";
-  const hasRisks = done ? push || findings.length > 0 : push;
+  const hasRisks = jobHasRisks({ phase, push: data.push, findings });
 
   return {
     id: checkId,
@@ -132,24 +159,37 @@ function mapUpstream(
     ),
     score: data.score ?? null,
     findings,
+    inventory: normalizeInventory(data.inventory),
     hasRisks,
     push,
+    staticFallback: readStaticFallback(data.mode),
+    rulesVersion: readRulesVersion(data.rules_version),
     pdfReady: mock ? false : resolvePdfReady(data, phase),
     warning: data.warning ?? warning ?? null,
-    error: data.error ?? (phase === "error" ? data.message : null) ?? null,
-    contact: normalizeScanContact(data.lead),
+    error: isLimitedScan(phase) ? null : (data.error ?? (phase === "error" ? data.message : null) ?? null),
+    // Phones in /api/scans are always empty; emails are role-based or empty.
+    // The UI does not render them. Visitor contacts live only in the BFF store.
+    contact: null,
     createdAt,
     updatedAt: new Date().toISOString(),
     mock,
   };
 }
 
+/** Upstream `/api/scans` body → check job. Used by the BFF and by tests. */
+export function mapUpstreamScan(data: UpstreamScan, url = "https://example.com"): CheckJob {
+  return mapUpstream("scan-1", url, data, false, "2026-10-11T00:00:00.000Z");
+}
+
+export const SITE_FORM_ORIGIN = "site_form";
+
 function scanCreateBody(
   url: string,
   contact: ScanContact | null,
-  opts: { mode: boolean; lead: boolean }
+  opts: { mode: boolean; lead: boolean; origin: boolean }
 ): Record<string, unknown> {
   const body: Record<string, unknown> = { url };
+  if (opts.origin) body.origin = SITE_FORM_ORIGIN;
   if (opts.mode) body.mode = "quick";
   if (opts.lead && contact) {
     body.lead = {
@@ -157,7 +197,7 @@ function scanCreateBody(
       ...(contact.email ? { email: contact.email } : {}),
       ...(contact.phone ? { phone: contact.phone } : {}),
       consent: true,
-      consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
+      consent_text_version: CONSENT_TEXT_VERSION,
       source: "landing",
     };
   }
@@ -165,27 +205,45 @@ function scanCreateBody(
 }
 
 async function postScan(body: Record<string, unknown>): Promise<Response> {
+  // BFF stays on the service API. /public/* expects a browser SmartCaptcha
+  // token and site CORS, not this service login.
   return parserFetch("/api/scans", {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
+/** Body the landing BFF prefers: quick mode, optional lead, origin site_form. */
+export function landingScanCreateBody(
+  url: string,
+  contact: ScanContact | null
+): Record<string, unknown> {
+  return scanCreateBody(url, contact, {
+    mode: true,
+    lead: Boolean(contact),
+    origin: true,
+  });
+}
+
 /**
- * Landing checks always ask for quick mode. Lead contacts go with the same
- * body when the visitor filled them. An older parser that rejects unknown
- * fields is retried without `lead`, then with `{ url }` only.
+ * Landing checks always ask for quick mode and origin "site_form".
+ * Lead contacts go with the same body when the visitor filled them.
+ * An older parser that rejects unknown fields is retried without `lead`,
+ * then without `origin`, then with `{ url }` only.
  */
 async function createUpstreamScan(
   url: string,
   contact: ScanContact | null
 ): Promise<UpstreamCreate> {
   const attempts: Record<string, unknown>[] = [
-    scanCreateBody(url, contact, { mode: true, lead: Boolean(contact) }),
+    landingScanCreateBody(url, contact),
   ];
   if (contact) {
-    attempts.push(scanCreateBody(url, null, { mode: true, lead: false }));
+    attempts.push(scanCreateBody(url, null, { mode: true, lead: false, origin: true }));
   }
+  attempts.push(
+    scanCreateBody(url, contact, { mode: true, lead: Boolean(contact), origin: false })
+  );
   attempts.push({ url });
 
   let lastStatus = 0;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { rejectDirectModeBff } from "@/lib/bff-guard";
 import { isScanConsentRequiredError } from "@/lib/consent";
 import { createCheck, publicCheckJob } from "@/lib/parser-client";
 import { normalizeUrl } from "@/lib/utils";
@@ -14,12 +15,13 @@ const bodySchema = z.object({
       email: z.string().trim().max(200).optional(),
       phone: z.string().trim().max(40).optional(),
       consent: z.boolean().optional(),
-      consent_text_version: z.string().trim().max(64).optional(),
     })
     .optional(),
 });
 
 export async function POST(req: Request) {
+  const blocked = rejectDirectModeBff();
+  if (blocked) return blocked;
   try {
     const json = await req.json();
     const parsed = bodySchema.safeParse(json);
@@ -48,7 +50,6 @@ export async function POST(req: Request) {
             email,
             phone,
             consent: lead?.consent,
-            consent_text_version: lead?.consent_text_version,
           }
         : undefined
     );

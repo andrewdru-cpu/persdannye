@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { company } from "@/lib/company";
+import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
+import { company, privacyContactLabel } from "@/lib/company";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -128,9 +129,17 @@ export default function PrivacyPage() {
           действия Оператора в Роскомнадзор или суд — в порядке ст. 14–17 152-ФЗ.
         </p>
         <p>
-          Для реализации прав направьте запрос на {company.email} или ответственному
-          за организацию обработки ПДн (ДПО): {company.dpoEmail}. Срок ответа —
-          согласно ст. 14 152-ФЗ.
+          Для реализации прав направьте запрос на {company.email}
+          {privacyContactLabel() ? (
+            <>
+              , ответственному за организацию обработки ПДн (ДПО): <PrivacyContactLink />
+            </>
+          ) : null}
+          , или через{" "}
+          <Link href="/privacy/request" className="text-amber-300 hover:underline">
+            форму запроса субъекта
+          </Link>
+          . Срок ответа — согласно ст. 14 152-ФЗ.
         </p>
       </Section>
 
@@ -158,7 +167,11 @@ export default function PrivacyPage() {
         <p>ИНН {company.inn}, ОГРН {company.ogrn}</p>
         <p>{company.address}</p>
         <p>Email: {company.email}</p>
-        <p>ДПО: {company.dpoEmail}</p>
+        {privacyContactLabel() ? (
+          <p>
+            ДПО: <PrivacyContactLink />
+          </p>
+        ) : null}
         <p>Тел.: {company.phone}</p>
         <p>{company.supportHours}</p>
       </Section>
