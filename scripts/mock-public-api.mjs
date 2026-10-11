@@ -4,6 +4,8 @@
  * GET  /public/check/:id -> findings only (no stored contacts)
  * GET  /public/check/:id/pdf
  * POST /public/lead -> 201
+ * POST /public/subject-request -> always 202 { request_id }
+ *   Same body for every email. access carries no personal data.
  *
  * Contacts without consent.accepted and text_version -> 422 consent_required.
  * The status payload deliberately includes contact-like fields so the site
@@ -159,11 +161,9 @@ export function createMockPublicApi() {
     }
 
     if (req.method === "POST" && url.pathname === "/public/subject-request") {
-      const type = body?.type;
-      if (type !== "unsubscribe" && type !== "access" && type !== "delete") {
-        send(res, 400, { error: "bad_type" });
-        return;
-      }
+      // Confirmed contract (parser PR #5): always 202 {request_id}.
+      // Known and unknown emails get the same body. Nothing else is returned;
+      // an access reply is emailed, and delete also stop-lists the address.
       send(res, 202, { request_id: randomBytes(16).toString("hex") });
       return;
     }

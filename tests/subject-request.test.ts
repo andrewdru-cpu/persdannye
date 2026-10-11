@@ -45,6 +45,19 @@ test("subject pages are noindex, no-referrer, and analytics-free placeholders", 
   assert.equal(unsubscribe.includes("useEffect"), false);
   assert.equal(unsubscribe.includes("type=\"email\""), false);
   assert.equal(unsubscribe.includes("postSubjectRequest({ type: \"unsubscribe\", token })"), true);
+
+  const reply =
+    "Если адрес есть в наших системах, ответ придёт письмом на этот адрес в течение 10 рабочих дней";
+  assert.equal(legalContent.privacyEmailReply, reply);
+  const privacyPage = fs.readFileSync(path.join(root, "app/privacy/request/page.tsx"), "utf8");
+  assert.equal(privacyPage.includes("privacyEmailReply"), true);
+  assert.match(legalContent.types.delete, /стоп-лист/);
+  assert.match(legalContent.deleteStopList, /стоп-лист/);
+  const form = fs.readFileSync(path.join(root, "components/subject/PrivacyRequestForm.tsx"), "utf8");
+  assert.equal(form.includes("result.email"), false);
+  assert.equal(form.includes("result.data"), false);
+  assert.equal(form.includes("res.status"), false);
+  assert.equal(unsubscribe.includes("res.status"), false);
 });
 
 test("subject-request body uses captcha_token and omits empty fields", () => {
@@ -64,14 +77,14 @@ test("subject-request body uses captcha_token and omits empty fields", () => {
   );
 });
 
-test("request id is kept only from a 202 with a safe token", () => {
-  assert.equal(readRequestId(202, { request_id: "a".repeat(16) }), "a".repeat(16));
-  assert.equal(readRequestId(200, { request_id: "a".repeat(16) }), null);
-  assert.equal(readRequestId(404, { request_id: "missing-user" }), null);
-  assert.equal(readRequestId(500, { error: "no such email" }), null);
-  assert.equal(readRequestId(202, { request_id: "" }), null);
-  assert.equal(readRequestId(202, { request_id: "<b>x</b>" }), null);
-  assert.equal(readRequestId(202, null), null);
+test("request id is the only field read from a subject-request body", () => {
+  const id = "a".repeat(16);
+  assert.equal(readRequestId({ request_id: id, email: "secret@example.com", data: { name: "x" } }), id);
+  assert.equal(readRequestId({ request_id: "" }), null);
+  assert.equal(readRequestId({ request_id: "<b>x</b>", email: "secret@example.com" }), null);
+  assert.equal(readRequestId({ error: "no such email", email: "secret@example.com" }), null);
+  assert.equal(readRequestId(null), null);
+  assert.equal(readRequestId(["not-an-object"]), null);
 });
 
 test("bff mode does not call the network for a subject request", async () => {
@@ -86,7 +99,7 @@ test("bff mode does not call the network for a subject request", async () => {
       return new Response("{}", { status: 202 });
     });
     assert.equal(called, 0);
-    assert.equal(result.requestId, null);
+    assert.deepEqual(result, { networkError: false, requestId: null });
   } finally {
     restore();
   }
@@ -127,6 +140,37 @@ test("direct mode posts subject requests only to /public/subject-request and sta
     });
     assert.equal(mock.requests.some((entry) => String(entry.path).startsWith("/api/")), false);
 
+    const known = await fetch(`${origin}${SUBJECT_REQUEST_PATH}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "access", email: "known@example.com", captcha_token: "t" }),
+    });
+    const unknown = await fetch(`${origin}${SUBJECT_REQUEST_PATH}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "access", email: "unknown@example.com", captcha_token: "t" }),
+    });
+    const knownText = await known.text();
+    const unknownText = await unknown.text();
+    assert.equal(known.status, 202);
+    assert.equal(unknown.status, 202);
+    assert.deepEqual(Object.keys(JSON.parse(knownText)), ["request_id"]);
+    assert.deepEqual(Object.keys(JSON.parse(unknownText)), ["request_id"]);
+    assert.equal(knownText.includes("known@example.com"), false);
+    assert.equal(unknownText.includes("unknown@example.com"), false);
+
+    const leaked = await postSubjectRequest({ type: "access", email }, async () => {
+      return new Response(
+        JSON.stringify({
+          request_id: "b".repeat(16),
+          email,
+          data: { name: "hidden" },
+          status: "found",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    assert.deepEqual(leaked, { networkError: false, requestId: "b".repeat(16) });
     const failed = await postSubjectRequest({ type: "delete", email }, async () => {
       return new Response(JSON.stringify({ error: "unknown email", email }), {
         status: 404,
@@ -136,9 +180,10 @@ test("direct mode posts subject requests only to /public/subject-request and sta
     const broken = await postSubjectRequest({ type: "delete", email }, async () => {
       throw new Error("network");
     });
-    assert.equal(failed.requestId, null);
-    assert.equal(broken.requestId, null);
-    assert.equal(legalContent.successMessage, legalContent.successMessage);
+    assert.deepEqual(failed, { networkError: false, requestId: null });
+    assert.deepEqual(broken, { networkError: true, requestId: null });
+    assert.equal(JSON.stringify(failed).includes(email), false);
+    assert.equal(JSON.stringify(leaked).includes(email), false);
   } finally {
     restore();
     await mock.close();

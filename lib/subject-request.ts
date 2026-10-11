@@ -39,8 +39,13 @@ export function buildSubjectRequestBody(input: SubjectRequestInput): Record<stri
   return body;
 }
 
-export function readRequestId(status: number, body: unknown): string | null {
-  if (status !== 202 || !body || typeof body !== "object") return null;
+export type SubjectRequestOutcome =
+  | { networkError: true; requestId: null }
+  | { networkError: false; requestId: string | null };
+
+/** Top-level request_id only. Status and every other field are ignored. */
+export function readRequestId(body: unknown): string | null {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   const id = (body as { request_id?: unknown }).request_id;
   if (typeof id !== "string") return null;
   const token = id.trim();
@@ -49,14 +54,15 @@ export function readRequestId(status: number, body: unknown): string | null {
 }
 
 /**
- * Posts only in direct mode. Any HTTP status or network failure becomes
- * `{ requestId: null }` so the screen can stay neutral.
+ * Posts only in direct mode. A thrown fetch is the only failure the UI may
+ * show. Any HTTP response stays on the same screen: request_id if present,
+ * and nothing else from the body.
  */
 export async function postSubjectRequest(
   input: SubjectRequestInput,
   fetchImpl: typeof fetch = fetch
-): Promise<{ requestId: string | null }> {
-  if (!canPostSubjectRequest()) return { requestId: null };
+): Promise<SubjectRequestOutcome> {
+  if (!canPostSubjectRequest()) return { networkError: false, requestId: null };
   try {
     const res = await fetchImpl(joinPublicApi(SUBJECT_REQUEST_PATH), {
       method: "POST",
@@ -75,8 +81,8 @@ export async function postSubjectRequest(
     } catch {
       json = null;
     }
-    return { requestId: readRequestId(res.status, json) };
+    return { networkError: false, requestId: readRequestId(json) };
   } catch {
-    return { requestId: null };
+    return { networkError: true, requestId: null };
   }
 }

@@ -1,6 +1,6 @@
 import { legalContent } from "@/content/legal";
 
-/** Same copy for every outcome. The id is only a reference when the API sent one. */
+/** Same copy for every HTTP outcome. Only a request id may be shown. */
 export function SubjectRequestResult({ requestId }: { requestId: string | null }) {
   return (
     <div
