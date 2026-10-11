@@ -25,7 +25,6 @@ export default function HomePage() {
         highlight={hero.highlight}
         subline={hero.subline}
         ctaLabel={hero.cta}
-        hideTimers={hero.hideNearbyTimers}
       />
       <Trust />
       <HowItWorks />

@@ -88,13 +88,11 @@ export function Hero({
   highlight,
   subline,
   ctaLabel = cta.primary,
-  hideTimers = false,
 }: {
   headline: string;
   highlight: string | null;
   subline: string;
   ctaLabel?: string;
-  hideTimers?: boolean;
 }) {
   const reduce = useReducedMotion();
 
@@ -209,7 +207,7 @@ export function Hero({
                 {heroChrome.checkerBadge}
               </span>
             </div>
-            <UrlChecker compact pulseCta hideTimers={hideTimers} ctaLabel={ctaLabel} />
+            <UrlChecker compact pulseCta ctaLabel={ctaLabel} />
           </GlassCard>
         </motion.div>
       </div>

@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  activeHeroVariant,
   claimPlaceholders,
   claims,
-  hero,
-  heroNearbyCopy,
   renderHero,
   renderedLandingCopy,
 } from "./landing.ts";
@@ -38,7 +35,6 @@ const bannedPatterns: RegExp[] = [
 
 const timeClaim = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)/iu;
 const checksClaim = /десятк\p{L}*\s+проверок/iu;
-const nearbyTimer = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)|секунд|минут|24\s*\/\s*7/iu;
 
 const MAIN_H1 = "Проверьте сайт на соответствие 152-ФЗ — и получите план, что исправить";
 const MAIN_H1_TIME =
@@ -47,18 +43,13 @@ const SUB =
   "Политика, согласия, cookie, формы и сторонние сервисы — проверка публичной части сайта. Автоматическая проверка, не является юридической консультацией.";
 const SUB_CHECKS =
   "Политика, согласия, cookie, формы и сторонние сервисы — десятки проверок публичной части сайта. Автоматическая проверка, не является юридической консультацией.";
-const FALLBACK_H1 = "Персональные данные на сайте: проверим и покажем, что поправить";
-const VARIANT_C_H1 =
-  "Узнайте, что на вашем сайте не так с 152-ФЗ, — до того, как это сделает проверка";
 
 describe("rendered landing copy", () => {
   const live = renderedLandingCopy();
 
-  it("keeps claim flags off, variant C off, and main selected", () => {
+  it("keeps both claim flags off", () => {
     assert.equal(claims.time_verified, false);
     assert.equal(claims.checks_count_verified, false);
-    assert.equal(hero.variant_c_enabled, false);
-    assert.equal(activeHeroVariant, "main");
   });
 
   it("does not contain banned advertising phrases", () => {
@@ -73,21 +64,20 @@ describe("rendered landing copy", () => {
 
   it("shows the main hero without a time or count claim", () => {
     const resolved = renderHero();
-    assert.equal(resolved.variant, "main");
     assert.equal(resolved.headline, MAIN_H1);
     assert.equal(resolved.subline, SUB);
     assert.equal(resolved.cta, "Проверить сайт");
-    assert.equal(resolved.hideNearbyTimers, false);
     assert.equal(timeClaim.test(live), false);
     assert.equal(checksClaim.test(live), false);
     assert.equal(live.includes(claimPlaceholders.time), false);
     assert.equal(live.includes(claimPlaceholders.checks), false);
     assert.equal(live.includes("Даже лендинг с формой"), false);
+    assert.equal(live.includes("проверим и покажем, что поправить"), false);
+    assert.equal(live.includes("до того, как это сделает проверка"), false);
   });
 
   it("inserts the time phrase into the main H1 only when time_verified is true", () => {
     const resolved = renderHero({
-      variant: "main",
       claims: { time_verified: true, checks_count_verified: false },
     });
     assert.equal(resolved.headline, MAIN_H1_TIME);
@@ -97,7 +87,6 @@ describe("rendered landing copy", () => {
 
   it("rewrites the dash in the sub only when checks_count_verified is true", () => {
     const resolved = renderHero({
-      variant: "main",
       claims: { time_verified: false, checks_count_verified: true },
     });
     assert.equal(resolved.headline, MAIN_H1);
@@ -107,49 +96,9 @@ describe("rendered landing copy", () => {
 
   it("renders both claim phrases only when both flags are true", () => {
     const resolved = renderHero({
-      variant: "main",
       claims: { time_verified: true, checks_count_verified: true },
     });
     assert.equal(resolved.headline, MAIN_H1_TIME);
-    assert.equal(resolved.subline, SUB_CHECKS);
-  });
-
-  it("keeps fallback on the same sub as main", () => {
-    const resolved = renderHero({ variant: "fallback" });
-    assert.equal(resolved.headline, FALLBACK_H1);
-    assert.equal(resolved.subline, SUB);
-    assert.equal(resolved.cta, "Проверить сайт");
-    assert.equal(
-      renderHero({
-        variant: "fallback",
-        claims: { time_verified: true, checks_count_verified: false },
-      }).headline,
-      FALLBACK_H1,
-    );
-  });
-
-  it("does not render variant C while hero.variant_c_enabled is false", () => {
-    const resolved = renderHero({ variant: "c" });
-    assert.equal(resolved.variant, "main");
-    assert.equal(resolved.headline, MAIN_H1);
-  });
-
-  it("keeps variant C free of amounts, timers, and the word РКН", () => {
-    const resolved = renderHero({
-      variant: "c",
-      variantCEnabled: true,
-      claims: { time_verified: true, checks_count_verified: true },
-    });
-    const nearby = heroNearbyCopy(resolved);
-    assert.equal(resolved.variant, "c");
-    assert.equal(resolved.headline, VARIANT_C_H1);
-    assert.equal(resolved.headline.includes("проверка"), true);
-    assert.equal(/ркн/iu.test(resolved.headline), false);
-    assert.equal(resolved.hideNearbyTimers, true);
-    assert.equal(resolved.hideNearbyAmounts, true);
-    assert.equal(nearby.includes("₽"), false);
-    assert.equal(nearbyTimer.test(nearby), false);
-    assert.equal(resolved.headline.includes(claimPlaceholders.time), false);
     assert.equal(resolved.subline, SUB_CHECKS);
   });
 });

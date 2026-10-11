@@ -87,14 +87,11 @@ export function UrlChecker({
   compact = false,
   initialUrl = "",
   pulseCta = false,
-  hideTimers = false,
   ctaLabel = "Проверить свой сайт",
 }: {
   compact?: boolean;
   initialUrl?: string;
   pulseCta?: boolean;
-  /** Вариант героя C: не показывать длительность рядом с заголовком. */
-  hideTimers?: boolean;
   ctaLabel?: string;
 }) {
   const reduce = useReducedMotion();
@@ -330,7 +327,7 @@ export function UrlChecker({
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100/80">
-                  {hideTimers ? "Проверка" : "Быстрая проверка"} · шаг {stepLabel} из {PHASE_STEPS.length}
+                  Быстрая проверка · шаг {stepLabel} из {PHASE_STEPS.length}
                 </p>
                 <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
                   Проверяем {domain || "сайт"}…
@@ -339,14 +336,12 @@ export function UrlChecker({
                   {job?.phaseMessage || "Запускаем проверку. Страницу можно листать — отчёт появится здесь."}
                 </p>
               </div>
-              {hideTimers ? null : (
-                <div className="shrink-0 text-right" aria-label={`Прошло ${elapsedSec} секунд`}>
-                  <div className="font-display text-4xl leading-none text-amber-100">{elapsedSec}</div>
-                  <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/45">
-                    секунд
-                  </div>
+              <div className="shrink-0 text-right" aria-label={`Прошло ${elapsedSec} секунд`}>
+                <div className="font-display text-4xl leading-none text-amber-100">{elapsedSec}</div>
+                <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/45">
+                  секунд
                 </div>
-              )}
+              </div>
             </div>
 
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
@@ -362,11 +357,7 @@ export function UrlChecker({
             </div>
             <div className="mt-2 flex items-center justify-between text-xs text-white/45">
               <span>
-                {activeStep
-                  ? hideTimers
-                    ? `Сейчас: ${activeStep.label}`
-                    : `Сейчас: ${activeStep.label} · обычно ${activeStep.eta}`
-                  : "Запуск"}
+                {activeStep ? `Сейчас: ${activeStep.label} · обычно ${activeStep.eta}` : "Запуск"}
                 {job ? "" : " · соединяемся"}
               </span>
               <span>{progress}%</span>
@@ -401,16 +392,10 @@ export function UrlChecker({
                         )}
                         {s.label}
                       </span>
-                      {hideTimers ? null : (
-                        <span className="text-[10px] uppercase tracking-wider opacity-70">{s.eta}</span>
-                      )}
+                      <span className="text-[10px] uppercase tracking-wider opacity-70">{s.eta}</span>
                     </div>
                     <div className="mt-0.5 text-xs opacity-80">
-                      {active && !doneStep && !hideTimers
-                        ? `${s.description} · идёт ${elapsedSec} с`
-                        : hideTimers
-                          ? s.description.replace(/\s*РКН/gu, "")
-                          : s.description}
+                      {active && !doneStep ? `${s.description} · идёт ${elapsedSec} с` : s.description}
                     </div>
                   </li>
                 );
@@ -421,9 +406,7 @@ export function UrlChecker({
               {job?.mock
                 ? "Демо-режим (PARSER_API_BASE не задан). Подключите парсер через env."
                 : job
-                  ? hideTimers
-                    ? "Живой парсер"
-                    : "Живой парсер · обновление каждые 1,5 с"
+                  ? "Живой парсер · обновление каждые 1,5 с"
                   : "Отправляем URL. Интерфейс не блокируется."}
             </p>
           </motion.div>
@@ -449,7 +432,7 @@ export function UrlChecker({
               <div className="relative flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
-                    {hideTimers ? "Готово" : `Готово за ${elapsedSec} с`}
+                    Готово за {elapsedSec} с
                   </p>
                   <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
                     {job.hasRisks ? `${domain} — не соответствует` : `${domain} — соответствует`}

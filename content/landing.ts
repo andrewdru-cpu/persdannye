@@ -3,8 +3,8 @@
  * Суммы штрафов здесь не хранятся — они в `content/fines.ts`
  * и попадают на страницу только при одобрении.
  *
- * Живой герой — вариант A (`main`): без срока и без числа проверок,
- * пока юрист не включит флаги claims. B и C лежат рядом и не выбраны.
+ * Живой герой — один заголовок. Срок и число проверок появляются
+ * только если юрист включит `claims.time_verified` или `claims.checks_count_verified`.
  */
 
 export const disclaimer =
@@ -129,42 +129,22 @@ export const claimPlaceholders = {
   checks: "десятки проверок",
 } as const;
 
-/** A — основной, B — запасной, C — только при `variant_c_enabled`. */
-export type HeroVariantId = "main" | "fallback" | "c";
-
-export const hero = {
-  /** Вариант C выключен, пока собственник его не выберет. */
-  variant_c_enabled: false as boolean,
-};
-
-/** Какой вариант на живой странице. */
-export const activeHeroVariant: HeroVariantId = "main";
-
 const HERO_CTA = "Проверить сайт";
 
 const MAIN_HEADLINE = "Проверьте сайт на соответствие 152-ФЗ — и получите план, что исправить";
-const FALLBACK_HEADLINE = "Персональные данные на сайте: проверим и покажем, что поправить";
-const VARIANT_C_HEADLINE =
-  "Узнайте, что на вашем сайте не так с 152-ФЗ, — до того, как это сделает проверка";
 
 const SUB_LEAD = "Политика, согласия, cookie, формы и сторонние сервисы";
 const SUB_TAIL = "Автоматическая проверка, не является юридической консультацией.";
 
 export type ResolvedHero = {
-  variant: HeroVariantId;
   headline: string;
   highlight: string | null;
   subline: string;
   cta: string;
-  /** Вариант C: в герое и рядом с ним нет сумм и таймеров. */
-  hideNearbyTimers: boolean;
-  hideNearbyAmounts: boolean;
 };
 
 export type HeroRenderOptions = {
-  variant?: HeroVariantId;
   claims?: { time_verified: boolean; checks_count_verified: boolean };
-  variantCEnabled?: boolean;
 };
 
 function heroSubline(checksCountVerified: boolean): string {
@@ -179,62 +159,16 @@ function mainHeadline(timeVerified: boolean): string {
   return `Проверьте сайт на соответствие 152-ФЗ ${claimPlaceholders.time} — и получите план, что исправить`;
 }
 
-const nearbyTimer = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)|секунд|минут|24\s*\/\s*7/iu;
-const nearbyAmount = /₽/u;
-
-function assertVariantC(headline: string, nearby: string): void {
-  if (!headline.includes("проверка")) {
-    throw new Error("hero variant C: в заголовке должно остаться слово «проверка»");
-  }
-  if (/ркн/iu.test(headline)) {
-    throw new Error("hero variant C: в заголовке нельзя писать «РКН»");
-  }
-  if (nearbyTimer.test(nearby) || nearbyAmount.test(nearby)) {
-    throw new Error("hero variant C: рядом с героем нельзя показывать суммы и таймеры");
-  }
-}
-
-/** Текст героя и подписей в том же блоке — без калькулятора и таблицы штрафов. */
-export function heroNearbyCopy(resolved: ResolvedHero): string {
-  const parts: string[] = [resolved.headline, resolved.subline, resolved.cta];
-  collectText(heroChrome, parts);
-  return parts.join("\n");
-}
-
-/**
- * A (main) по умолчанию. Фразы срока и числа проверок только при своих флагах.
- * C не рендерится, пока `hero.variant_c_enabled` false.
- */
+/** Фразы срока и числа проверок только при своих флагах. */
 export function renderHero(options?: HeroRenderOptions): ResolvedHero {
   const flags = options?.claims ?? claims;
-  const cEnabled = options?.variantCEnabled ?? hero.variant_c_enabled;
-  const requested = options?.variant ?? activeHeroVariant;
-  const variant: HeroVariantId = requested === "c" && !cEnabled ? "main" : requested;
-  const subline = heroSubline(flags.checks_count_verified);
-  const isC = variant === "c";
-
-  const headline =
-    variant === "fallback"
-      ? FALLBACK_HEADLINE
-      : variant === "c"
-        ? VARIANT_C_HEADLINE
-        : mainHeadline(flags.time_verified);
-
-  const highlight =
-    variant === "fallback" ? "что поправить" : headline.includes("152-ФЗ") ? "152-ФЗ" : null;
-
-  const resolved: ResolvedHero = {
-    variant,
+  const headline = mainHeadline(flags.time_verified);
+  return {
     headline,
-    highlight,
-    subline,
+    highlight: headline.includes("152-ФЗ") ? "152-ФЗ" : null,
+    subline: heroSubline(flags.checks_count_verified),
     cta: HERO_CTA,
-    hideNearbyTimers: isC,
-    hideNearbyAmounts: isC,
   };
-
-  if (isC) assertVariantC(headline, heroNearbyCopy(resolved));
-  return resolved;
 }
 
 function collectText(value: unknown, out: string[]): void {
