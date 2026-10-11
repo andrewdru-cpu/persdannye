@@ -26,6 +26,8 @@ export interface Finding {
   disclaimer?: string;
   /** Norm reference, for example «ч. 3 ст. 13.11 КоАП». Shown whenever present. */
   fineNorm?: string;
+  /** True only when the parser sent `fine_interpretation: true`. Absence is false. */
+  fineInterpretation?: boolean;
   /**
    * Amount text. Set only when NEXT_PUBLIC_SHOW_FINES=true, the scan
    * has show_amounts true, and fine_amount_text is a non-empty string.

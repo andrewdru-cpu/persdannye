@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import {
+  FINE_INTERPRETATION_LABEL,
   findingStatusLabel,
   isRobotsPartial,
   isViolation,
@@ -218,6 +221,7 @@ test("finding schema maps severity aliases, basis, disclaimer, and hides fine am
     assert.equal(hidden[0].statusBasis, "likely");
     assert.equal(hidden[0].disclaimer, "Текст");
     assert.equal(hidden[0].fineNorm, "ч. 3 ст. 13.11 КоАП");
+    assert.equal("fineInterpretation" in hidden[0], false);
     assert.equal("fineAmount" in hidden[0], false);
     assert.equal(JSON.stringify(hidden).includes("screenshot"), false);
     assert.equal(JSON.stringify(hidden).includes("300"), false);
@@ -279,6 +283,7 @@ test("Disallow slash is a partial done result, not blocked_by_robots", () => {
           status: "violation",
           status_basis: "LIKELY",
           fine_norm: "ч. 3 ст. 13.11 КоАП",
+          fine_interpretation: true,
           fine_amount_text: "до 300 000 ₽",
           meta: { disclaimer: "Оценка юриста" },
         },
@@ -307,6 +312,8 @@ test("Disallow slash is a partial done result, not blocked_by_robots", () => {
       assert.equal(job.findings[1].statusBasis, "likely");
       assert.equal(job.findings[1].disclaimer, "Оценка юриста");
       assert.equal(job.findings[1].fineNorm, "ч. 3 ст. 13.11 КоАП");
+      assert.equal("fineInterpretation" in job.findings[0], false);
+      assert.equal(job.findings[1].fineInterpretation, true);
       assert.equal("fineAmount" in job.findings[1], false);
       assert.equal(job.findings[2].status, "not_checked");
       assert.equal(job.findings[2].reason, "robots_disallow");
@@ -378,4 +385,34 @@ test("fine amount is shown only when env, show_amounts, and text all hold", () =
     if (prev === undefined) delete process.env.NEXT_PUBLIC_SHOW_FINES;
     else process.env.NEXT_PUBLIC_SHOW_FINES = prev;
   }
+});
+
+test("fine_interpretation is a label only when the flag is boolean true", () => {
+  assert.equal(FINE_INTERPRETATION_LABEL, "по оценке юриста");
+  const card = fs.readFileSync(
+    path.join(import.meta.dirname, "../components/check/UrlChecker.tsx"),
+    "utf8"
+  );
+  assert.equal(card.includes("FINE_INTERPRETATION_LABEL"), true);
+  assert.equal(card.includes("{f.fineNorm ?"), true);
+
+  const absent = normalizeFindings([{ ...text, fine_norm: "ч. 3 ст. 13.11 КоАП" }]);
+  assert.equal("fineInterpretation" in absent[0], false);
+
+  const flagged = normalizeFindings([
+    { ...text, fine_norm: "ч. 3 ст. 13.11 КоАП", fine_interpretation: true },
+  ]);
+  assert.equal(flagged[0].fineInterpretation, true);
+  assert.equal(flagged[0].fineNorm, "ч. 3 ст. 13.11 КоАП");
+
+  for (const value of [false, "true", 1, 0, null, undefined]) {
+    const finding = normalizeFindings([
+      { ...text, fine_norm: "ч. 3 ст. 13.11 КоАП", fine_interpretation: value },
+    ])[0];
+    assert.equal("fineInterpretation" in finding, false, JSON.stringify(value));
+  }
+
+  const withoutNorm = normalizeFindings([{ ...text, fine_interpretation: true }])[0];
+  assert.equal(withoutNorm.fineInterpretation, true);
+  assert.equal("fineNorm" in withoutNorm, false);
 });

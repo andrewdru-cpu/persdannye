@@ -10,6 +10,7 @@ import {
   findingStatusLabel,
   isRobotsPartial,
   isViolation,
+  FINE_INTERPRETATION_LABEL,
   LIKELY_BASIS_TEXT,
   ROBOTS_PARTIAL_EXPLANATION,
   violationCount,
@@ -110,7 +111,14 @@ function FindingCard({ f }: { f: Finding }) {
       {violation && f.statusBasis === "likely" ? (
         <p className="mt-2 text-sm text-amber-50/90">{LIKELY_BASIS_TEXT}</p>
       ) : null}
-      {f.fineNorm ? <p className="mt-2 text-xs text-white/55">{f.fineNorm}</p> : null}
+      {f.fineNorm ? (
+        <p className="mt-2 flex flex-wrap items-baseline gap-2 text-xs text-white/55">
+          <span>{f.fineNorm}</span>
+          {f.fineInterpretation ? (
+            <span className="text-[11px] text-white/40">{FINE_INTERPRETATION_LABEL}</span>
+          ) : null}
+        </p>
+      ) : null}
       {f.fineAmount ? <p className="mt-1 text-sm text-white/80">{f.fineAmount}</p> : null}
       {f.disclaimer ? <p className="mt-2 text-xs leading-relaxed text-white/45">{f.disclaimer}</p> : null}
     </motion.li>

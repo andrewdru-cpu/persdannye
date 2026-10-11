@@ -14,6 +14,7 @@ const SEVERITY_ALIASES: Record<string, FindingSeverity> = {
 };
 
 export const LIKELY_BASIS_TEXT = "вероятное нарушение, квалификацию оценивает юрист";
+export const FINE_INTERPRETATION_LABEL = "по оценке юриста";
 export const ROBOTS_PARTIAL_EXPLANATION = "сайт запретил автоматический обход части страниц";
 
 /**
@@ -176,6 +177,7 @@ export function normalizeFindings(value: unknown, showAmounts?: unknown): Findin
     if (disclaimer) finding.disclaimer = disclaimer;
     const fineNorm = textField(record.fine_norm, 300);
     if (fineNorm) finding.fineNorm = fineNorm;
+    if (record.fine_interpretation === true) finding.fineInterpretation = true;
     const fineAmount = visibleFineAmount(record.fine_amount_text, showAmounts);
     if (fineAmount) finding.fineAmount = fineAmount;
     findings.push(finding);
