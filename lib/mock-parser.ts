@@ -1,3 +1,4 @@
+import { jobHasRisks } from "./finding-status";
 import type { CheckJob, Finding } from "./types";
 import { friendlyPhaseMessage, phaseIndex, PHASE_STEPS } from "./phases";
 import { domainFromUrl } from "./utils";
@@ -29,11 +30,59 @@ const MOCK_FINDINGS: Finding[] = [
   },
 ];
 
+const REVIEW_FINDINGS: Finding[] = [
+  {
+    rule_id: "F08",
+    title: "Форма обратной связи",
+    fact: "Текст согласия на форме нужно сверить вручную.",
+    severity: "critical",
+    status: "needs_check",
+  },
+  {
+    rule_id: "C11",
+    title: "Сторонний виджет",
+    fact: "Скрипт не открылся, правило не применялось.",
+    severity: "high",
+    status: "not_checked",
+  },
+];
+
+const PARTIAL_FINDINGS: Finding[] = [
+  {
+    rule_id: "P01",
+    title: "Нет политики обработки ПДн",
+    fact: "Документ по ст. 18.1 не найден.",
+    severity: "high",
+    status: "violation",
+  },
+  {
+    rule_id: "F08",
+    title: "Форма обратной связи",
+    fact: "Текст согласия на форме нужно сверить вручную.",
+    severity: "critical",
+    status: "needs_check",
+  },
+  {
+    rule_id: "C11",
+    title: "Сторонний виджет",
+    fact: "Скрипт не открылся, правило не применялось.",
+    severity: "medium",
+    status: "not_checked",
+  },
+  {
+    rule_id: "X99",
+    title: "Новое правило",
+    fact: "Статус ещё не описан в контракте.",
+    severity: "high",
+    status: "later_added",
+  },
+];
+
 type MockState = {
   createdAt: number;
   url: string;
   domain: string;
-  variant: "risks" | "ok" | "blocked";
+  variant: "risks" | "ok" | "blocked" | "partial" | "review";
 };
 
 const mockJobs = new Map<string, MockState>();
@@ -41,6 +90,8 @@ const mockJobs = new Map<string, MockState>();
 function pickVariant(url: string): MockState["variant"] {
   const host = domainFromUrl(url).toLowerCase();
   if (host.includes("blocked") || host.includes("fail")) return "blocked";
+  if (host.includes("partial") || host.includes("fallback")) return "partial";
+  if (host.includes("review")) return "review";
   if (host.includes("ok") || host.includes("compliant")) return "ok";
   return "risks";
 }
@@ -85,8 +136,16 @@ export function mockGetScan(id: string): CheckJob | null {
   );
 
   if (step >= PHASE_STEPS.length) {
-    const findings = state.variant === "ok" ? [] : MOCK_FINDINGS;
-    const score = state.variant === "ok" ? 96 : 42;
+    const findings =
+      state.variant === "ok"
+        ? []
+        : state.variant === "partial"
+          ? PARTIAL_FINDINGS
+          : state.variant === "review"
+            ? REVIEW_FINDINGS
+            : MOCK_FINDINGS;
+    const score = state.variant === "ok" ? 96 : state.variant === "partial" ? 71 : state.variant === "review" ? 90 : 42;
+    const partialNotice = state.variant === "partial" || state.variant === "review";
     return {
       id,
       url: state.url,
@@ -95,8 +154,10 @@ export function mockGetScan(id: string): CheckJob | null {
       phaseMessage: friendlyPhaseMessage("done", domain),
       score,
       findings,
-      hasRisks: findings.length > 0,
-      push: findings.length > 0,
+      hasRisks: jobHasRisks({ phase: "done", push: state.variant === "risks", findings }),
+      push: state.variant === "risks",
+      staticFallback: partialNotice,
+      rulesVersion: partialNotice ? "2026.10" : null,
       pdfReady: false,
       createdAt: new Date(state.createdAt).toISOString(),
       updatedAt: new Date().toISOString(),

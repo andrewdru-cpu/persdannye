@@ -6,6 +6,7 @@ import Link from "next/link";
 import { SmartCaptcha, type SmartCaptchaHandle } from "@/components/captcha/SmartCaptcha";
 import { Button } from "@/components/ui/Button";
 import { CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { findingStatusLabel, isViolation, violationCount } from "@/lib/finding-status";
 import { pollCheck, runCheck } from "@/lib/forms-client";
 import { isDirectForms } from "@/lib/forms-mode";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
@@ -58,6 +59,8 @@ function Burst({ tone }: { tone: "success" | "error" | "risk" }) {
 
 function FindingCard({ f }: { f: Finding }) {
   const reduce = useReducedMotion();
+  const violation = isViolation(f);
+  const statusLabel = findingStatusLabel(f.status);
   return (
     <motion.li
       initial={reduce ? false : { opacity: 0, x: -8 }}
@@ -71,15 +74,22 @@ function FindingCard({ f }: { f: Finding }) {
         <span
           className={cn(
             "rounded-md px-2 py-0.5 text-xs font-medium",
-            f.severity === "critical" || f.severity === "high"
-              ? "bg-rose-500/20 text-rose-200"
-              : f.severity === "medium"
-                ? "bg-amber-500/20 text-amber-50"
-                : "bg-white/10 text-white/70"
+            !violation
+              ? "bg-white/10 text-white/70"
+              : f.severity === "critical" || f.severity === "high"
+                ? "bg-rose-500/20 text-rose-200"
+                : f.severity === "medium"
+                  ? "bg-amber-500/20 text-amber-50"
+                  : "bg-white/10 text-white/70"
           )}
         >
           {severityRu[f.severity] || f.severity}
         </span>
+        {statusLabel && (
+          <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs text-white/75">
+            {statusLabel}
+          </span>
+        )}
       </div>
       <div className="font-medium text-white">{f.title}</div>
       <p className="mt-1 text-sm text-white/65">{f.fact}</p>
@@ -444,7 +454,13 @@ export function UrlChecker({
                   <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
                     {job.hasRisks ? `${domain} — не соответствует` : `${domain} — соответствует`}
                   </h3>
+                  <p className="mt-2 text-sm font-medium text-white/85">
+                    Нарушений: {violationCount(job.findings)}
+                  </p>
                   <p className="mt-1 text-sm text-white/70">{job.phaseMessage}</p>
+                  {job.rulesVersion ? (
+                    <p className="mt-1 text-xs text-white/45">Версия правил: {job.rulesVersion}</p>
+                  ) : null}
                 </div>
                 {typeof job.score === "number" && (
                   <div className="text-right">
@@ -454,6 +470,12 @@ export function UrlChecker({
                 )}
               </div>
             </div>
+
+            {job.staticFallback ? (
+              <p className="rounded-2xl border border-amber-200/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+                Сайт проверен частично
+              </p>
+            ) : null}
 
             {job.findings.length > 0 ? (
               <ul className="space-y-3">

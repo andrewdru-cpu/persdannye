@@ -6,7 +6,8 @@ import {
   normalizePhase,
   type ParserPhase,
 } from "./phases";
-import type { CheckJob, Finding, ScanContact } from "./types";
+import type { CheckJob, ScanContact } from "./types";
+import { jobHasRisks, normalizeFindings, readRulesVersion, readStaticFallback } from "./finding-status";
 import { domainFromUrl } from "./utils";
 import {
   findScanContact,
@@ -35,8 +36,10 @@ interface UpstreamScan {
   status?: string;
   phase_message?: string | null;
   score?: number | null;
-  findings?: Finding[];
+  findings?: unknown;
   push?: boolean;
+  static_fallback?: unknown;
+  rules_version?: unknown;
   warning?: string | null;
   error?: string | null;
   message?: string | null;
@@ -126,10 +129,9 @@ function mapUpstream(
 ): CheckJob {
   const domain = domainFromUrl(url);
   const phase = normalizePhase(data.phase || data.status || "queued") as ParserPhase | string;
-  const findings = Array.isArray(data.findings) ? data.findings : [];
+  const findings = normalizeFindings(data.findings);
   const push = Boolean(data.push);
-  const done = phase === "done";
-  const hasRisks = done ? push || findings.length > 0 : push;
+  const hasRisks = jobHasRisks({ phase, push: data.push, findings });
 
   return {
     id: checkId,
@@ -146,6 +148,8 @@ function mapUpstream(
     findings,
     hasRisks,
     push,
+    staticFallback: readStaticFallback(data.static_fallback),
+    rulesVersion: readRulesVersion(data.rules_version),
     pdfReady: mock ? false : resolvePdfReady(data, phase),
     warning: data.warning ?? warning ?? null,
     error: data.error ?? (phase === "error" ? data.message : null) ?? null,
@@ -156,6 +160,11 @@ function mapUpstream(
     updatedAt: new Date().toISOString(),
     mock,
   };
+}
+
+/** Upstream `/api/scans` body → check job. Used by the BFF and by tests. */
+export function mapUpstreamScan(data: UpstreamScan, url = "https://example.com"): CheckJob {
+  return mapUpstream("scan-1", url, data, false, "2026-10-11T00:00:00.000Z");
 }
 
 export const SITE_FORM_ORIGIN = "site_form";

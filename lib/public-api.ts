@@ -1,16 +1,14 @@
+import {
+  jobHasRisks,
+  normalizeFindings,
+  readRulesVersion,
+  readStaticFallback,
+} from "./finding-status";
 import { friendlyPhaseMessage, normalizePhase } from "./phases";
 import { SMARTCAPTCHA_TOKEN_FIELD } from "./smartcaptcha";
-import type { CheckJob, Finding, FindingSeverity } from "./types";
+import type { CheckJob, Finding } from "./types";
 import { domainFromUrl, normalizeUrl } from "./utils";
 import { getPublicApiBase } from "./forms-mode";
-
-const SEVERITIES = new Set<FindingSeverity>([
-  "critical",
-  "high",
-  "medium",
-  "low",
-  "info",
-]);
 
 export class PublicApiError extends Error {
   status: number;
@@ -222,22 +220,7 @@ function textField(value: unknown, max = 500): string {
 
 /** Findings only: drop contacts, screenshots, and any extra keys. */
 export function sanitizeFindings(value: unknown): Finding[] {
-  if (!Array.isArray(value)) return [];
-  const findings: Finding[] = [];
-  for (const item of value) {
-    const record = asRecord(item);
-    if (!record) continue;
-    const ruleId = textField(record.rule_id, 80);
-    const title = textField(record.title, 300);
-    const fact = textField(record.fact, 1000);
-    const severityRaw = textField(record.severity, 20);
-    if (!ruleId || !title || !fact) continue;
-    const severity: FindingSeverity = SEVERITIES.has(severityRaw as FindingSeverity)
-      ? (severityRaw as FindingSeverity)
-      : "info";
-    findings.push({ rule_id: ruleId, title, fact, severity });
-  }
-  return findings;
+  return normalizeFindings(value);
 }
 
 function mapPhase(data: Record<string, unknown>): string {
@@ -274,6 +257,8 @@ export function mapCreatedCheck(body: unknown, submittedUrl: string): CheckJob {
     score: null,
     findings: [],
     hasRisks: false,
+    staticFallback: false,
+    rulesVersion: null,
     pdfReady: false,
     reportUrl: safeHttpUrl(record?.report_url),
     warning: null,
@@ -300,7 +285,11 @@ export function mapPublicCheck(body: unknown, fallbackUrl: string, id: string): 
   const done = phase === "done";
   const pdfFlag = boolField(record.pdf_ready);
   const pdfReady = pdfFlag ?? done;
-  const hasRisks = done ? findings.length > 0 : false;
+  const hasRisks = jobHasRisks({
+    phase,
+    push: typeof record.push === "boolean" ? record.push : undefined,
+    findings,
+  });
   const now = new Date().toISOString();
 
   return {
@@ -312,6 +301,8 @@ export function mapPublicCheck(body: unknown, fallbackUrl: string, id: string): 
     score,
     findings,
     hasRisks,
+    staticFallback: readStaticFallback(record.static_fallback),
+    rulesVersion: readRulesVersion(record.rules_version),
     pdfReady,
     reportUrl: safeHttpUrl(record.report_url),
     warning: null,

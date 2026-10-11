@@ -7,6 +7,11 @@ export interface Finding {
   title: string;
   fact: string;
   severity: FindingSeverity;
+  /**
+   * Upcoming parser status. Absent on current scans — those still count
+   * as violations. `needs_check` and `not_checked` do not.
+   */
+  status?: string;
 }
 
 /** Contacts captured on the landing at the moment a scan is created. */
@@ -29,8 +34,16 @@ export interface CheckJob {
   phaseMessage: string;
   score?: number | null;
   findings: Finding[];
-  /** true if risks for landing: push===true OR findings length > 0 when done */
+  /**
+   * Done scan: at least one legacy finding (no status) or an explicit
+   * violation status. `needs_check`, `not_checked`, and unknown statuses
+   * do not set this. In progress, follows `push` only.
+   */
   hasRisks: boolean;
+  /** True only when the scan payload set `static_fallback: true`. */
+  staticFallback?: boolean;
+  /** `rules_version` when the parser sent a non-empty string. */
+  rulesVersion?: string | null;
   push?: boolean;
   /** True when parser has a PDF report ready to fetch server-side. */
   pdfReady?: boolean;
