@@ -41,10 +41,14 @@ test("subject pages are noindex, no-referrer, and analytics-free placeholders", 
   assert.equal(isAnalyticsFreePath("/privacy"), false);
   assert.equal(isAnalyticsFreePath("/"), false);
 
-  const unsubscribe = fs.readFileSync(path.join(root, "components/subject/UnsubscribeConfirm.tsx"), "utf8");
-  assert.equal(unsubscribe.includes("useEffect"), false);
-  assert.equal(unsubscribe.includes("type=\"email\""), false);
-  assert.equal(unsubscribe.includes("postSubjectRequest({ type: \"unsubscribe\", token })"), true);
+  const unsubscribePage = fs.readFileSync(path.join(root, "app/unsubscribe/page.tsx"), "utf8");
+  assert.equal(unsubscribePage.includes("searchParams"), false);
+  assert.equal(unsubscribePage.includes("postSubjectRequest"), false);
+  assert.equal(unsubscribePage.includes("token"), false);
+  assert.equal(fs.existsSync(path.join(root, "app/u")), false);
+  assert.equal(fs.existsSync(path.join(root, "components/subject/UnsubscribeConfirm.tsx")), false);
+  assert.match(legalContent.unsubscribeLead, /ссылке в письме/);
+  assert.match(legalContent.unsubscribeEmailLink, /не на этот сайт/);
 
   const reply =
     "Если адрес есть в наших системах, ответ придёт письмом на этот адрес в течение 10 рабочих дней";
@@ -57,16 +61,16 @@ test("subject pages are noindex, no-referrer, and analytics-free placeholders", 
   assert.equal(form.includes("result.email"), false);
   assert.equal(form.includes("result.data"), false);
   assert.equal(form.includes("res.status"), false);
-  assert.equal(unsubscribe.includes("res.status"), false);
+  assert.equal(unsubscribePage.includes("fetch("), false);
 });
 
-test("subject-request body uses captcha_token and omits empty fields", () => {
-  assert.deepEqual(buildSubjectRequestBody({ type: "unsubscribe", token: " abc " }), {
+test("subject-request body uses captcha_token and never sends an unsubscribe token", () => {
+  assert.deepEqual(buildSubjectRequestBody({ type: "unsubscribe", email: " a@b.c " }), {
     type: "unsubscribe",
-    token: "abc",
+    email: "a@b.c",
   });
-  assert.equal("email" in buildSubjectRequestBody({ type: "unsubscribe", token: "abc" }), false);
-  assert.equal("captcha_token" in buildSubjectRequestBody({ type: "unsubscribe", token: "abc" }), false);
+  assert.equal("token" in buildSubjectRequestBody({ type: "unsubscribe", email: "a@b.c" }), false);
+  assert.equal("captcha_token" in buildSubjectRequestBody({ type: "unsubscribe", email: "a@b.c" }), false);
   assert.deepEqual(
     buildSubjectRequestBody({
       type: "delete",
@@ -120,7 +124,7 @@ test("direct mode posts subject requests only to /public/subject-request and sta
   process.env.NEXT_PUBLIC_PUBLIC_API_BASE = origin;
   const email = "person@example.com";
   try {
-    const unsubscribe = await postSubjectRequest({ type: "unsubscribe", token: "mail-token" });
+    const unsubscribe = await postSubjectRequest({ type: "unsubscribe", email });
     const access = await postSubjectRequest({
       type: "access",
       email,
@@ -132,7 +136,9 @@ test("direct mode posts subject requests only to /public/subject-request and sta
 
     const posts = mock.requests.filter((entry) => entry.path === SUBJECT_REQUEST_PATH);
     assert.equal(posts.length, 2);
-    assert.deepEqual(posts[0].body, { type: "unsubscribe", token: "mail-token" });
+    assert.deepEqual(posts[0].body, { type: "unsubscribe", email });
+    assert.equal("token" in (posts[0].body as object), false);
+    assert.equal("token" in (posts[1].body as object), false);
     assert.deepEqual(posts[1].body, {
       type: "access",
       email,

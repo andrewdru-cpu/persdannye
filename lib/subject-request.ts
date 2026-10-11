@@ -10,7 +10,6 @@ export type SubjectRequestType = (typeof SUBJECT_REQUEST_TYPES)[number];
 export type SubjectRequestInput = {
   type: SubjectRequestType;
   email?: string;
-  token?: string;
   captchaToken?: string;
 };
 
@@ -31,10 +30,8 @@ export function canPostSubjectRequest(): boolean {
 export function buildSubjectRequestBody(input: SubjectRequestInput): Record<string, string> {
   const body: Record<string, string> = { type: input.type };
   const email = input.email?.trim();
-  const token = input.token?.trim();
   const captcha = input.captchaToken?.trim();
   if (email) body.email = email;
-  if (token) body.token = token;
   if (captcha) body.captcha_token = captcha;
   return body;
 }
