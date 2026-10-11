@@ -19,6 +19,7 @@ import {
 } from "@/content/blocks";
 import { flags } from "@/content/flags";
 import { sampleFinesNote, sampleReport, sampleRulesLine } from "@/content/extra-blocks";
+import { safeHref } from "@/lib/safe-href";
 import { cta, fixWithUs, heroChrome, trustItems, whoFor } from "@/content/landing";
 
 const heroEase = [0.22, 1, 0.36, 1] as const;
@@ -332,19 +333,27 @@ export function ExampleResult() {
                   <p className="mt-2 text-white/75">Что исправить: {item.fix}</p>
                   <p className="mt-2 text-white/55">
                     Норма:{" "}
-                    {item.norms.map((norm, index) => (
-                      <span key={`${norm.label}-${index}`}>
-                        {index > 0 ? "; " : null}
-                        {"href" in norm && norm.href ? (
-                          <a href={norm.href} className="text-amber-200 hover:underline" target="_blank" rel="noreferrer">
-                            {norm.label}
-                          </a>
-                        ) : (
-                          norm.label
-                        )}
-                        {"note" in norm && norm.note ? ` (${norm.note})` : null}
-                      </span>
-                    ))}
+                    {item.norms.map((norm, index) => {
+                      const href = "href" in norm ? safeHref(norm.href) : null;
+                      return (
+                        <span key={`${norm.label}-${index}`}>
+                          {index > 0 ? "; " : null}
+                          {href ? (
+                            <a
+                              href={href}
+                              className="text-amber-200 hover:underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {norm.label}
+                            </a>
+                          ) : (
+                            norm.label
+                          )}
+                          {"note" in norm && norm.note ? ` (${norm.note})` : null}
+                        </span>
+                      );
+                    })}
                   </p>
                 </li>
               ))}

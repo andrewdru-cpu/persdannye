@@ -90,8 +90,8 @@ export const sampleReport = {
           note: "политика",
         },
         {
-          label: "152-ФЗ ст. 14 ч. 7 п. 4",
-          note: "субъект вправе знать наименование и место нахождения оператора",
+          label: "152-ФЗ, п. 4 ч. 7 ст. 14",
+          href: "https://www.consultant.ru/document/cons_doc_LAW_61801/",
         },
         {
           label: "149-ФЗ ст. 10 ч. 2",

@@ -6,10 +6,14 @@ import { leadConsent, marketingConsent, reportConsent } from "./consents.ts";
 import { flags } from "./flags.ts";
 import { fillPlaceholders, placeholders } from "./placeholders.ts";
 import {
+  CHECKS_COUNT_MAX_AGE_MS,
   CHECKS_COUNT_REVALIDATE_SECONDS,
   PARSER_CHECKS_COUNT_PATH,
   parseVisibleChecksCount,
+  resetChecksCountCache,
+  resolveVisibleChecksCount,
 } from "../lib/checks-count.ts";
+import { safeHref } from "../lib/safe-href.ts";
 import { company, privacyContactLabel, PRIVACY_CONTACT_TODO } from "../lib/company.ts";
 import { heroChecksPhrase, heroSublineWithCount } from "../lib/hero-checks.ts";
 import {
@@ -186,9 +190,10 @@ describe("hero checks count phrase", () => {
 });
 
 describe("parser checks-count payload", () => {
-  it("reads the public path and a 300 second revalidate", () => {
+  it("reads the public path, a 300 second fresh window, and a 24 hour cap", () => {
     assert.equal(PARSER_CHECKS_COUNT_PATH, "/public/checks-count");
     assert.equal(CHECKS_COUNT_REVALIDATE_SECONDS, 300);
+    assert.equal(CHECKS_COUNT_MAX_AGE_MS, 24 * 60 * 60 * 1000);
   });
 
   it("accepts an integer count with a rules version", () => {
@@ -203,6 +208,26 @@ describe("parser checks-count payload", () => {
     assert.equal(parseVisibleChecksCount({ visible_checks_count: "21", rules_version: "v" }), null);
     assert.equal(parseVisibleChecksCount({ visible_checks_count: 21 }), null);
     assert.equal(parseVisibleChecksCount(null), null);
+  });
+
+  it("drops the number on error, timeout, and a response older than 24 hours", async () => {
+    resetChecksCountCache();
+    const start = 1_700_000_000_000;
+    let calls = 0;
+    const fail = async () => {
+      calls += 1;
+      throw new Error("timeout");
+    };
+    assert.equal(await resolveVisibleChecksCount(start, async () => 21), 21);
+    assert.equal(await resolveVisibleChecksCount(start + 1_000, fail), 21);
+    assert.equal(calls, 0);
+    assert.equal(await resolveVisibleChecksCount(start + 301_000, fail), null);
+    assert.equal(calls, 1);
+    assert.equal(await resolveVisibleChecksCount(start + 302_000, async () => 40), 40);
+    assert.equal(
+      await resolveVisibleChecksCount(start + 302_000 + CHECKS_COUNT_MAX_AGE_MS, async () => null),
+      null,
+    );
   });
 });
 
@@ -281,9 +306,12 @@ describe("publication flags", () => {
     );
     assert.deepEqual(
       item?.norms.map((norm) => norm.label),
-      ["152-ФЗ ст. 18.1 ч. 2", "152-ФЗ ст. 14 ч. 7 п. 4", "149-ФЗ ст. 10 ч. 2"],
+      ["152-ФЗ ст. 18.1 ч. 2", "152-ФЗ, п. 4 ч. 7 ст. 14", "149-ФЗ ст. 10 ч. 2"],
     );
-    assert.equal("href" in item.norms[1], false);
+    const lawHref = "href" in item.norms[1] ? item.norms[1].href : "";
+    assert.equal(lawHref, "https://www.consultant.ru/document/cons_doc_LAW_61801/");
+    assert.equal(safeHref(lawHref), lawHref);
+    assert.equal(lawHref.includes("eeeebe22"), false);
     const dumped = JSON.stringify(sampleReport);
     assert.equal(dumped.includes("п. 3.1"), false);
     assert.equal(dumped.includes("Рекомендации РКН"), false);
