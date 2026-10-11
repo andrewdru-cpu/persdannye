@@ -8,7 +8,13 @@ import {
   type ParserPhase,
 } from "./phases";
 import type { CheckJob, ScanContact } from "./types";
-import { jobHasRisks, normalizeFindings, readRulesVersion, readStaticFallback } from "./finding-status";
+import {
+  jobHasRisks,
+  normalizeFindings,
+  normalizeInventory,
+  readRulesVersion,
+  readStaticFallback,
+} from "./finding-status";
 import { domainFromUrl } from "./utils";
 import {
   findScanContact,
@@ -38,6 +44,7 @@ interface UpstreamScan {
   phase_message?: string | null;
   score?: number | null;
   findings?: unknown;
+  inventory?: unknown;
   push?: boolean;
   mode?: unknown;
   rules_version?: unknown;
@@ -148,6 +155,7 @@ function mapUpstream(
     ),
     score: data.score ?? null,
     findings,
+    inventory: normalizeInventory(data.inventory),
     hasRisks,
     push,
     staticFallback: readStaticFallback(data.mode),

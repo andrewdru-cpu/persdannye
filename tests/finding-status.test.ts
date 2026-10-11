@@ -4,7 +4,9 @@ import path from "node:path";
 import test from "node:test";
 import {
   FINE_INTERPRETATION_LABEL,
+  INVENTORY_HEADING,
   findingStatusLabel,
+  normalizeInventory,
   isRobotsPartial,
   isViolation,
   jobHasRisks,
@@ -415,4 +417,64 @@ test("fine_interpretation is a label only when the flag is boolean true", () => 
   const withoutNorm = normalizeFindings([{ ...text, fine_interpretation: true }])[0];
   assert.equal(withoutNorm.fineInterpretation, true);
   assert.equal("fineNorm" in withoutNorm, false);
+});
+
+test("inventory is informational and stays out of the score and the violation count", () => {
+  assert.equal(INVENTORY_HEADING, "Что мы нашли на сайте");
+  const card = fs.readFileSync(
+    path.join(import.meta.dirname, "../components/check/UrlChecker.tsx"),
+    "utf8"
+  );
+  assert.equal(card.includes("INVENTORY_HEADING"), true);
+  assert.equal(card.includes("<InventoryBlock items={job.inventory} />"), true);
+  assert.equal(card.includes("violationCount(job.inventory)"), false);
+
+  assert.deepEqual(normalizeInventory(undefined), []);
+  assert.deepEqual(normalizeInventory([]), []);
+  assert.deepEqual(normalizeInventory([{ title: "  ", detail: "" }, null, "x"]), []);
+
+  const rows = [
+    {
+      checklist_item_id: " policy-link ",
+      title: " Ссылка на политику ",
+      detail: " В подвале. ",
+      status: "violation",
+      fine_norm: "ч. 1 ст. 13.11 КоАП",
+      fine_amount_text: "100",
+      hidden: true,
+      email: "secret@example.com",
+    },
+    { title: "Только заголовок" },
+  ];
+  const body = {
+    status: "done",
+    score: 64,
+    findings: [{ ...text, status: "violation" }],
+    inventory: rows,
+  };
+  const pub = mapPublicCheck(body, "https://shop.example", "inv");
+  const bff = mapUpstreamScan({ ...body, phase: "done" }, "https://shop.example");
+  for (const job of [pub, bff]) {
+    assert.equal(job.score, 64);
+    assert.equal(violationCount(job.findings), 1);
+    assert.equal(job.hasRisks, true);
+    assert.deepEqual(job.inventory, [
+      {
+        checklist_item_id: "policy-link",
+        title: "Ссылка на политику",
+        detail: "В подвале.",
+      },
+      { title: "Только заголовок" },
+    ]);
+    const dumped = JSON.stringify(job.inventory);
+    assert.equal(dumped.includes("secret@example.com"), false);
+    assert.equal(dumped.includes("violation"), false);
+    assert.equal(dumped.includes("hidden"), false);
+    assert.equal(dumped.includes("fine_norm"), false);
+  }
+
+  const absent = mapPublicCheck({ status: "done", score: 90, findings: [] }, "https://shop.example", "none");
+  assert.deepEqual(absent.inventory, []);
+  assert.equal(absent.score, 90);
+  assert.equal(violationCount(absent.findings), 0);
 });

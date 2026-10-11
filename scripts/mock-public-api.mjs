@@ -155,6 +155,32 @@ export function createMockPublicApi() {
                 screenshot: "data:image/png;base64,AAAA",
               },
             ],
+        inventory: robotsPartial
+          ? [
+              {
+                checklist_item_id: "policy-link",
+                title: "Ссылка на политику",
+                detail: "На главной ссылка есть в подвале.",
+                status: "violation",
+                fine_norm: "ч. 1 ст. 13.11 КоАП",
+                hidden: true,
+                email: "secret@example.com",
+              },
+              {
+                checklist_item_id: "cookie-note",
+                title: "Упоминание cookie",
+                detail: "В подвале есть короткое упоминание cookie.",
+              },
+            ]
+          : [
+              {
+                checklist_item_id: "home-policy",
+                title: "Политика на главной",
+                detail: "Ссылка в подвале есть.",
+                status: "hidden",
+                screenshot: "data:image/png;base64,CCCC",
+              },
+            ],
         contacts: { name: "SHOULD_NOT_RENDER", email: "secret@example.com", phone: "+79990000000" },
         screenshots: ["data:image/png;base64,BBBB"],
         lead: { email: "secret@example.com" },

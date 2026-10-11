@@ -1,6 +1,7 @@
 import {
   jobHasRisks,
   normalizeFindings,
+  normalizeInventory,
   readRulesVersion,
   readStaticFallback,
 } from "./finding-status";
@@ -300,6 +301,7 @@ export function mapPublicCheck(body: unknown, fallbackUrl: string, id: string): 
     phaseMessage: friendlyPhaseMessage(phase, domain),
     score,
     findings,
+    inventory: normalizeInventory(record.inventory),
     hasRisks,
     staticFallback: readStaticFallback(record.mode),
     rulesVersion: readRulesVersion(record.rules_version),

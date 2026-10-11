@@ -35,6 +35,16 @@ export interface Finding {
   fineAmount?: string;
 }
 
+/**
+ * Informational checklist row. No status, no fine, not a violation,
+ * and not part of the score. The parser already drops hidden rows.
+ */
+export interface InventoryItem {
+  checklist_item_id?: string;
+  title?: string;
+  detail?: string;
+}
+
 /** Contacts captured on the landing at the moment a scan is created. */
 export interface ScanContact {
   name?: string;
@@ -55,6 +65,11 @@ export interface CheckJob {
   phaseMessage: string;
   score?: number | null;
   findings: Finding[];
+  /**
+   * Informational rows from `inventory`. Empty or absent means the
+   * block is hidden. These never count as violations.
+   */
+  inventory?: InventoryItem[];
   /**
    * Done scan: at least one legacy finding (no status) or an explicit
    * violation status. `needs_check`, `not_checked`, and unknown statuses

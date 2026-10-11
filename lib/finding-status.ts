@@ -1,6 +1,6 @@
 import { showFineAmounts } from "./forms-mode";
 import { isLimitedScan } from "./phases";
-import type { Finding, FindingSeverity, StatusBasis } from "./types";
+import type { Finding, FindingSeverity, InventoryItem, StatusBasis } from "./types";
 
 const SEVERITY_ALIASES: Record<string, FindingSeverity> = {
   critical: "critical",
@@ -15,6 +15,7 @@ const SEVERITY_ALIASES: Record<string, FindingSeverity> = {
 
 export const LIKELY_BASIS_TEXT = "вероятное нарушение, квалификацию оценивает юрист";
 export const FINE_INTERPRETATION_LABEL = "по оценке юриста";
+export const INVENTORY_HEADING = "Что мы нашли на сайте";
 export const ROBOTS_PARTIAL_EXPLANATION = "сайт запретил автоматический обход части страниц";
 
 /**
@@ -152,6 +153,30 @@ export function visibleFineAmount(fineAmountText: unknown, showAmounts: unknown)
   const text = fineAmountText.trim();
   if (!text) return null;
   return text.slice(0, 200);
+}
+
+/**
+ * Informational rows. Only checklist_item_id, title, and detail are kept.
+ * Hidden rows are already removed by the parser, so every remaining object
+ * is shown. Blank objects are dropped.
+ */
+export function normalizeInventory(value: unknown): InventoryItem[] {
+  if (!Array.isArray(value)) return [];
+  const items: InventoryItem[] = [];
+  for (const item of value) {
+    const record = asRecord(item);
+    if (!record) continue;
+    const checklistItemId = textField(record.checklist_item_id, 80);
+    const title = textField(record.title, 300);
+    const detail = textField(record.detail, 1000);
+    if (!checklistItemId && !title && !detail) continue;
+    const next: InventoryItem = {};
+    if (checklistItemId) next.checklist_item_id = checklistItemId;
+    if (title) next.title = title;
+    if (detail) next.detail = detail;
+    items.push(next);
+  }
+  return items;
 }
 
 /** Text findings only. `status` is copied only when the parser sent one. */

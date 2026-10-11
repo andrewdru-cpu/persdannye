@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { CONSENT_TEXT_VERSION } from "@/lib/consent";
 import {
   findingStatusLabel,
+  INVENTORY_HEADING,
   isRobotsPartial,
   isViolation,
   FINE_INTERPRETATION_LABEL,
@@ -19,7 +20,7 @@ import { pollCheck, runCheck } from "@/lib/forms-client";
 import { isDirectForms } from "@/lib/forms-mode";
 import { ACTIVE_POLL_MS, isLimitedScan, LIMITED_SCAN_MESSAGE, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import { publicCheckPdfUrl } from "@/lib/public-api";
-import type { CheckJob, Finding } from "@/lib/types";
+import type { CheckJob, Finding, InventoryItem } from "@/lib/types";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { LeadForm } from "@/components/landing/LeadForm";
 
@@ -69,6 +70,23 @@ function Burst({ tone }: { tone: "success" | "error" | "risk" }) {
         />
       ))}
     </div>
+  );
+}
+
+function InventoryBlock({ items }: { items?: InventoryItem[] }) {
+  if (!items?.length) return null;
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
+      <h4 className="text-sm font-medium text-white/80">{INVENTORY_HEADING}</h4>
+      <ul className="mt-3 space-y-3">
+        {items.map((item, index) => (
+          <li key={`${item.checklist_item_id || "item"}-${index}`} className="text-sm">
+            <p className="font-medium text-white/85">{item.title || item.checklist_item_id}</p>
+            {item.detail ? <p className="mt-1 leading-relaxed text-white/60">{item.detail}</p> : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -519,6 +537,8 @@ export function UrlChecker({
               </p>
             )}
 
+            <InventoryBlock items={job.inventory} />
+
             {(direct ? job.phase === "done" || job.pdfReady : job.pdfReady && !job.mock) && (
               <div className="flex flex-wrap gap-3">
                 {pdfHref && (
@@ -609,6 +629,8 @@ export function UrlChecker({
                 ))}
               </ul>
             ) : null}
+
+            <InventoryBlock items={job.inventory} />
 
             <div className="glass-card glass-card-gold p-5 md:p-6">
               <h4 className="font-display text-2xl font-semibold text-white md:text-3xl">

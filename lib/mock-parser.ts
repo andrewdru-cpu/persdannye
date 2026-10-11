@@ -1,4 +1,4 @@
-import { jobHasRisks, normalizeFindings } from "./finding-status";
+import { jobHasRisks, normalizeFindings, normalizeInventory } from "./finding-status";
 import type { CheckJob, Finding } from "./types";
 import { friendlyPhaseMessage, LIMITED_SCAN_MESSAGE, phaseIndex, PHASE_STEPS } from "./phases";
 import { domainFromUrl } from "./utils";
@@ -123,6 +123,24 @@ const ROBOTS_PARTIAL_RAW = [
   },
 ];
 
+/** Informational rows. Extra keys must not reach the screen. */
+const INVENTORY_RAW = [
+  {
+    checklist_item_id: "policy-link",
+    title: "Ссылка на политику",
+    detail: "На главной ссылка есть в подвале.",
+    status: "violation",
+    fine_norm: "ч. 1 ст. 13.11 КоАП",
+    hidden: true,
+    email: "secret@example.com",
+  },
+  {
+    checklist_item_id: "cookie-note",
+    title: "Упоминание cookie",
+    detail: "В подвале есть короткое упоминание cookie.",
+  },
+];
+
 type MockState = {
   createdAt: number;
   url: string;
@@ -192,6 +210,7 @@ export function mockGetScan(id: string): CheckJob | null {
       phaseMessage: friendlyPhaseMessage("done", domain),
       score: 64,
       findings,
+      inventory: normalizeInventory(INVENTORY_RAW),
       hasRisks: jobHasRisks({ phase: "done", push: false, findings }),
       staticFallback: true,
       rulesVersion: "2026.10",
