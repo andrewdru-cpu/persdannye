@@ -8,6 +8,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { ScanContact } from "./types";
 import { dataFilePath } from "./data-dir";
+import { CONSENT_TEXT_VERSION } from "./consent";
 
 const DATA_PATH = dataFilePath("scan-contacts.json");
 
@@ -23,6 +24,8 @@ export function normalizeScanContact(
     email?: string | null;
     phone?: string | null;
     source?: string | null;
+    consent?: boolean | null;
+    consent_text_version?: string | null;
   } | null
 ): ScanContact | null {
   if (!input) return null;
@@ -30,7 +33,17 @@ export function normalizeScanContact(
   const email = input.email?.trim() || undefined;
   const phone = input.phone?.trim() || undefined;
   if (!name && !email && !phone) return null;
-  return { name, email, phone, source: "landing" };
+  const contact: ScanContact = {
+    name,
+    email,
+    phone,
+    source: "landing",
+  };
+  if (input.consent === true) {
+    contact.consent = true;
+    contact.consent_text_version = input.consent_text_version?.trim() || CONSENT_TEXT_VERSION;
+  }
+  return contact;
 }
 
 export function mergeScanContact(
@@ -38,11 +51,19 @@ export function mergeScanContact(
   fallback?: ScanContact | null
 ): ScanContact | null {
   if (!hasScanContact(primary) && !hasScanContact(fallback)) return null;
+  const consent = primary?.consent === true || fallback?.consent === true;
   return {
     name: primary?.name || fallback?.name,
     email: primary?.email || fallback?.email,
     phone: primary?.phone || fallback?.phone,
     source: primary?.source || fallback?.source || "landing",
+    ...(consent
+      ? {
+          consent: true as const,
+          consent_text_version:
+            primary?.consent_text_version || fallback?.consent_text_version || CONSENT_TEXT_VERSION,
+        }
+      : {}),
   };
 }
 
@@ -68,6 +89,12 @@ export async function saveScanContact(
     email: contact.email,
     phone: contact.phone,
     source: "landing",
+    ...(contact.consent === true
+      ? {
+          consent: true as const,
+          consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
+        }
+      : {}),
     url,
     savedAt: new Date().toISOString(),
   };

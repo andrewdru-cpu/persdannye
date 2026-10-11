@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCheck } from "@/lib/parser-client";
+import { getCheck, publicCheckJob } from "@/lib/parser-client";
 import { notifyScanIfNeeded } from "@/lib/notify";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function GET(
     // Every finished landing scan alerts the manager (risks or not).
     await notifyScanIfNeeded(job);
 
-    return NextResponse.json(job);
+    return NextResponse.json(publicCheckJob(job));
   } catch (e) {
     const message = e instanceof Error ? e.message : "Ошибка сервера";
     return NextResponse.json({ error: message }, { status: 500 });

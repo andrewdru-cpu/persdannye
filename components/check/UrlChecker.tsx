@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import type { CheckJob, Finding } from "@/lib/types";
 import { cn, domainFromUrl } from "@/lib/utils";
@@ -96,6 +97,8 @@ export function UrlChecker({
   const [leadName, setLeadName] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
   const [leadPhone, setLeadPhone] = useState("");
+  const [leadConsent, setLeadConsent] = useState(false);
+  const contactsRef = useRef<HTMLDetailsElement>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [job, setJob] = useState<CheckJob | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -152,21 +155,28 @@ export function UrlChecker({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const name = leadName.trim();
+    const email = leadEmail.trim();
+    const phone = leadPhone.trim();
+    if ((name || email || phone) && !leadConsent) {
+      if (contactsRef.current) contactsRef.current.open = true;
+      setError("Отметьте согласие на обработку персональных данных");
+      return;
+    }
     setError(null);
     setJob(null);
     setStartedAt(Date.now());
     setElapsedSec(0);
     setStatus("running");
 
-    const name = leadName.trim();
-    const email = leadEmail.trim();
-    const phone = leadPhone.trim();
     const lead =
       name || email || phone
         ? {
             name: name || undefined,
             email: email || undefined,
             phone: phone || undefined,
+            consent: true,
+            consent_text_version: CONSENT_TEXT_VERSION,
           }
         : undefined;
 
@@ -224,7 +234,10 @@ export function UrlChecker({
           </Button>
         </div>
 
-        <details className="group rounded-2xl border border-amber-200/15 bg-white/[0.03] px-3 py-2.5">
+        <details
+          ref={contactsRef}
+          className="group rounded-2xl border border-amber-200/15 bg-white/[0.03] px-3 py-2.5"
+        >
           <summary className="cursor-pointer list-none text-xs tracking-wide text-white/60 marker:content-none">
             <span className="text-amber-100/90">Контакты для менеджера</span>
             <span className="text-white/40"> — необязательно, если хотите, чтобы вас взяли в работу сразу</span>
@@ -256,8 +269,37 @@ export function UrlChecker({
               inputMode="tel"
               className={fieldClass}
             />
+            <label className="flex items-start gap-2 text-xs leading-relaxed text-white/65 sm:col-span-3">
+              <input
+                type="checkbox"
+                name="consent"
+                checked={leadConsent}
+                onChange={(e) => {
+                  setLeadConsent(e.target.checked);
+                  if (e.target.checked) setError(null);
+                }}
+                onInvalid={(e) => {
+                  e.preventDefault();
+                  if (contactsRef.current) contactsRef.current.open = true;
+                  setError("Отметьте согласие на обработку персональных данных");
+                }}
+                required={Boolean(leadName.trim() || leadEmail.trim() || leadPhone.trim())}
+                className="mt-0.5 accent-amber-400"
+              />
+              <span>
+                Я даю согласие на обработку персональных данных в соответствии с{" "}
+                <Link href="/privacy" className="text-amber-300 hover:underline">
+                  Политикой обработки персональных данных
+                </Link>
+              </span>
+            </label>
           </div>
         </details>
+        {error && status !== "running" && status !== "error" && (
+          <p className="text-sm text-rose-300" role="alert">
+            {error}
+          </p>
+        )}
       </form>
 
       <AnimatePresence initial={false}>

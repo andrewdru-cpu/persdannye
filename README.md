@@ -30,7 +30,7 @@ Open http://localhost:3000
 
 Client never sees tokens. Browser calls only:
 
-- `POST /api/checks` `{ "url": "https://…", "lead?": { "name", "email", "phone" } }` → check job
+- `POST /api/checks` `{ "url": "https://…", "lead?": { "name", "email", "phone", "consent", "consent_text_version" } }` → check job. Any contact without `consent: true` is rejected with 400
 - `GET /api/checks/[id]` → status / findings (poll every 1.5s while active); on every `phase=done`, BFF notifies Telegram
 - `GET /api/checks/[id]/pdf` → server-side PDF proxy (parser Bearer never reaches the browser)
 - `POST /api/leads` → lead with required consent + Telegram notify
@@ -38,7 +38,7 @@ Client never sees tokens. Browser calls only:
 When `PARSER_API_BASE` is set, the BFF:
 
 1. Authenticates with `PARSER_API_EMAIL` + `PARSER_API_PASSWORD` via `POST {BASE}/api/auth/login` (JWT cached server-side), **or** uses `PARSER_API_TOKEN` as Bearer
-2. Creates scan: `POST {BASE}/api/scans` always `{ "url", "mode": "quick" }`, plus `lead: { name, email, phone, source: "landing" }` when the visitor left contacts. If an older parser rejects those fields, the BFF retries without `lead`, then with `{ "url" }` only.
+2. Creates scan: `POST {BASE}/api/scans` always `{ "url", "mode": "quick" }`, plus `lead: { name, email, phone, consent: true, consent_text_version, source: "landing" }` when the visitor left contacts and consented. If an older parser rejects those fields, the BFF retries without `lead`, then with `{ "url" }` only.
 3. Polls: `GET {BASE}/api/scans/{scan_id}` until `phase` ∈ `done|error|blocked`
 4. PDF: `GET {BASE}/api/scans/{scan_id}/pdf` (only from the BFF)
 
@@ -56,11 +56,7 @@ Public without auth on parser: `GET {BASE}/api/health` only.
 
 Edit `lib/company.ts` (INN, OGRN, address, emails, phone).
 
-Routes: `/privacy`, `/cookies`, `/terms`, cookie banner (necessary / analytics / marketing), consent checkbox on lead forms.
-
-## Cabinet MVP
-
-`/cabinet` lists leads from `data/leads.json` (no auth — local only).
+Routes: `/privacy`, `/cookies`, `/terms`, cookie banner (necessary / analytics / marketing), consent checkbox on the lead form and on URL-check contacts. Leads are accepted only via `POST /api/leads` and are not listed by any page or API route.
 
 ## Russian README
 

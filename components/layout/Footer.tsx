@@ -33,11 +33,6 @@ export function Footer() {
                 Пользовательское соглашение
               </Link>
             </li>
-            <li>
-              <Link href="/cabinet" className="hover:text-amber-300">
-                Кабинет (MVP)
-              </Link>
-            </li>
           </ul>
         </div>
         <div>
