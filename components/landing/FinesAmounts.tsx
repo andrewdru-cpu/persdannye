@@ -41,12 +41,35 @@ export function FinesAmounts() {
           </Reveal>
 
           <div className="mt-8">
-            <p className="mb-2 text-xs text-white/55 md:sr-only">{finesUi.scrollHint}</p>
+            <ul className="grid gap-3 md:hidden">
+              {finesCatalog.rows.map((row) => (
+                <li key={row.id} className="rounded-3xl border border-amber-200/20 bg-white/[0.03] p-4">
+                  <p className="font-medium text-white">{row.violation}</p>
+                  <dl className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100/80">
+                        {finesUi.columns.ip}
+                      </dt>
+                      <dd className="mt-1 text-sm tabular-nums text-white">{row.ip.label}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100/80">
+                        {finesUi.columns.legal}
+                      </dt>
+                      <dd className="mt-1 text-sm tabular-nums text-white">{row.legal.label}</dd>
+                    </div>
+                  </dl>
+                  <p className="mt-3 text-xs text-amber-100/90">
+                    {finesUi.columns.norm}: {row.norm}
+                  </p>
+                </li>
+              ))}
+            </ul>
             <div
-              className="overflow-x-auto rounded-[28px] border border-amber-200/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+              className="hidden overflow-x-auto rounded-[28px] border border-amber-200/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 md:block"
               tabIndex={0}
               role="region"
-              aria-label={finesUi.scrollHint}
+              aria-label={finesUi.title}
             >
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <caption className="sr-only">
