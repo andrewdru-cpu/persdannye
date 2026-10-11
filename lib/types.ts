@@ -2,6 +2,9 @@ import type { ParserPhase } from "./phases";
 
 export type FindingSeverity = "critical" | "high" | "medium" | "low" | "info";
 
+/** How firmly the parser states a violation. */
+export type StatusBasis = "proven" | "likely";
+
 export interface Finding {
   rule_id: string;
   title: string;
@@ -17,6 +20,17 @@ export interface Finding {
    * means the site blocked the crawler; it is not a violation.
    */
   reason?: string;
+  /** `proven` or `likely`. Only `likely` gets the lawyer sentence. */
+  statusBasis?: StatusBasis;
+  /** `meta.disclaimer`, shown under the finding when the parser sent one. */
+  disclaimer?: string;
+  /** Norm reference, for example «ч. 3 ст. 13.11 КоАП». Shown whenever present. */
+  fineNorm?: string;
+  /**
+   * Amount text. Copied only when NEXT_PUBLIC_SHOW_FINES=true.
+   * The parser sends null for now.
+   */
+  fineAmount?: string;
 }
 
 /** Contacts captured on the landing at the moment a scan is created. */

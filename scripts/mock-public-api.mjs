@@ -100,21 +100,57 @@ export function createMockPublicApi() {
         send(res, 404, { error: "not_found" });
         return;
       }
+      const host = String(check.url).toLowerCase();
+      const robotsPartial = host.includes("robots") || host.includes("disallow");
       send(res, 200, {
         check_id: id,
         status: "done",
         url: check.url,
-        score: 37,
+        score: robotsPartial ? 64 : 37,
         pdf_ready: true,
-        findings: [
-          {
-            rule_id: "P01",
-            title: "Нет политики",
-            fact: "Документ по ст. 18.1 не найден.",
-            severity: "high",
-            screenshot: "data:image/png;base64,AAAA",
-          },
-        ],
+        ...(robotsPartial ? { mode: "static_fallback", rules_version: "2026.10" } : {}),
+        findings: robotsPartial
+          ? [
+              {
+                rule_id: "H01",
+                title: "Главная страница",
+                fact: "На главной нет ссылки на политику обработки ПДн.",
+                severity: "S",
+                status: "violation",
+                status_basis: "proven",
+                fine_norm: "ч. 3 ст. 13.11 КоАП",
+                fine_amount_text: null,
+                meta: { disclaimer: "Проверены главная страница и документ политики.", screenshot: "hidden" },
+              },
+              {
+                rule_id: "P01",
+                title: "Политика обработки ПДн",
+                fact: "В политике не указан срок обработки.",
+                severity: "B",
+                status: "violation",
+                status_basis: "likely",
+                fine_norm: "ч. 3 ст. 13.11 КоАП",
+                fine_amount_text: "до 300 000 ₽",
+                meta: { disclaimer: "Квалификацию этой формулировки оценивает юрист." },
+              },
+              {
+                rule_id: "F03",
+                title: "Формы на внутренних страницах",
+                fact: "Страницы не открывались: robots.txt содержит Disallow: /.",
+                severity: "A",
+                status: "not_checked",
+                reason: "robots_disallow",
+              },
+            ]
+          : [
+              {
+                rule_id: "P01",
+                title: "Нет политики",
+                fact: "Документ по ст. 18.1 не найден.",
+                severity: "high",
+                screenshot: "data:image/png;base64,AAAA",
+              },
+            ],
         contacts: { name: "SHOULD_NOT_RENDER", email: "secret@example.com", phone: "+79990000000" },
         screenshots: ["data:image/png;base64,BBBB"],
         lead: { email: "secret@example.com" },

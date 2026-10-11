@@ -1,4 +1,4 @@
-import { jobHasRisks } from "./finding-status";
+import { jobHasRisks, normalizeFindings } from "./finding-status";
 import type { CheckJob, Finding } from "./types";
 import { friendlyPhaseMessage, LIMITED_SCAN_MESSAGE, phaseIndex, PHASE_STEPS } from "./phases";
 import { domainFromUrl } from "./utils";
@@ -78,12 +78,44 @@ const PARTIAL_FINDINGS: Finding[] = [
   },
 ];
 
-const ROBOTS_FINDINGS: Finding[] = [
+/** Raw GET /public/check shape: Disallow: / is a partial result, not blocked_by_robots. */
+const ROBOTS_PARTIAL_RAW = [
   {
-    rule_id: "R01",
-    title: "robots.txt закрыл страницы",
-    fact: "Disallow не дал открыть страницы, правило не применялось.",
-    severity: "info",
+    rule_id: "H01",
+    title: "Главная страница",
+    fact: "На главной нет ссылки на политику обработки ПДн.",
+    severity: "S",
+    status: "violation",
+    status_basis: "proven",
+    fine_norm: "ч. 3 ст. 13.11 КоАП",
+    fine_amount_text: null,
+    meta: { disclaimer: "Проверены главная страница и документ политики." },
+  },
+  {
+    rule_id: "P01",
+    title: "Политика обработки ПДн",
+    fact: "В политике не указан срок обработки.",
+    severity: "B",
+    status: "violation",
+    status_basis: "likely",
+    fine_norm: "ч. 3 ст. 13.11 КоАП",
+    fine_amount_text: "до 300 000 ₽",
+    meta: { disclaimer: "Квалификацию этой формулировки оценивает юрист." },
+  },
+  {
+    rule_id: "F03",
+    title: "Формы на внутренних страницах",
+    fact: "Страницы не открывались: robots.txt содержит Disallow: /.",
+    severity: "A",
+    status: "not_checked",
+    reason: "robots_disallow",
+    fine_norm: "ч. 2 ст. 13.11 КоАП",
+  },
+  {
+    rule_id: "C02",
+    title: "Cookie на внутренних страницах",
+    fact: "Правило не применялось, обход остальных страниц запрещён.",
+    severity: "low",
     status: "not_checked",
     reason: "robots_disallow",
   },
@@ -100,7 +132,7 @@ const mockJobs = new Map<string, MockState>();
 
 function pickVariant(url: string): MockState["variant"] {
   const host = domainFromUrl(url).toLowerCase();
-  if (host.includes("robots")) return "robots";
+  if (host.includes("robots") || host.includes("disallow")) return "robots";
   if (host.includes("siteblock")) return "siteblock";
   if (host.includes("blocked") || host.includes("fail")) return "blocked";
   if (host.includes("partial") || host.includes("fallback")) return "partial";
@@ -148,16 +180,36 @@ export function mockGetScan(id: string): CheckJob | null {
     Math.floor(elapsed / stepMs)
   );
 
-  if (step >= PHASE_STEPS.length && (state.variant === "robots" || state.variant === "siteblock")) {
-    const robots = state.variant === "robots";
+  if (step >= PHASE_STEPS.length && state.variant === "robots") {
+    const findings = normalizeFindings(ROBOTS_PARTIAL_RAW);
     return {
       id,
       url: state.url,
       domain,
-      phase: robots ? "blocked_by_robots" : "blocked_by_site",
+      phase: "done",
+      phaseMessage: friendlyPhaseMessage("done", domain),
+      score: 64,
+      findings,
+      hasRisks: jobHasRisks({ phase: "done", push: false, findings }),
+      staticFallback: true,
+      rulesVersion: "2026.10",
+      error: null,
+      pdfReady: false,
+      createdAt: new Date(state.createdAt).toISOString(),
+      updatedAt: new Date().toISOString(),
+      mock: true,
+    };
+  }
+
+  if (step >= PHASE_STEPS.length && state.variant === "siteblock") {
+    return {
+      id,
+      url: state.url,
+      domain,
+      phase: "blocked_by_site",
       phaseMessage: LIMITED_SCAN_MESSAGE,
       score: null,
-      findings: robots ? ROBOTS_FINDINGS : [],
+      findings: [],
       hasRisks: false,
       staticFallback: false,
       rulesVersion: null,

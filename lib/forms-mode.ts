@@ -31,3 +31,8 @@ export function getPublicApiBase(): string | null {
 export function getSmartCaptchaSiteKey(): string {
   return process.env.NEXT_PUBLIC_SMARTCAPTCHA_SITEKEY?.trim() || "";
 }
+
+/** Fine amounts stay hidden unless this build flag is exactly "true". */
+export function showFineAmounts(): boolean {
+  return process.env.NEXT_PUBLIC_SHOW_FINES === "true";
+}

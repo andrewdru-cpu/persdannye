@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   findingStatusLabel,
+  isRobotsPartial,
   isViolation,
   jobHasRisks,
   normalizeFindings,
@@ -195,4 +196,121 @@ test("robots and site blocks are a manual-check outcome, not a violation or an e
   assert.equal(partial.staticFallback, true);
   assert.equal(partial.hasRisks, false);
   assert.equal(isLimitedScan("done"), false);
+});
+
+test("finding schema maps severity aliases, basis, disclaimer, and hides fine amounts", () => {
+  const prev = process.env.NEXT_PUBLIC_SHOW_FINES;
+  delete process.env.NEXT_PUBLIC_SHOW_FINES;
+  try {
+    const hidden = normalizeFindings([
+      {
+        ...text,
+        severity: "S",
+        status: "violation",
+        status_basis: "likely",
+        fine_norm: " ч. 3 ст. 13.11 КоАП ",
+        fine_amount_text: "до 300 000 ₽",
+        meta: { disclaimer: " Текст ", screenshot: "nope" },
+      },
+    ]);
+    assert.equal(hidden[0].severity, "critical");
+    assert.equal(hidden[0].statusBasis, "likely");
+    assert.equal(hidden[0].disclaimer, "Текст");
+    assert.equal(hidden[0].fineNorm, "ч. 3 ст. 13.11 КоАП");
+    assert.equal("fineAmount" in hidden[0], false);
+    assert.equal(JSON.stringify(hidden).includes("screenshot"), false);
+    assert.equal(JSON.stringify(hidden).includes("300"), false);
+
+    const aliases = normalizeFindings([
+      { ...text, rule_id: "A", severity: "A" },
+      { ...text, rule_id: "B", severity: " b " },
+      { ...text, rule_id: "L", severity: "low" },
+      { ...text, rule_id: "Z", severity: "unknown" },
+    ]);
+    assert.deepEqual(
+      aliases.map((finding) => finding.severity),
+      ["high", "medium", "low", "info"]
+    );
+
+    process.env.NEXT_PUBLIC_SHOW_FINES = "true";
+    const shown = normalizeFindings([
+      { ...text, fine_amount_text: "до 300 000 ₽", fine_norm: "ч. 1 ст. 13.11 КоАП", status_basis: "proven" },
+      { ...text, rule_id: "N", fine_amount_text: null },
+    ]);
+    assert.equal(shown[0].fineAmount, "до 300 000 ₽");
+    assert.equal(shown[0].statusBasis, "proven");
+    assert.equal("fineAmount" in shown[1], false);
+
+    process.env.NEXT_PUBLIC_SHOW_FINES = "false";
+    const stillHidden = normalizeFindings([{ ...text, fine_amount_text: "до 300 000 ₽" }]);
+    assert.equal("fineAmount" in stillHidden[0], false);
+  } finally {
+    if (prev === undefined) delete process.env.NEXT_PUBLIC_SHOW_FINES;
+    else process.env.NEXT_PUBLIC_SHOW_FINES = prev;
+  }
+});
+
+test("Disallow slash is a partial done result, not blocked_by_robots", () => {
+  const prev = process.env.NEXT_PUBLIC_SHOW_FINES;
+  delete process.env.NEXT_PUBLIC_SHOW_FINES;
+  try {
+    const body = {
+      status: "done",
+      mode: "static_fallback",
+      url: "https://robots.example",
+      findings: [
+        {
+          ...text,
+          rule_id: "H01",
+          severity: "S",
+          status: "violation",
+          status_basis: "proven",
+          fine_norm: "ч. 3 ст. 13.11 КоАП",
+          fine_amount_text: null,
+        },
+        {
+          ...text,
+          rule_id: "P01",
+          severity: "B",
+          status: "violation",
+          status_basis: "LIKELY",
+          fine_norm: "ч. 3 ст. 13.11 КоАП",
+          fine_amount_text: "до 300 000 ₽",
+          meta: { disclaimer: "Оценка юриста" },
+        },
+        {
+          ...text,
+          rule_id: "F03",
+          severity: "A",
+          status: "not_checked",
+          reason: "robots_disallow",
+        },
+      ],
+    };
+    const pub = mapPublicCheck(body, "https://robots.example", "r");
+    const bff = mapUpstreamScan({ ...body, phase: "done" }, "https://robots.example");
+    for (const job of [pub, bff]) {
+      assert.equal(job.phase, "done");
+      assert.equal(isLimitedScan(job.phase), false);
+      assert.equal(job.staticFallback, true);
+      assert.equal(isRobotsPartial(job.findings), true);
+      assert.equal(job.hasRisks, true);
+      assert.equal(violationCount(job.findings), 2);
+      assert.deepEqual(
+        job.findings.map((finding) => finding.severity),
+        ["critical", "medium", "high"]
+      );
+      assert.equal(job.findings[1].statusBasis, "likely");
+      assert.equal(job.findings[1].disclaimer, "Оценка юриста");
+      assert.equal(job.findings[1].fineNorm, "ч. 3 ст. 13.11 КоАП");
+      assert.equal("fineAmount" in job.findings[1], false);
+      assert.equal(job.findings[2].status, "not_checked");
+      assert.equal(job.findings[2].reason, "robots_disallow");
+      assert.equal(isViolation(job.findings[2]), false);
+      assert.equal(JSON.stringify(job).includes("300"), false);
+    }
+  } finally {
+    if (prev === undefined) delete process.env.NEXT_PUBLIC_SHOW_FINES;
+    else process.env.NEXT_PUBLIC_SHOW_FINES = prev;
+  }
 });

@@ -6,9 +6,16 @@ import Link from "next/link";
 import { SmartCaptcha, type SmartCaptchaHandle } from "@/components/captcha/SmartCaptcha";
 import { Button } from "@/components/ui/Button";
 import { CONSENT_TEXT_VERSION } from "@/lib/consent";
-import { findingStatusLabel, isViolation, violationCount } from "@/lib/finding-status";
+import {
+  findingStatusLabel,
+  isRobotsPartial,
+  isViolation,
+  LIKELY_BASIS_TEXT,
+  ROBOTS_PARTIAL_EXPLANATION,
+  violationCount,
+} from "@/lib/finding-status";
 import { pollCheck, runCheck } from "@/lib/forms-client";
-import { isDirectForms } from "@/lib/forms-mode";
+import { isDirectForms, showFineAmounts } from "@/lib/forms-mode";
 import { ACTIVE_POLL_MS, isLimitedScan, LIMITED_SCAN_MESSAGE, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import { publicCheckPdfUrl } from "@/lib/public-api";
 import type { CheckJob, Finding } from "@/lib/types";
@@ -100,6 +107,14 @@ function FindingCard({ f }: { f: Finding }) {
       </div>
       <div className="font-medium text-white">{f.title}</div>
       <p className="mt-1 text-sm text-white/65">{f.fact}</p>
+      {violation && f.statusBasis === "likely" ? (
+        <p className="mt-2 text-sm text-amber-50/90">{LIKELY_BASIS_TEXT}</p>
+      ) : null}
+      {f.fineNorm ? <p className="mt-2 text-xs text-white/55">{f.fineNorm}</p> : null}
+      {showFineAmounts() && f.fineAmount ? (
+        <p className="mt-1 text-sm text-white/80">{f.fineAmount}</p>
+      ) : null}
+      {f.disclaimer ? <p className="mt-2 text-xs leading-relaxed text-white/45">{f.disclaimer}</p> : null}
     </motion.li>
   );
 }
@@ -476,10 +491,13 @@ export function UrlChecker({
               </div>
             </div>
 
-            {job.staticFallback ? (
-              <p className="rounded-2xl border border-amber-200/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
-                Сайт проверен частично
-              </p>
+            {job.staticFallback || isRobotsPartial(job.findings) ? (
+              <div className="rounded-2xl border border-amber-200/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+                <p>Сайт проверен частично</p>
+                {isRobotsPartial(job.findings) ? (
+                  <p className="mt-1 text-amber-50/80">{ROBOTS_PARTIAL_EXPLANATION}</p>
+                ) : null}
+              </div>
             ) : null}
 
             {job.findings.length > 0 ? (
@@ -520,18 +538,29 @@ export function UrlChecker({
 
             <div className="glass-card glass-card-gold p-5 md:p-6">
               <h4 className="font-display text-2xl font-semibold text-white md:text-3xl">
-                {job.hasRisks ? "Помочь устранить" : "Получить полный отчёт"}
+                {isRobotsPartial(job.findings)
+                  ? "Заявка на ручную проверку"
+                  : job.hasRisks
+                    ? "Помочь устранить"
+                    : "Получить полный отчёт"}
               </h4>
               <p className="mt-1 text-sm leading-relaxed text-white/65">
-                Оставьте контакты — подготовим детальный отчёт по {domain} и
-                предложим план устранения несоответствий 152-ФЗ.
+                {isRobotsPartial(job.findings)
+                  ? `Оставьте контакты — проверим ${domain || "сайт"} вручную.`
+                  : `Оставьте контакты — подготовим детальный отчёт по ${domain} и предложим план устранения несоответствий 152-ФЗ.`}
               </p>
               <div className="mt-4">
                 <LeadForm
                   defaultUrl={job.url}
                   checkId={job.id}
-                  source="check-result"
-                  cta={job.hasRisks ? "Помочь устранить" : "Получить полный отчёт"}
+                  source={isRobotsPartial(job.findings) ? "check-manual" : "check-result"}
+                  cta={
+                    isRobotsPartial(job.findings)
+                      ? "Оставить заявку на ручную проверку"
+                      : job.hasRisks
+                        ? "Помочь устранить"
+                        : "Получить полный отчёт"
+                  }
                 />
               </div>
             </div>

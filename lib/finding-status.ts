@@ -1,7 +1,20 @@
+import { showFineAmounts } from "./forms-mode";
 import { isLimitedScan } from "./phases";
-import type { Finding, FindingSeverity } from "./types";
+import type { Finding, FindingSeverity, StatusBasis } from "./types";
 
-const SEVERITIES = new Set<FindingSeverity>(["critical", "high", "medium", "low", "info"]);
+const SEVERITY_ALIASES: Record<string, FindingSeverity> = {
+  critical: "critical",
+  high: "high",
+  medium: "medium",
+  low: "low",
+  s: "critical",
+  a: "high",
+  b: "medium",
+  info: "info",
+};
+
+export const LIKELY_BASIS_TEXT = "вероятное нарушение, квалификацию оценивает юрист";
+export const ROBOTS_PARTIAL_EXPLANATION = "сайт запретил автоматический обход части страниц";
 
 /**
  * Statuses that count as a violation once the parser sends `status`.
@@ -82,6 +95,33 @@ export function readStaticFallback(mode: unknown): boolean {
   return typeof mode === "string" && mode.trim().toLowerCase() === "static_fallback";
 }
 
+/**
+ * One-off site-form check where robots.txt Disallow: / left only the home
+ * page and the policy checked. Other findings stay not_checked.
+ */
+export function isRobotsPartial(
+  findings: Array<{ status?: string | null; reason?: string | null }> | null | undefined
+): boolean {
+  if (!Array.isArray(findings)) return false;
+  return findings.some(
+    (finding) =>
+      findingReasonToken(finding.reason) === "robots_disallow" &&
+      findingStatusToken(finding.status) === "not_checked"
+  );
+}
+
+export function readStatusBasis(value: unknown): StatusBasis | null {
+  if (typeof value !== "string") return null;
+  const key = value.trim().toLowerCase();
+  if (key === "proven" || key === "likely") return key;
+  return null;
+}
+
+export function readSeverity(value: unknown): FindingSeverity {
+  const key = textField(value, 20).toLowerCase();
+  return SEVERITY_ALIASES[key] || "info";
+}
+
 /** Non-empty string, or null when the field is absent or blank. */
 export function readRulesVersion(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -111,15 +151,22 @@ export function normalizeFindings(value: unknown): Finding[] {
     const title = textField(record.title, 300);
     const fact = textField(record.fact, 1000);
     if (!ruleId || !title || !fact) continue;
-    const severityRaw = textField(record.severity, 20);
-    const severity: FindingSeverity = SEVERITIES.has(severityRaw as FindingSeverity)
-      ? (severityRaw as FindingSeverity)
-      : "info";
-    const finding: Finding = { rule_id: ruleId, title, fact, severity };
+    const finding: Finding = { rule_id: ruleId, title, fact, severity: readSeverity(record.severity) };
     const status = findingStatusToken(record.status);
     if (status) finding.status = status;
     const reason = findingReasonToken(record.reason);
     if (reason) finding.reason = reason;
+    const basis = readStatusBasis(record.status_basis);
+    if (basis) finding.statusBasis = basis;
+    const meta = asRecord(record.meta);
+    const disclaimer = textField(meta?.disclaimer, 1000);
+    if (disclaimer) finding.disclaimer = disclaimer;
+    const fineNorm = textField(record.fine_norm, 300);
+    if (fineNorm) finding.fineNorm = fineNorm;
+    if (showFineAmounts()) {
+      const fineAmount = textField(record.fine_amount_text, 200);
+      if (fineAmount) finding.fineAmount = fineAmount;
+    }
     findings.push(finding);
   }
   return findings;
