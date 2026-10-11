@@ -7,7 +7,6 @@ import { HeroBackdrop } from "@/components/motion/HeroBackdrop";
 import { TrustMarquee } from "@/components/motion/Marquee";
 import { UrlChecker } from "@/components/check/UrlChecker";
 import { LeadForm } from "@/components/landing/LeadForm";
-import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CheckLink } from "@/components/landing/CheckLink";
 import {
@@ -18,7 +17,9 @@ import {
   faqItems,
   howSteps,
 } from "@/content/blocks";
-import { cta, exampleResult, fixWithUs, heroChrome, trustItems, whoFor } from "@/content/landing";
+import { flags } from "@/content/flags";
+import { sampleFinesNote, sampleReport, sampleRulesLine } from "@/content/extra-blocks";
+import { cta, fixWithUs, heroChrome, trustItems, whoFor } from "@/content/landing";
 
 const heroEase = [0.22, 1, 0.36, 1] as const;
 
@@ -133,11 +134,6 @@ export function Hero({
             >
               {ctaLabel}
             </CheckLink>
-            <Link href="/#lead" className="w-full sm:w-auto">
-              <Button size="lg" variant="secondary" className="w-full sm:w-auto">
-                {cta.secondary}
-              </Button>
-            </Link>
           </motion.div>
           <motion.dl
             custom={6}
@@ -305,41 +301,65 @@ export function ExampleResult() {
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
-            {exampleResult.eyebrow}
+            {sampleReport.eyebrow}
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            {exampleResult.title}
+            {sampleReport.title}
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">{exampleResult.lead}</p>
+          <p className="mt-3 max-w-2xl text-white/60">{sampleReport.lead}</p>
         </Reveal>
-        <Reveal delay={0.08} className="mt-8">
-          <GlassCard className="border-rose-400/25 bg-rose-500/[0.06] p-6 md:p-8">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <div className="text-sm uppercase tracking-[0.14em] text-rose-200">
-                  {exampleResult.domain}
-                </div>
-                <div className="mt-2 font-display text-3xl font-semibold text-white">
-                  {exampleResult.risks}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-display text-5xl font-semibold text-white">42</div>
-                <div className="text-xs uppercase tracking-wider text-white/50">{exampleResult.scoreLabel}</div>
-              </div>
-            </div>
-            <ul className="mt-6 space-y-2 text-sm text-white/70">
-              {exampleResult.findings.map((finding) => (
-                <li key={finding} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                  {finding}
+        <p className="mt-6 rounded-2xl border border-amber-200/30 bg-amber-200/10 px-4 py-3 text-sm font-medium text-amber-50">
+          {sampleReport.banner}
+        </p>
+        <Reveal delay={0.08} className="mt-4">
+          <GlassCard className="p-6 md:p-8">
+            <p className="text-sm text-white/80">
+              {sampleReport.domainLabel}:{" "}
+              <span className="font-medium text-white">{sampleReport.domain}</span>
+            </p>
+            <p className="mt-1 text-sm text-white/60">{sampleReport.checkedAt}</p>
+            {sampleRulesLine ? <p className="mt-1 text-sm text-white/60">{sampleRulesLine}</p> : null}
+            <p className="mt-4 text-white/85">{sampleReport.summary}</p>
+            <ul className="mt-6 space-y-3">
+              {sampleReport.observations.map((item) => (
+                <li key={item.text} className="rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm">
+                  <p className={item.tone === "important" ? "font-medium text-amber-200" : "font-medium text-white/50"}>
+                    {item.level}
+                  </p>
+                  <p className="mt-1 text-white/85">{item.text}</p>
+                  <p className="mt-2 text-white/55">Где: {item.where}</p>
+                  <p className="text-white/55">Насколько уверены: {item.confidence}</p>
+                  <p className="mt-2 text-white/75">Что исправить: {item.fix}</p>
+                  <p className="mt-2 text-white/55">
+                    Норма:{" "}
+                    {item.norms.map((norm, index) => (
+                      <span key={norm.href}>
+                        {index > 0 ? "; " : null}
+                        <a href={norm.href} className="text-amber-200 hover:underline" target="_blank" rel="noreferrer">
+                          {norm.label}
+                        </a>
+                      </span>
+                    ))}
+                  </p>
                 </li>
               ))}
             </ul>
-            <CheckLink
-              pulse
-              className="btn-gold mt-6 min-h-12 rounded-2xl px-7 py-3.5 text-base"
-            >
-              {cta.primary}
+            <h3 className="mt-6 font-medium text-white">{sampleReport.okTitle}</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-white/70">
+              {sampleReport.ok.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <h3 className="mt-6 font-medium text-white">{sampleReport.moreTitle}</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-white/70">
+              {sampleReport.more.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+              {sampleFinesNote ? <li>{sampleFinesNote}</li> : null}
+            </ul>
+            <p className="mt-6 text-xs leading-relaxed text-white/45">{sampleReport.caption}</p>
+            <CheckLink pulse className="btn-gold mt-6 min-h-12 rounded-2xl px-7 py-3.5 text-base">
+              {sampleReport.cta}
             </CheckLink>
           </GlassCard>
         </Reveal>
@@ -359,8 +379,9 @@ export function WhoFor() {
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             {whoFor.title}
           </h2>
+          <p className="mt-3 max-w-2xl text-white/60">{whoFor.lead}</p>
         </Reveal>
-        <Stagger className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stagger className="mt-8 grid gap-4 sm:grid-cols-2">
           {whoFor.items.map((a) => (
             <StaggerItem key={a.t}>
               <GlassCard className="h-full p-5 transition hover:border-amber-300/35">
@@ -370,6 +391,10 @@ export function WhoFor() {
             </StaggerItem>
           ))}
         </Stagger>
+        <p className="mt-8 max-w-3xl text-sm leading-relaxed text-white/70">{whoFor.lawyer}</p>
+        <CheckLink pulse className="btn-gold mt-6 inline-flex min-h-12 items-center rounded-2xl px-7 py-3.5 text-base">
+          {whoFor.cta}
+        </CheckLink>
       </div>
     </section>
   );
@@ -388,15 +413,33 @@ export function FixWithUs() {
               {fixWithUs.title}
             </h2>
             <p className="mt-4 max-w-2xl text-white/70">{fixWithUs.lead}</p>
+            <ul className="mt-8 grid gap-3">
+              {fixWithUs.services.map((service) => (
+                <li key={service.t} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                  <div className="font-medium text-white">{service.t}</div>
+                  <p className="mt-1 text-sm text-white/65">{service.d}</p>
+                </li>
+              ))}
+            </ul>
+            <h3 className="mt-8 font-medium text-white">{fixWithUs.dutiesTitle}</h3>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-white/70">
+              {fixWithUs.duties.map((duty) => (
+                <li key={duty}>{duty}</li>
+              ))}
+            </ul>
+            <p className="mt-6 text-sm leading-relaxed text-white/60">{fixWithUs.disclaimer}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/#lead">
-                <Button size="lg" pulse>
-                  {cta.secondary}
-                </Button>
-              </Link>
-              <CheckLink className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/40 bg-[#14110c]/80 px-7 py-3.5 text-base text-[#f7f1e6] hover:border-amber-100/70 hover:bg-amber-200/10">
-                {cta.checkFirst}
+              <CheckLink className="btn-gold inline-flex min-h-12 items-center rounded-2xl px-7 py-3.5 text-base">
+                {fixWithUs.cta}
               </CheckLink>
+              {flags.show_lead_form ? (
+                <Link
+                  href="/#lead"
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/40 bg-[#14110c]/80 px-7 py-3.5 text-base text-[#f7f1e6] hover:border-amber-100/70 hover:bg-amber-200/10"
+                >
+                  {fixWithUs.discuss}
+                </Link>
+              ) : null}
             </div>
           </GlassCard>
         </Reveal>
@@ -493,14 +536,13 @@ export function LeadSection({ marketingConsent = false }: { marketingConsent?: b
       <div className="mx-auto grid max-w-6xl gap-8 px-4 md:grid-cols-2 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
-            Консьерж
+            Заявка
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            Оставить заявку
+            Обсудить исправления
           </h2>
           <p className="mt-4 text-white/65">
-            Расскажите о сайте — пришлём полный отчёт и предложим план устранения.
-            Заявка сразу уходит менеджеру.
+            Имя и телефон или e-mail. Ответим по заявке.
           </p>
         </Reveal>
         <Reveal delay={0.08}>

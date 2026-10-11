@@ -48,7 +48,7 @@ export interface CheckJob {
 export interface Lead {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone?: string;
   company?: string;
   url?: string;

@@ -1,10 +1,10 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Link from "next/link";
-import { ReportConsentFields } from "@/components/check/ReportConsentFields";
+import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { Button } from "@/components/ui/Button";
-import { CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { formCopy } from "@/content/blocks";
+import { CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION } from "@/lib/consent";
 
 export function LeadForm({
   defaultUrl = "",
@@ -22,7 +22,6 @@ export function LeadForm({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [url, setUrl] = useState(defaultUrl);
   const [message, setMessage] = useState("");
   const [consent, setConsent] = useState(false);
@@ -33,8 +32,11 @@ export function LeadForm({
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!consent) {
-      setError("Чтобы прислать отчёт на e-mail, нужно ваше согласие.");
+    if (!consent) return;
+    const mail = email.trim();
+    const tel = phone.trim();
+    if (!mail && !tel) {
+      setError("Укажите телефон или e-mail.");
       return;
     }
     setStatus("loading");
@@ -44,14 +46,13 @@ export function LeadForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          email,
-          phone: phone || undefined,
-          company: companyName || undefined,
-          url: url || undefined,
+          email: mail || undefined,
+          phone: tel || undefined,
+          url: url.trim() || undefined,
           checkId,
-          message: message || undefined,
+          message: message.trim() || undefined,
           consent: true,
-          consent_text_version: CONSENT_TEXT_VERSION,
+          consent_text_version: LEAD_CONSENT_TEXT_VERSION,
           source,
           ...(marketingConsent && marketingOptIn
             ? { marketing_consent: true, marketing_consent_text_version: CONSENT_TEXT_VERSION }
@@ -82,38 +83,37 @@ export function LeadForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Имя *"
-        className="field-luxury px-3 py-2.5 text-sm"
-      />
-      <input
-        required
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email *"
-        className="field-luxury px-3 py-2.5 text-sm"
+        autoComplete="name"
+        className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
       />
       <input
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="Телефон"
+        autoComplete="tel"
+        inputMode="tel"
         className="field-luxury px-3 py-2.5 text-sm"
       />
       <input
-        value={companyName}
-        onChange={(e) => setCompanyName(e.target.value)}
-        placeholder="Компания"
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="E-mail"
+        autoComplete="email"
+        inputMode="email"
         className="field-luxury px-3 py-2.5 text-sm"
       />
       <input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="Сайт"
+        inputMode="url"
         className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
       />
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        placeholder="Комментарий"
+        placeholder="Сообщение"
         rows={3}
         className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
       />
@@ -127,20 +127,17 @@ export function LeadForm({
           marketing={marketingOptIn}
           onMarketing={setMarketingOptIn}
           showMarketing={marketingConsent}
+          consentHref="/consent-lead"
+          consentTail={formCopy.leadConsentTail}
         />
       </div>
-      <p className="text-xs text-white/45 sm:col-span-2">
-        Отправляя форму, вы соглашаетесь с{" "}
-        <Link href="/privacy" className="text-amber-300 hover:underline">
-          политикой обработки ПДн
-        </Link>
-      </p>
       {error && <p className="text-sm text-rose-300 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={status === "loading"} pulse>
+        <Button type="submit" disabled={!consent || status === "loading"} pulse>
           {status === "loading" ? "Отправляем…" : cta}
         </Button>
       </div>
+      <PolicyLine className="text-xs text-white/45 sm:col-span-2" />
     </form>
   );
 }

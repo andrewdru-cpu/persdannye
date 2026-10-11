@@ -2,14 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
 import { CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import type { CheckJob, Finding } from "@/lib/types";
 import { cn, domainFromUrl } from "@/lib/utils";
-import { ReportConsentFields } from "@/components/check/ReportConsentFields";
+import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { LeadForm } from "@/components/landing/LeadForm";
 
 type Status = "idle" | "running" | "done" | "error";
@@ -281,12 +280,7 @@ export function UrlChecker({
             showMarketing={marketingConsent}
           />
         ) : null}
-        <p className="text-xs text-white/45">
-          Отправляя форму, вы соглашаетесь с{" "}
-          <Link href="/privacy" className="text-amber-300 hover:underline">
-            политикой обработки ПДн
-          </Link>
-        </p>
+        <PolicyLine className="text-xs text-white/45" />
         {error && status !== "running" && status !== "error" && (
           <p className="text-sm text-rose-300" role="alert">
             {error}
@@ -414,31 +408,15 @@ export function UrlChecker({
             transition={reduce ? { duration: 0 } : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
             className="relative mt-6 space-y-5"
           >
-            <div
-              className={cn(
-                "glass-card relative overflow-hidden p-5 md:p-6",
-                job.hasRisks
-                  ? "border-rose-400/35 bg-rose-500/10"
-                  : "border-emerald-400/35 bg-emerald-500/10"
-              )}
-            >
-              <Burst tone={job.hasRisks ? "risk" : "success"} />
-              <div className="relative flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
-                    {heroSurface ? "Готово" : `Готово за ${elapsedSec} с`}
-                  </p>
-                  <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
-                    {job.hasRisks ? `${domain} — не соответствует` : `${domain} — соответствует`}
-                  </h3>
-                  <p className="mt-1 text-sm text-white/70">{job.phaseMessage}</p>
-                </div>
-                {typeof job.score === "number" && (
-                  <div className="text-right">
-                    <div className="font-display text-4xl font-semibold text-white">{job.score}</div>
-                    <div className="text-xs uppercase tracking-wider text-white/50">балл соответствия</div>
-                  </div>
-                )}
+            <div className="glass-card relative overflow-hidden p-5 md:p-6">
+              <div className="relative">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+                  {heroSurface ? "Готово" : `Готово за ${elapsedSec} с`}
+                </p>
+                <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
+                  {domain || "Проверка завершена"}
+                </h3>
+                <p className="mt-1 text-sm text-white/70">{job.phaseMessage}</p>
               </div>
             </div>
 
@@ -466,18 +444,16 @@ export function UrlChecker({
 
             <div className="glass-card glass-card-gold p-5 md:p-6">
               <h4 className="font-display text-2xl font-semibold text-white md:text-3xl">
-                {job.hasRisks ? "Помочь устранить" : "Получить полный отчёт"}
+                Обсудить исправления
               </h4>
               <p className="mt-1 text-sm leading-relaxed text-white/65">
-                Оставьте контакты — подготовим детальный отчёт по {domain} и
-                предложим план устранения несоответствий 152-ФЗ.
+                Оставьте имя и телефон или e-mail, если хотите ответ по этому сайту.
               </p>
               <div className="mt-4">
                 <LeadForm
                   defaultUrl={job.url}
                   checkId={job.id}
                   source="check-result"
-                  cta={job.hasRisks ? "Помочь устранить" : "Получить полный отчёт"}
                   marketingConsent={marketingConsent}
                 />
               </div>
@@ -504,7 +480,6 @@ export function UrlChecker({
                 defaultUrl={url}
                 checkId={job?.id}
                 source="check-error"
-                cta="Помочь с проверкой"
                 marketingConsent={marketingConsent}
               />
             </div>
@@ -512,15 +487,11 @@ export function UrlChecker({
         )}
       </AnimatePresence>
 
-      {!compact && status === "idle" && (
+      {!compact && status === "idle" ? (
         <p className="mt-3 text-center text-xs leading-relaxed text-white/40">
-          Нажимая «Проверить», вы принимаете{" "}
-          <Link href="/terms" className="text-amber-200/90 hover:underline">
-            условия
-          </Link>
-          . Экспресс-проверка не заменяет юридический аудит.
+          Экспресс-проверка не заменяет юридический аудит.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }

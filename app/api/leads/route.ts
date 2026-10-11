@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { addLead } from "@/lib/leads-store";
 import { notifyNewLead } from "@/lib/notify";
 
@@ -8,9 +8,8 @@ export const dynamic = "force-dynamic";
 
 const schema = z.object({
   name: z.string().min(2, "Укажите имя"),
-  email: z.string().email("Некорректный email"),
+  email: z.union([z.string().email("Некорректный email"), z.literal("")]).optional(),
   phone: z.string().optional(),
-  company: z.string().optional(),
   url: z.string().optional(),
   checkId: z.string().optional(),
   message: z.string().optional(),
@@ -37,16 +36,20 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    const email = parsed.data.email?.trim() || undefined;
+    const phone = parsed.data.phone?.trim() || undefined;
+    if (!email && !phone) {
+      return NextResponse.json({ error: "Укажите телефон или e-mail" }, { status: 400 });
+    }
     const lead = await addLead({
       name: parsed.data.name,
-      email: parsed.data.email,
-      phone: parsed.data.phone,
-      company: parsed.data.company,
+      email,
+      phone,
       url: parsed.data.url,
       checkId: parsed.data.checkId,
       message: parsed.data.message,
       consent: true,
-      consent_text_version: parsed.data.consent_text_version || CONSENT_TEXT_VERSION,
+      consent_text_version: parsed.data.consent_text_version || LEAD_CONSENT_TEXT_VERSION,
       ...(parsed.data.marketing_consent === true
         ? {
             marketing_consent: true as const,

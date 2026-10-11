@@ -10,12 +10,16 @@ export function ReportConsentFields({
   marketing,
   onMarketing,
   showMarketing,
+  consentHref = "/consent",
+  consentTail = formCopy.consentTail,
 }: {
   consent: boolean;
   onConsent: (value: boolean) => void;
   marketing: boolean;
   onMarketing: (value: boolean) => void;
   showMarketing: boolean;
+  consentHref?: string;
+  consentTail?: string;
 }) {
   return (
     <div className="grid gap-3">
@@ -29,10 +33,10 @@ export function ReportConsentFields({
         />
         <span>
           Я даю{" "}
-          <Link href="/consent" className="text-amber-300 hover:underline">
+          <Link href={consentHref} className="text-amber-300 hover:underline">
             согласие на обработку персональных данных
           </Link>{" "}
-          {formCopy.consentTail}
+          {consentTail}
         </span>
       </label>
       {showMarketing ? (
@@ -54,5 +58,16 @@ export function ReportConsentFields({
         </label>
       ) : null}
     </div>
+  );
+}
+
+export function PolicyLine({ className = "" }: { className?: string }) {
+  return (
+    <p className={className}>
+      {formCopy.policyLead}{" "}
+      <Link href="/privacy" className="text-amber-300 hover:underline">
+        {formCopy.policyLink}
+      </Link>
+    </p>
   );
 }

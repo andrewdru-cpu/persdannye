@@ -102,7 +102,7 @@ export function formatLeadMessage(lead: Lead): string {
     "",
     `Имя: ${lead.name}`,
     lead.phone ? `Телефон: ${lead.phone}` : null,
-    `Email: ${lead.email}`,
+    lead.email ? `Email: ${lead.email}` : null,
     lead.company ? `Компания: ${lead.company}` : null,
     lead.url ? `Ссылка: ${lead.url}` : null,
     lead.checkId ? `Check ID: ${lead.checkId}` : null,
@@ -142,7 +142,7 @@ export async function notifyScanIfNeeded(job: CheckJob): Promise<void> {
           await sendTelegramDocument(
             pdf.buffer,
             pdf.filename,
-            `${job.domain} · риски: да · балл ${job.score ?? "—"} · новый клиент с лендинга`
+            `${job.domain} · риски: да · новый клиент с лендинга`
           );
         }
       } catch (err) {

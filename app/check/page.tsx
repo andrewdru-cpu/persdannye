@@ -22,8 +22,8 @@ export default function CheckPage() {
             Проверить свой сайт
           </h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-white/65">
-            Введите URL — статус, балл и находки обновляются по ходу. Страницу
-            можно листать: проверка не блокирует экран.
+            Введите URL — ход проверки и наблюдения обновляются на странице.
+            Страницу можно листать: проверка не блокирует экран.
           </p>
         </Reveal>
         <Reveal delay={0.08} className="mt-8">

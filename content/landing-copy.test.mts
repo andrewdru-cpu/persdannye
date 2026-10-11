@@ -1,22 +1,22 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { resolveCalculator, emptyAnswers } from "./calculator.ts";
-import { faqItems, footerParagraphs } from "./blocks.ts";
+import { faqItems, footerParagraphs, formCopy } from "./blocks.ts";
 import { flags } from "./flags.ts";
 import { placeholders } from "./placeholders.ts";
 import {
   claimPlaceholders,
   claims,
-  exampleResult,
   fixWithUs,
   renderHero,
   renderedLandingCopy,
+  sampleReport,
   whoFor,
 } from "./landing.ts";
 
 /** Рекламные формулировки, которых не должно быть в показанном тексте лендинга. */
 const bannedPatterns: RegExp[] = [
-  /(?<!не\s)гаранти/iu,
+  /(?<!не\s)(?<!не\s+можем\s)гаранти/iu,
   /100\s*%\s*защит/iu,
   /аккредитован/iu,
   /одобрено\s+ркн/iu,
@@ -50,6 +50,16 @@ const bannedPatterns: RegExp[] = [
   /штрафа\s+не\s+будет/iu,
   /сначала\s+только\s+предупредят/iu,
   /в\s+течение\s+года\s+с\s+нарушен/iu,
+  /example-shop\.ru/iu,
+  /балл/iu,
+  /не\s+соответствует/iu,
+  /найдено\s+\d+\s+риск/iu,
+  /сопровождаем\s+до\s+устойчивого\s+соответствия/iu,
+  /соглашаетесь/iu,
+  /отправляя\s+форму/iu,
+  /помощь\s+специалиста/iu,
+  /устраним\s+риск/iu,
+  /исправим\s+за\s+вас/iu,
 ];
 
 const timeClaim = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)/iu;
@@ -72,10 +82,10 @@ describe("rendered landing copy", () => {
   });
 
   it("does not contain banned advertising phrases", () => {
-    const parked = JSON.stringify({ exampleResult, whoFor, fixWithUs });
+    const extra = JSON.stringify({ sampleReport, whoFor, fixWithUs });
     for (const pattern of bannedPatterns) {
       assert.equal(pattern.test(live), false, pattern.source);
-      assert.equal(pattern.test(parked), false, pattern.source);
+      assert.equal(pattern.test(extra), false, pattern.source);
     }
   });
 
@@ -103,6 +113,13 @@ describe("rendered landing copy", () => {
     assert.equal(live.includes("диапазоны — в таблице выше"), false);
     assert.equal(live.includes("Пример результата"), false);
     assert.equal(live.includes("Устраним вместе"), false);
+    assert.equal(live.includes("Как выглядит отчёт"), true);
+    assert.equal(live.includes("Кому подходит проверка"), true);
+    assert.equal(live.includes("Поможем исправить"), true);
+    assert.equal(live.includes("primer-saita.example"), true);
+    assert.equal(live.includes(`href="https://primer-saita.example"`), false);
+    assert.equal(live.includes(formCopy.policyLead), true);
+    assert.equal(live.includes(formCopy.policyLink), true);
   });
 
   it("inserts the time phrase into the main H1 only when time_verified is true", () => {
@@ -154,10 +171,12 @@ describe("publication flags", () => {
     }
   });
 
-  it("keeps the unreviewed landing blocks off, including on preview", () => {
-    assert.equal(flags.show_example_result, false);
-    assert.equal(flags.show_who_for, false);
-    assert.equal(flags.show_fix_with_us, false);
+  it("shows the approved extra blocks and the rebuilt lead form", () => {
+    assert.equal(flags.show_sample_report, true);
+    assert.equal(flags.show_who_for, true);
+    assert.equal(flags.show_fix_with_us, true);
+    assert.equal(flags.show_lead_form, true);
+    assert.equal(flags.show_platform_hints, false);
   });
 
   it("mentions the fines table in FAQ 2 only when that table is shown", () => {
@@ -169,8 +188,10 @@ describe("publication flags", () => {
 
   it("takes the footer operator name from operator_short_name", () => {
     const paragraph = footerParagraphs(false).find((line) => line.includes("частная компания"));
-    assert.equal(paragraph?.startsWith(`${placeholders.operator_short_name} —`), true);
-    assert.equal(paragraph?.includes("{{"), false);
+    assert.equal(
+      paragraph,
+      `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`,
+    );
   });
 });
 

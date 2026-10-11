@@ -16,8 +16,11 @@ export const flags = {
   show_accuracy: false as boolean,
   show_prices: false as boolean,
   show_monitoring: false as boolean,
-  /** Блоки вне v1.1. Выключены, пока их не посмотрит юрист, в том числе на превью. */
-  show_example_result: false as boolean,
-  show_who_for: false as boolean,
-  show_fix_with_us: false as boolean,
+  /** Доп. блоки v2. Тексты согласованы, на превью включены. */
+  show_sample_report: true as boolean,
+  show_who_for: true as boolean,
+  show_fix_with_us: true as boolean,
+  /** Кнопка «Обсудить исправления» и форма #lead. Включена: форма переведена на 8.1-lead. */
+  show_lead_form: true as boolean,
+  show_platform_hints: false as boolean,
 };

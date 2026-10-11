@@ -12,7 +12,7 @@ export const footerDisclaimer = [
   "Оператор сайта: {{operator_legal_name}}, ИНН {{operator_inn}}.",
 ] as const;
 
-const privateCompanySentence = `${placeholders.operator_short_name} — частная компания; сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`;
+const privateCompanySentence = `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`;
 
 export function footerParagraphs(todos: boolean): string[] {
   const filled = footerDisclaimer.map((paragraph) => fillPlaceholders(paragraph, todos));
@@ -127,9 +127,11 @@ export const formCopy = {
   emailHint: "Пришлём ссылку на отчёт. Без e-mail отчёт откроется на этой странице.",
   consentLead: "Я даю согласие на обработку персональных данных",
   consentTail: "для отправки отчёта на этот e-mail",
+  leadConsentTail: "для ответа на мою заявку",
   marketing:
     "Хочу получать на e-mail рекламные и информационные письма {{operator_short_name}}: предложения услуг и тарифов, новости сервиса и изменения в законе. Согласие необязательно, отписаться можно в любом письме.",
-  policy: "Отправляя форму, вы соглашаетесь с политикой обработки ПДн",
+  policyLead: "Как мы обрабатываем данные — в",
+  policyLink: "Политике обработки персональных данных",
   button: "Проверить сайт",
   pending: "Проверяем…",
   emptyUrl: "Введите адрес сайта",

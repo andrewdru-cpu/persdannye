@@ -11,6 +11,8 @@ export const placeholders: Record<string, string> = {
   rules_updated_at: "2026-10-11",
   policy_url: "/privacy",
   consent_url: "/consent",
+  consent_lead_url: "/consent-lead",
+  privacy_contact_email: company.dpoEmail,
   operator_site: company.website,
   operator_short_name: company.shortName,
   operator_full_name: company.legalName,
