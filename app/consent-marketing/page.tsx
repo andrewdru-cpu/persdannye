@@ -13,14 +13,14 @@ export default function MarketingConsentPage() {
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">{marketingConsent.title}</h1>
-      {marketingConsent.paragraphs.map((paragraph) => (
-        <p key={paragraph} className="mt-4 text-sm leading-relaxed text-white/75">
+      {marketingConsent.paragraphs.map((paragraph, index) => (
+        <p key={index} className="mt-4 text-sm leading-relaxed text-white/75">
           {fillPlaceholders(paragraph, todos)}
         </p>
       ))}
       <ol className="mt-6 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-white/75">
-        {marketingConsent.points.map((point) => (
-          <li key={point}>{fillPlaceholders(point, todos)}</li>
+        {marketingConsent.points.map((point, index) => (
+          <li key={index}>{fillPlaceholders(point, todos)}</li>
         ))}
       </ol>
       <p className="mt-6 text-sm">

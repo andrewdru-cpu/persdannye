@@ -333,11 +333,16 @@ export function ExampleResult() {
                   <p className="mt-2 text-white/55">
                     Норма:{" "}
                     {item.norms.map((norm, index) => (
-                      <span key={norm.href}>
+                      <span key={`${norm.label}-${index}`}>
                         {index > 0 ? "; " : null}
-                        <a href={norm.href} className="text-amber-200 hover:underline" target="_blank" rel="noreferrer">
-                          {norm.label}
-                        </a>
+                        {"href" in norm && norm.href ? (
+                          <a href={norm.href} className="text-amber-200 hover:underline" target="_blank" rel="noreferrer">
+                            {norm.label}
+                          </a>
+                        ) : (
+                          norm.label
+                        )}
+                        {"note" in norm && norm.note ? ` (${norm.note})` : null}
                       </span>
                     ))}
                   </p>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 import Link from "next/link";
 
@@ -129,7 +130,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           Для реализации прав направьте запрос ответственному за организацию обработки
-          ПДн (ДПО){privacyContactLabel() ? <>: {privacyContactLabel()}</> : null}. Срок
+          ПДн (ДПО){privacyContactLabel() ? <>: <PrivacyContactLink /></> : null}. Срок
           ответа — согласно ст. 14 152-ФЗ.
         </p>
       </Section>
@@ -157,7 +158,11 @@ export default function PrivacyPage() {
         <p>{company.legalName}</p>
         <p>ИНН {company.inn}, ОГРН {company.ogrn}</p>
         <p>{company.address}</p>
-        {privacyContactLabel() ? <p>ДПО: {privacyContactLabel()}</p> : null}
+        {privacyContactLabel() ? (
+          <p>
+            ДПО: <PrivacyContactLink />
+          </p>
+        ) : null}
         <p>Тел.: {company.phone}</p>
         <p>{company.supportHours}</p>
       </Section>

@@ -13,14 +13,14 @@ export default function LeadConsentPage() {
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">{leadConsent.title}</h1>
-      {leadConsent.paragraphs.map((paragraph) => (
-        <p key={paragraph} className="mt-4 text-sm leading-relaxed text-white/75">
+      {leadConsent.paragraphs.map((paragraph, index) => (
+        <p key={index} className="mt-4 text-sm leading-relaxed text-white/75">
           {fillPlaceholders(paragraph, todos)}
         </p>
       ))}
       <ol className="mt-6 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-white/75">
-        {leadConsent.points.map((point) => (
-          <li key={point}>{fillPlaceholders(point, todos)}</li>
+        {leadConsent.points.map((point, index) => (
+          <li key={index}>{fillPlaceholders(point, todos)}</li>
         ))}
       </ol>
       <p className="mt-6 text-sm">

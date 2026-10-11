@@ -13,14 +13,14 @@ export default function ReportConsentPage() {
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">{reportConsent.title}</h1>
-      {reportConsent.paragraphs.map((paragraph) => (
-        <p key={paragraph} className="mt-4 text-sm leading-relaxed text-white/75">
+      {reportConsent.paragraphs.map((paragraph, index) => (
+        <p key={index} className="mt-4 text-sm leading-relaxed text-white/75">
           {fillPlaceholders(paragraph, todos)}
         </p>
       ))}
       <ol className="mt-6 list-decimal space-y-3 pl-5 text-sm leading-relaxed text-white/75">
-        {reportConsent.points.map((point) => (
-          <li key={point}>{fillPlaceholders(point, todos)}</li>
+        {reportConsent.points.map((point, index) => (
+          <li key={index}>{fillPlaceholders(point, todos)}</li>
         ))}
       </ol>
       <p className="mt-6 text-sm">

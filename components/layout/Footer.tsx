@@ -46,13 +46,6 @@ export function Footer() {
             <li>ИНН {company.inn}</li>
             <li>ОГРН {company.ogrn}</li>
             <li>{company.address}</li>
-            {company.email ? (
-              <li>
-                <a className="hover:text-amber-300" href={`mailto:${company.email}`}>
-                  {company.email}
-                </a>
-              </li>
-            ) : null}
             {privacyContactLabel() ? (
               <li>
                 ДПО: <PrivacyContactLink className="hover:text-amber-300" />

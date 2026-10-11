@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 
 export const metadata: Metadata = {
@@ -74,7 +75,12 @@ export default function CookiesPage() {
 
       <Sec title="7. Контакты">
         <p>
-          {privacyContactLabel() ? <>{privacyContactLabel()}, ДПО: {privacyContactLabel()}, </> : null}
+          {privacyContactLabel() ? (
+            <>
+              <PrivacyContactLink />
+              {", "}
+            </>
+          ) : null}
           тел. {company.phone}.
         </p>
       </Sec>

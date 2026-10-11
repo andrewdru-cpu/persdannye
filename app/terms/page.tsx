@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 
 export const metadata: Metadata = {
@@ -99,7 +100,11 @@ export default function TermsPage() {
         <p>ИНН {company.inn}, ОГРН {company.ogrn}</p>
         <p>{company.address}</p>
         <p>
-          {privacyContactLabel() ? <>{privacyContactLabel()} · </> : null}
+          {privacyContactLabel() ? (
+            <>
+              <PrivacyContactLink /> ·{" "}
+            </>
+          ) : null}
           {company.phone}
         </p>
       </Sec>

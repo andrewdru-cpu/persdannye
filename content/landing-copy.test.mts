@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { resolveCalculator, emptyAnswers } from "./calculator.ts";
-import { faqItems, footerParagraphs, formCopy } from "./blocks.ts";
+import { checkGroupsTitle, faqItems, footerParagraphs, formCopy } from "./blocks.ts";
+import { leadConsent, marketingConsent, reportConsent } from "./consents.ts";
 import { flags } from "./flags.ts";
 import { fillPlaceholders, placeholders } from "./placeholders.ts";
 import { company, privacyContactLabel, PRIVACY_CONTACT_TODO } from "../lib/company.ts";
@@ -62,6 +63,8 @@ const bannedPatterns: RegExp[] = [
   /устраним\s+риск/iu,
   /исправим\s+за\s+вас/iu,
   /@persdannye\.ru/iu,
+  /п\.\s*3\.1/u,
+  /рекомендац\p{L}*\s+ркн/iu,
 ];
 
 const timeClaim = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)/iu;
@@ -107,7 +110,8 @@ describe("rendered landing copy", () => {
     assert.equal(live.includes("Даже лендинг с формой"), false);
     assert.equal(live.includes("проверим и покажем, что поправить"), false);
     assert.equal(live.includes("до того, как это сделает проверка"), false);
-    assert.equal(live.includes("десятки пунктов"), false);
+    assert.equal(live.includes("десятки"), false);
+    assert.equal(checkGroupsTitle, "Что проверяем");
     assert.equal(live.includes("Обычно это занимает несколько минут"), false);
     assert.equal(live.includes("Суммы для ИП и юрлиц разные"), false);
     assert.equal(live.includes("Диапазоны — по ст. 13.11"), false);
@@ -190,21 +194,49 @@ describe("publication flags", () => {
 
   it("maps both mail placeholders to the empty privacy contact", () => {
     assert.equal(company.privacy_contact_email, "");
+    assert.equal(company.email, "");
     assert.equal("dpoEmail" in company, false);
     assert.equal(privacyContactLabel("", "production"), null);
     assert.equal(privacyContactLabel("", "preview"), PRIVACY_CONTACT_TODO);
+    const consents = JSON.stringify({ reportConsent, marketingConsent, leadConsent });
+    assert.equal(consents.includes("operator_email_pd"), false);
+    assert.equal(consents.includes("{{privacy_contact_email}}"), true);
     const previous = process.env.VERCEL_ENV;
     process.env.VERCEL_ENV = "preview";
     try {
       assert.equal(fillPlaceholders("{{privacy_contact_email}}", true), PRIVACY_CONTACT_TODO);
       assert.equal(fillPlaceholders("{{operator_email_pd}}", true), PRIVACY_CONTACT_TODO);
+      assert.equal(fillPlaceholders("{{processor_timeweb_legal}}", true), "TODO: processor_timeweb_legal");
+      assert.equal(fillPlaceholders("{{processor_yandex360_legal}}", true), "TODO: processor_yandex360_legal");
       process.env.VERCEL_ENV = "production";
       assert.equal(fillPlaceholders("{{operator_email_pd}}", false), "");
       assert.equal(fillPlaceholders("{{privacy_contact_email}}", false), "");
+      assert.equal(fillPlaceholders("{{processor_timeweb_legal}}", false), "");
+      assert.equal(fillPlaceholders("{{processor_yandex360_legal}}", false), "");
     } finally {
       if (previous === undefined) delete process.env.VERCEL_ENV;
       else process.env.VERCEL_ENV = previous;
     }
+  });
+
+  it("uses the lawyer text for sample observation 5 and drops the RKN recommendations cite", () => {
+    const item = sampleReport.observations[4];
+    assert.equal(item?.level, "Желательно");
+    assert.equal(item?.text, "В политике не нашли наименование и адрес оператора (PD-POLICY-009)");
+    assert.equal(item?.confidence, "Вероятно: реквизиты могут быть на другой странице или картинкой");
+    assert.equal(
+      item?.fix,
+      "Рекомендуем указать в политике наименование и адрес оператора, а также e-mail для обращений. ИНН/ОГРН указывать — хорошая практика, но не требование",
+    );
+    assert.deepEqual(
+      item?.norms.map((norm) => norm.label),
+      ["152-ФЗ ст. 18.1 ч. 2", "152-ФЗ ст. 14 ч. 7 п. 4", "149-ФЗ ст. 10 ч. 2"],
+    );
+    assert.equal("href" in item.norms[1], false);
+    const dumped = JSON.stringify(sampleReport);
+    assert.equal(dumped.includes("п. 3.1"), false);
+    assert.equal(dumped.includes("Рекомендации РКН"), false);
+    assert.equal(dumped.includes("cons_doc_LAW_221615"), false);
   });
 
   it("takes the footer operator name from operator_short_name", () => {

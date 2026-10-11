@@ -27,6 +27,7 @@ const token = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;
 
 export function fillPlaceholders(input: string, todos: boolean): string {
   return input.replace(token, (match, key: string) => {
+    // В текстах остаётся только {{privacy_contact_email}}. Старый ключ, если всплывёт, читает то же поле.
     if (key === "privacy_contact_email" || key === "operator_email_pd") {
       return privacyContactLabel() ?? "";
     }
