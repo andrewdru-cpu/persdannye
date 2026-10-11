@@ -219,8 +219,8 @@ function textField(value: unknown, max = 500): string {
 }
 
 /** Findings only: drop contacts, screenshots, and any extra keys. */
-export function sanitizeFindings(value: unknown): Finding[] {
-  return normalizeFindings(value);
+export function sanitizeFindings(value: unknown, showAmounts?: unknown): Finding[] {
+  return normalizeFindings(value, showAmounts);
 }
 
 function mapPhase(data: Record<string, unknown>): string {
@@ -280,7 +280,7 @@ export function mapPublicCheck(body: unknown, fallbackUrl: string, id: string): 
   }
   const domain = domainFromUrl(url || fallbackUrl);
   const phase = mapPhase(record);
-  const findings = sanitizeFindings(record.findings);
+  const findings = sanitizeFindings(record.findings, record.show_amounts);
   const score = typeof record.score === "number" ? record.score : null;
   const done = phase === "done";
   const pdfFlag = boolField(record.pdf_ready);

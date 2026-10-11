@@ -41,6 +41,7 @@ interface UpstreamScan {
   push?: boolean;
   mode?: unknown;
   rules_version?: unknown;
+  show_amounts?: unknown;
   warning?: string | null;
   error?: string | null;
   message?: string | null;
@@ -130,7 +131,7 @@ function mapUpstream(
 ): CheckJob {
   const domain = domainFromUrl(url);
   const phase = normalizePhase(data.phase || data.status || "queued") as ParserPhase | string;
-  const findings = normalizeFindings(data.findings);
+  const findings = normalizeFindings(data.findings, data.show_amounts);
   const push = Boolean(data.push);
   const hasRisks = jobHasRisks({ phase, push: data.push, findings });
 

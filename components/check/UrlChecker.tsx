@@ -15,7 +15,7 @@ import {
   violationCount,
 } from "@/lib/finding-status";
 import { pollCheck, runCheck } from "@/lib/forms-client";
-import { isDirectForms, showFineAmounts } from "@/lib/forms-mode";
+import { isDirectForms } from "@/lib/forms-mode";
 import { ACTIVE_POLL_MS, isLimitedScan, LIMITED_SCAN_MESSAGE, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import { publicCheckPdfUrl } from "@/lib/public-api";
 import type { CheckJob, Finding } from "@/lib/types";
@@ -111,9 +111,7 @@ function FindingCard({ f }: { f: Finding }) {
         <p className="mt-2 text-sm text-amber-50/90">{LIKELY_BASIS_TEXT}</p>
       ) : null}
       {f.fineNorm ? <p className="mt-2 text-xs text-white/55">{f.fineNorm}</p> : null}
-      {showFineAmounts() && f.fineAmount ? (
-        <p className="mt-1 text-sm text-white/80">{f.fineAmount}</p>
-      ) : null}
+      {f.fineAmount ? <p className="mt-1 text-sm text-white/80">{f.fineAmount}</p> : null}
       {f.disclaimer ? <p className="mt-2 text-xs leading-relaxed text-white/45">{f.disclaimer}</p> : null}
     </motion.li>
   );

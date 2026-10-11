@@ -140,8 +140,21 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+/**
+ * Amount text only when the site flag is on, the scan says `show_amounts: true`,
+ * and the text is a non-empty string. Otherwise nothing — no placeholder.
+ */
+export function visibleFineAmount(fineAmountText: unknown, showAmounts: unknown): string | null {
+  if (!showFineAmounts()) return null;
+  if (showAmounts !== true) return null;
+  if (typeof fineAmountText !== "string") return null;
+  const text = fineAmountText.trim();
+  if (!text) return null;
+  return text.slice(0, 200);
+}
+
 /** Text findings only. `status` is copied only when the parser sent one. */
-export function normalizeFindings(value: unknown): Finding[] {
+export function normalizeFindings(value: unknown, showAmounts?: unknown): Finding[] {
   if (!Array.isArray(value)) return [];
   const findings: Finding[] = [];
   for (const item of value) {
@@ -163,10 +176,8 @@ export function normalizeFindings(value: unknown): Finding[] {
     if (disclaimer) finding.disclaimer = disclaimer;
     const fineNorm = textField(record.fine_norm, 300);
     if (fineNorm) finding.fineNorm = fineNorm;
-    if (showFineAmounts()) {
-      const fineAmount = textField(record.fine_amount_text, 200);
-      if (fineAmount) finding.fineAmount = fineAmount;
-    }
+    const fineAmount = visibleFineAmount(record.fine_amount_text, showAmounts);
+    if (fineAmount) finding.fineAmount = fineAmount;
     findings.push(finding);
   }
   return findings;

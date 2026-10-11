@@ -9,6 +9,7 @@ import {
   readRulesVersion,
   readStaticFallback,
   violationCount,
+  visibleFineAmount,
 } from "../lib/finding-status";
 import { mapUpstreamScan } from "../lib/parser-client";
 import { isLimitedScan, isTerminal, LIMITED_SCAN_MESSAGE } from "../lib/phases";
@@ -233,10 +234,13 @@ test("finding schema maps severity aliases, basis, disclaimer, and hides fine am
     );
 
     process.env.NEXT_PUBLIC_SHOW_FINES = "true";
-    const shown = normalizeFindings([
-      { ...text, fine_amount_text: "до 300 000 ₽", fine_norm: "ч. 1 ст. 13.11 КоАП", status_basis: "proven" },
-      { ...text, rule_id: "N", fine_amount_text: null },
-    ]);
+    const shown = normalizeFindings(
+      [
+        { ...text, fine_amount_text: "до 300 000 ₽", fine_norm: "ч. 1 ст. 13.11 КоАП", status_basis: "proven" },
+        { ...text, rule_id: "N", fine_amount_text: null },
+      ],
+      true
+    );
     assert.equal(shown[0].fineAmount, "до 300 000 ₽");
     assert.equal(shown[0].statusBasis, "proven");
     assert.equal("fineAmount" in shown[1], false);
@@ -309,6 +313,67 @@ test("Disallow slash is a partial done result, not blocked_by_robots", () => {
       assert.equal(isViolation(job.findings[2]), false);
       assert.equal(JSON.stringify(job).includes("300"), false);
     }
+  } finally {
+    if (prev === undefined) delete process.env.NEXT_PUBLIC_SHOW_FINES;
+    else process.env.NEXT_PUBLIC_SHOW_FINES = prev;
+  }
+});
+
+test("fine amount is shown only when env, show_amounts, and text all hold", () => {
+  const prev = process.env.NEXT_PUBLIC_SHOW_FINES;
+  const amount = "до 300 000 ₽";
+  const cases: Array<{
+    env: string | undefined;
+    show: unknown;
+    text: unknown;
+    expected: string | null;
+  }> = [
+    { env: "true", show: true, text: amount, expected: amount },
+    { env: "true", show: true, text: "  до 100 ₽  ", expected: "до 100 ₽" },
+    { env: undefined, show: true, text: amount, expected: null },
+    { env: "false", show: true, text: amount, expected: null },
+    { env: "1", show: true, text: amount, expected: null },
+    { env: "TRUE", show: true, text: amount, expected: null },
+    { env: "true", show: false, text: amount, expected: null },
+    { env: "true", show: "true", text: amount, expected: null },
+    { env: "true", show: 1, text: amount, expected: null },
+    { env: "true", show: undefined, text: amount, expected: null },
+    { env: "true", show: null, text: amount, expected: null },
+    { env: "true", show: true, text: "", expected: null },
+    { env: "true", show: true, text: "   ", expected: null },
+    { env: "true", show: true, text: null, expected: null },
+    { env: "true", show: true, text: undefined, expected: null },
+    { env: undefined, show: false, text: "", expected: null },
+    { env: "false", show: false, text: null, expected: null },
+  ];
+  try {
+    for (const row of cases) {
+      if (row.env === undefined) delete process.env.NEXT_PUBLIC_SHOW_FINES;
+      else process.env.NEXT_PUBLIC_SHOW_FINES = row.env;
+      assert.equal(visibleFineAmount(row.text, row.show), row.expected, JSON.stringify(row));
+      const findings = normalizeFindings([{ ...text, fine_amount_text: row.text }], row.show);
+      if (row.expected) assert.equal(findings[0].fineAmount, row.expected, JSON.stringify(row));
+      else assert.equal("fineAmount" in findings[0], false, JSON.stringify(row));
+    }
+
+    process.env.NEXT_PUBLIC_SHOW_FINES = "true";
+    const shown = mapPublicCheck(
+      {
+        status: "done",
+        show_amounts: true,
+        findings: [{ ...text, fine_amount_text: amount, fine_norm: "ч. 3 ст. 13.11 КоАП" }],
+      },
+      "https://shop.example",
+      "amt"
+    );
+    assert.equal(shown.findings[0].fineAmount, amount);
+    const hidden = mapUpstreamScan({
+      phase: "done",
+      show_amounts: false,
+      findings: [{ ...text, fine_amount_text: amount }],
+    });
+    assert.equal("fineAmount" in hidden.findings[0], false);
+    assert.equal(JSON.stringify(hidden).includes("300"), false);
   } finally {
     if (prev === undefined) delete process.env.NEXT_PUBLIC_SHOW_FINES;
     else process.env.NEXT_PUBLIC_SHOW_FINES = prev;

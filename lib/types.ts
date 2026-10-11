@@ -27,8 +27,8 @@ export interface Finding {
   /** Norm reference, for example «ч. 3 ст. 13.11 КоАП». Shown whenever present. */
   fineNorm?: string;
   /**
-   * Amount text. Copied only when NEXT_PUBLIC_SHOW_FINES=true.
-   * The parser sends null for now.
+   * Amount text. Set only when NEXT_PUBLIC_SHOW_FINES=true, the scan
+   * has show_amounts true, and fine_amount_text is a non-empty string.
    */
   fineAmount?: string;
 }
