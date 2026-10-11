@@ -69,6 +69,8 @@ export type CreateScanLead = {
   phone?: string | null;
   consent?: boolean | null;
   consent_text_version?: string | null;
+  marketing_consent?: boolean | null;
+  marketing_consent_text_version?: string | null;
 };
 
 /** Browser payload: never include contacts read from data/ or /tmp. */

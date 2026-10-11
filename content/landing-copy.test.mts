@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { resolveCalculator, emptyAnswers } from "./calculator.ts";
+import { flags } from "./flags.ts";
 import {
   claimPlaceholders,
   claims,
@@ -9,7 +11,7 @@ import {
 
 /** Рекламные формулировки, которых не должно быть в показанном тексте лендинга. */
 const bannedPatterns: RegExp[] = [
-  /гаранти/iu,
+  /(?<!не\s)гаранти/iu,
   /100\s*%\s*защит/iu,
   /аккредитован/iu,
   /одобрено\s+ркн/iu,
@@ -31,6 +33,18 @@ const bannedPatterns: RegExp[] = [
   /1000\s*\+\s*клиент/iu,
   /ежедневн\p{L}*\s+актуализац/iu,
   /передовая\s+компани/iu,
+  /без\s+штраф/iu,
+  /100\s*%\s*соответств/iu,
+  /закроем\s+риск/iu,
+  /защитим\s+от\s+ркн/iu,
+  /87\s*%/u,
+  /единственн/iu,
+  /в\s+отличие\s+от/iu,
+  /официальн\p{L}*\s+проверк/iu,
+  /реестр\s+ркн/iu,
+  /штрафа\s+не\s+будет/iu,
+  /сначала\s+только\s+предупредят/iu,
+  /в\s+течение\s+года\s+с\s+нарушен/iu,
 ];
 
 const timeClaim = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)/iu;
@@ -40,7 +54,7 @@ const MAIN_H1 = "Проверьте сайт на соответствие 152-�
 const MAIN_H1_TIME =
   "Проверьте сайт на соответствие 152-ФЗ за несколько минут — и получите план, что исправить";
 const SUB =
-  "Политика, согласия, cookie, формы и сторонние сервисы — проверка публичной части сайта. Автоматическая проверка, не является юридической консультацией.";
+  "Политика, согласия, cookie, формы и сторонние сервисы — проверяем публичную часть сайта. Автоматическая проверка, не является юридической консультацией.";
 const SUB_CHECKS =
   "Политика, согласия, cookie, формы и сторонние сервисы — десятки проверок публичной части сайта. Автоматическая проверка, не является юридической консультацией.";
 
@@ -74,6 +88,8 @@ describe("rendered landing copy", () => {
     assert.equal(live.includes("Даже лендинг с формой"), false);
     assert.equal(live.includes("проверим и покажем, что поправить"), false);
     assert.equal(live.includes("до того, как это сделает проверка"), false);
+    assert.equal(live.includes("десятки пунктов"), false);
+    assert.equal(live.includes("Обычно это занимает несколько минут"), false);
   });
 
   it("inserts the time phrase into the main H1 only when time_verified is true", () => {
@@ -100,5 +116,39 @@ describe("rendered landing copy", () => {
     });
     assert.equal(resolved.headline, MAIN_H1_TIME);
     assert.equal(resolved.subline, SUB_CHECKS);
+  });
+});
+
+describe("publication flags", () => {
+  it("keeps every section-0 flag off", () => {
+    for (const [name, value] of Object.entries(flags)) {
+      assert.equal(value, false, name);
+    }
+  });
+});
+
+describe("calculator without amounts", () => {
+  it("shows a fix card and no ruble amount when the policy is missing", () => {
+    const view = resolveCalculator({ ...emptyAnswers, owner: "ip", policy: "no" });
+    const text = JSON.stringify(view);
+    assert.equal(view.cards.some((card) => card.norm.includes("ч. 3")), true);
+    assert.equal(text.includes("₽"), false);
+    assert.equal(text.includes("тыс"), false);
+  });
+
+  it("replaces an unknown answer with the site-check line", () => {
+    const view = resolveCalculator({ ...emptyAnswers, policy: "unknown" });
+    assert.equal(view.cards.length, 0);
+    assert.equal(view.unknowns.includes("Политика"), true);
+  });
+
+  it("keeps localization wording conditional", () => {
+    const view = resolveCalculator({
+      ...emptyAnswers,
+      foreignStorage: true,
+    });
+    const card = view.cards.find((item) => item.id === "localization");
+    assert.equal(card?.neutral, true);
+    assert.equal(card?.paragraphs.join(" ").includes("Только если"), true);
   });
 });

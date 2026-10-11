@@ -1,10 +1,23 @@
+import {
+  checkGroups,
+  checkGroupsTitle,
+  checkWorkPoints,
+  dataCallouts,
+  faqItems,
+  footerParagraphs,
+  formCopy,
+  howSteps,
+} from "./blocks";
+import { calculatorCopy } from "./calculator";
+import { flags } from "./flags";
+
 /**
  * Тексты лендинга. Это черновик: финал утверждают маркетинг и юрист.
  * Суммы штрафов здесь не хранятся — они в `content/fines.ts`
  * и попадают на страницу только при одобрении.
  *
  * Живой герой — один заголовок. Срок и число проверок появляются
- * только если юрист включит `claims.time_verified` или `claims.checks_count_verified`.
+ * только если включены флаги `hero_speed_claim` и `hero_dozens_claim`.
  */
 
 export const disclaimer =
@@ -13,13 +26,15 @@ export const disclaimer =
 export const cta = {
   primary: "Проверить свой сайт",
   sticky: "Проверить сайт",
-  stickyHint: "Риски 152-ФЗ по публичному URL",
+  stickyHint: "Проверьте сайт на соответствие 152-ФЗ",
+  stickyPlaceholder: "ваш-сайт.ru",
+  stickyClose: "Закрыть",
   secondary: "Получить полный отчёт",
   checkFirst: "Сначала проверить сайт",
 } as const;
 
 export const heroChrome = {
-  badge: "152-ФЗ / Роскомнадзор",
+  badge: "152-ФЗ",
   kicker: "Для собственника без штатного юриста",
   facts: [
     { k: "URL", v: "достаточно" },
@@ -115,12 +130,11 @@ export const calculatorUi = {
 } as const;
 
 /**
- * Утверждения о сроке и числе проверок. Оба false, пока юрист не подтвердит.
- * Широкий boolean, чтобы ветки с фразами оставались в исходнике.
+ * Те же флаги, что `hero_speed_claim` и `hero_dozens_claim`. Оба false.
  */
 export const claims = {
-  time_verified: false as boolean,
-  checks_count_verified: false as boolean,
+  time_verified: flags.hero_speed_claim,
+  checks_count_verified: flags.hero_dozens_claim,
 };
 
 /** Не попадают в вёрстку, пока соответствующий флаг false. */
@@ -150,7 +164,7 @@ export type HeroRenderOptions = {
 function heroSubline(checksCountVerified: boolean): string {
   const dash = checksCountVerified
     ? `${claimPlaceholders.checks} публичной части сайта`
-    : "проверка публичной части сайта";
+    : "проверяем публичную часть сайта";
   return `${SUB_LEAD} — ${dash}. ${SUB_TAIL}`;
 }
 
@@ -204,6 +218,27 @@ export function renderedLandingCopy(options?: HeroRenderOptions): string {
       footerBlurb,
       finesUi,
       calculatorUi,
+      howSteps,
+      checkWorkPoints,
+      dataCallouts,
+      checkGroupsTitle,
+      checkGroups,
+      formCopy,
+      calculator: {
+        title: calculatorCopy.title,
+        lead: calculatorCopy.lead,
+        resultTitle: calculatorCopy.resultTitle,
+        unknownLine: calculatorCopy.unknownLine,
+        noHits: calculatorCopy.noHits,
+        manyUnknowns: calculatorCopy.manyUnknowns,
+        separate: calculatorCopy.separate,
+        footnote: calculatorCopy.footnote,
+        disclaimer: calculatorCopy.disclaimer,
+        cta: calculatorCopy.cta,
+        ...(flags.calc_client_only ? { clientOnly: calculatorCopy.clientOnly } : {}),
+      },
+      footer: footerParagraphs(false),
+      faq: faqItems(false),
     },
     parts,
   );

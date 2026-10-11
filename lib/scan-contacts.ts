@@ -26,6 +26,8 @@ export function normalizeScanContact(
     source?: string | null;
     consent?: boolean | null;
     consent_text_version?: string | null;
+    marketing_consent?: boolean | null;
+    marketing_consent_text_version?: string | null;
   } | null
 ): ScanContact | null {
   if (!input) return null;
@@ -43,6 +45,11 @@ export function normalizeScanContact(
     contact.consent = true;
     contact.consent_text_version = input.consent_text_version?.trim() || CONSENT_TEXT_VERSION;
   }
+  if (input.marketing_consent === true) {
+    contact.marketing_consent = true;
+    contact.marketing_consent_text_version =
+      input.marketing_consent_text_version?.trim() || CONSENT_TEXT_VERSION;
+  }
   return contact;
 }
 
@@ -52,6 +59,7 @@ export function mergeScanContact(
 ): ScanContact | null {
   if (!hasScanContact(primary) && !hasScanContact(fallback)) return null;
   const consent = primary?.consent === true || fallback?.consent === true;
+  const marketing = primary?.marketing_consent === true || fallback?.marketing_consent === true;
   return {
     name: primary?.name || fallback?.name,
     email: primary?.email || fallback?.email,
@@ -62,6 +70,15 @@ export function mergeScanContact(
           consent: true as const,
           consent_text_version:
             primary?.consent_text_version || fallback?.consent_text_version || CONSENT_TEXT_VERSION,
+        }
+      : {}),
+    ...(marketing
+      ? {
+          marketing_consent: true as const,
+          marketing_consent_text_version:
+            primary?.marketing_consent_text_version ||
+            fallback?.marketing_consent_text_version ||
+            CONSENT_TEXT_VERSION,
         }
       : {}),
   };
@@ -93,6 +110,12 @@ export async function saveScanContact(
       ? {
           consent: true as const,
           consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
+        }
+      : {}),
+    ...(contact.marketing_consent === true
+      ? {
+          marketing_consent: true as const,
+          marketing_consent_text_version: contact.marketing_consent_text_version || CONSENT_TEXT_VERSION,
         }
       : {}),
     url,

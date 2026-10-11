@@ -10,39 +10,15 @@ import { LeadForm } from "@/components/landing/LeadForm";
 import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CheckLink } from "@/components/landing/CheckLink";
-import { cta, faqs, heroChrome, trustItems, whatWeCheckLead } from "@/content/landing";
-
-const howSteps = [
-  {
-    n: "01",
-    t: "Вводите URL",
-    d: "Укажите сайт — запускаем экспресс-сканирование без установки кода.",
-  },
-  {
-    n: "02",
-    t: "Сканируем по 152-ФЗ",
-    d: "Проверяем политики, cookie, формы, согласия и сведения об операторе.",
-  },
-  {
-    n: "03",
-    t: "Получаете список рисков",
-    d: "Видите статус соответствия и конкретные находки с пояснениями.",
-  },
-  {
-    n: "04",
-    t: "Устраняем вместе",
-    d: "Юристы и инженеры помогают закрыть нарушения и подготовить документы.",
-  },
-];
-
-const checkItems = [
-  "Политика обработки персональных данных и обязательные сведения",
-  "Cookie-баннер: раздельные категории и отказ до согласия",
-  "Формы заявок: явное согласие и ссылка на политику",
-  "Идентификация оператора ПДн (наименование, контакты, ДПО)",
-  "Локализация и трансграничная передача — маркеры риска",
-  "Согласие отдельно от принятия оферты / правил сервиса",
-];
+import {
+  checkGroups,
+  checkGroupsTitle,
+  checkWorkPoints,
+  dataCallouts,
+  faqItems,
+  howSteps,
+} from "@/content/blocks";
+import { cta, heroChrome, trustItems } from "@/content/landing";
 
 const audiences = [
   { t: "Интернет-магазины", d: "Корзина, личный кабинет, рассылки и платёжные формы." },
@@ -88,11 +64,13 @@ export function Hero({
   highlight,
   subline,
   ctaLabel = cta.primary,
+  marketingConsent = false,
 }: {
   headline: string;
   highlight: string | null;
   subline: string;
   ctaLabel?: string;
+  marketingConsent?: boolean;
 }) {
   const reduce = useReducedMotion();
 
@@ -207,7 +185,7 @@ export function Hero({
                 {heroChrome.checkerBadge}
               </span>
             </div>
-            <UrlChecker compact pulseCta ctaLabel={ctaLabel} />
+            <UrlChecker compact pulseCta ctaLabel={ctaLabel} heroSurface marketingConsent={marketingConsent} />
           </GlassCard>
         </motion.div>
       </div>
@@ -257,7 +235,7 @@ export function HowItWorks() {
             Как это работает
           </h2>
           <p className="mt-3 max-w-2xl text-white/60">
-            От URL до списка рисков — прозрачный процесс без сюрпризов.
+            Три шага: адрес, отчёт и план, что исправить.
           </p>
         </Reveal>
 
@@ -310,16 +288,15 @@ export function WhatWeCheck() {
             Контроль
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            Что мы проверяем
+            {checkGroupsTitle}
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">{whatWeCheckLead}</p>
         </Reveal>
         <Stagger className="mt-8 grid gap-3 md:grid-cols-2">
-          {checkItems.map((item) => (
-            <StaggerItem key={item}>
-              <div className="glass-card flex gap-3 px-4 py-3.5 text-sm text-white/75 transition hover:border-amber-300/30">
-                <span className="text-amber-300">✓</span>
-                <span>{item}</span>
+          {checkGroups.map((item) => (
+            <StaggerItem key={item.t}>
+              <div className="glass-card px-4 py-4 text-sm text-white/75">
+                <div className="font-display text-2xl text-white">{item.t}</div>
+                <p className="mt-2 text-white/65">{item.d}</p>
               </div>
             </StaggerItem>
           ))}
@@ -444,7 +421,54 @@ export function FixWithUs() {
   );
 }
 
-export function FAQ() {
+export function HowCheckWorks() {
+  return (
+    <section id="method" className="scroll-mt-24 py-20 md:py-28">
+      <div className="mx-auto max-w-6xl px-4 md:px-6">
+        <Reveal>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">Проверка</p>
+          <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">Как устроена проверка</h2>
+        </Reveal>
+        <Stagger className="mt-8 grid gap-3">
+          {checkWorkPoints.map((point) => (
+            <StaggerItem key={point}>
+              <div className="glass-card px-4 py-4 text-sm leading-relaxed text-white/75">{point}</div>
+            </StaggerItem>
+          ))}
+        </Stagger>
+      </div>
+    </section>
+  );
+}
+
+export function DataOnSite() {
+  return (
+    <section id="personal-data" className="scroll-mt-24 py-20 md:py-28">
+      <div className="mx-auto max-w-6xl px-4 md:px-6">
+        <Reveal>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">На сайте</p>
+          <h2 className="mt-2 max-w-3xl font-display text-4xl font-semibold text-white md:text-5xl">
+            Что на сайте считается персональными данными
+          </h2>
+        </Reveal>
+        <Stagger className="mt-8 grid gap-3 md:grid-cols-2">
+          {dataCallouts.map((item) => (
+            <StaggerItem key={item.k}>
+              <div className="glass-card h-full p-5">
+                <div className="text-xs uppercase tracking-[0.16em] text-amber-200/80">{item.k}</div>
+                <p className="mt-2 text-white/85">{item.t}</p>
+                <p className="mt-3 text-xs leading-relaxed text-white/45">{item.s}</p>
+              </div>
+            </StaggerItem>
+          ))}
+        </Stagger>
+      </div>
+    </section>
+  );
+}
+
+export function FAQ({ todos = false }: { todos?: boolean }) {
+  const items = faqItems(todos);
   return (
     <section id="faq" className="scroll-mt-24 border-t border-amber-200/10 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
@@ -457,7 +481,7 @@ export function FAQ() {
           </h2>
         </Reveal>
         <Stagger className="mt-8 space-y-3">
-          {faqs.map((f) => (
+          {items.map((f) => (
             <StaggerItem key={f.q}>
               <details className="glass-card group p-5 open:border-amber-300/30">
                 <summary className="cursor-pointer list-none font-medium text-white marker:content-none">

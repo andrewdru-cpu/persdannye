@@ -7,7 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test content/landing-copy.test.mts"
+    "test": "node --experimental-strip-types --import ./content/test-register.mjs --test content/landing-copy.test.mts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

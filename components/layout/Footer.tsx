@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { footerParagraphs } from "@/content/blocks";
 import { footerBlurb } from "@/content/landing";
-import { LegalDisclaimer } from "@/components/landing/LegalDisclaimer";
+import { fillPlaceholders } from "@/content/placeholders";
 import { company } from "@/lib/company";
+import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export function Footer() {
   return (
@@ -62,9 +64,18 @@ export function Footer() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-white/5 px-4 py-6 text-center">
-        <LegalDisclaimer className="mx-auto max-w-3xl text-white/70" />
-        <p className="mt-3 text-xs text-white/45">
+      <div className="border-t border-white/5 px-4 py-6">
+        <div className="mx-auto max-w-3xl space-y-3 text-left text-xs leading-relaxed text-white/70" role="note">
+          {footerParagraphs(showPlaceholderTodos()).map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+          <p>
+            <Link href={fillPlaceholders("{{policy_url}}", false)} className="text-amber-200 hover:underline">
+              Политика обработки персональных данных
+            </Link>
+          </p>
+        </div>
+        <p className="mt-3 text-center text-xs text-white/45">
           © {new Date().getFullYear()} {company.legalName}. Все права защищены.
         </p>
       </div>

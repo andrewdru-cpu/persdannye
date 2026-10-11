@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { UrlChecker } from "@/components/check/UrlChecker";
 import { Reveal } from "@/components/motion/Reveal";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { marketingConsentEnabled } from "@/lib/runtime-flags";
 
 export const metadata: Metadata = {
   title: "Проверить сайт",
@@ -28,7 +29,7 @@ export default function CheckPage() {
         <Reveal delay={0.08} className="mt-8">
           <div id="url-check" className="scroll-mt-28">
             <GlassCard gold>
-              <UrlChecker />
+              <UrlChecker marketingConsent={marketingConsentEnabled()} />
             </GlassCard>
           </div>
         </Reveal>
