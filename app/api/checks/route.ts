@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createCheck } from "@/lib/parser-client";
+import { isScanConsentRequiredError } from "@/lib/consent";
+import { createCheck, publicCheckJob } from "@/lib/parser-client";
 import { normalizeUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,8 @@ const bodySchema = z.object({
       name: z.string().trim().max(120).optional(),
       email: z.string().trim().max(200).optional(),
       phone: z.string().trim().max(40).optional(),
+      consent: z.boolean().optional(),
+      consent_text_version: z.string().trim().max(64).optional(),
     })
     .optional(),
 });
@@ -36,12 +39,24 @@ export async function POST(req: Request) {
     const name = lead?.name || undefined;
     const email = lead?.email || undefined;
     const phone = lead?.phone || undefined;
+    const hasContact = Boolean(name || email || phone);
     const job = await createCheck(
       url,
-      name || email || phone ? { name, email, phone } : undefined
+      hasContact
+        ? {
+            name,
+            email,
+            phone,
+            consent: lead?.consent,
+            consent_text_version: lead?.consent_text_version,
+          }
+        : undefined
     );
-    return NextResponse.json(job, { status: 201 });
+    return NextResponse.json(publicCheckJob(job), { status: 201 });
   } catch (e) {
+    if (isScanConsentRequiredError(e)) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
     const message = e instanceof Error ? e.message : "Ошибка сервера";
     return NextResponse.json({ error: message }, { status: 500 });
   }

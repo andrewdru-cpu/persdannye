@@ -15,6 +15,8 @@ export interface ScanContact {
   email?: string;
   phone?: string;
   source?: string;
+  consent?: boolean;
+  consent_text_version?: string;
 }
 
 export interface CheckJob {

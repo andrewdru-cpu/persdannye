@@ -3,9 +3,8 @@
  * Every finished landing scan (phase === done) is a new client to pick up.
  */
 
-import { findLeadForCheck } from "./leads-store";
 import { getCheckPdf } from "./parser-client";
-import { findScanContact, hasScanContact, mergeScanContact } from "./scan-contacts";
+import { findScanContact, hasScanContact } from "./scan-contacts";
 import { isTelegramConfigured, sendTelegramDocument, sendTelegramMessage } from "./telegram";
 import type { CheckJob, Lead, ScanContact } from "./types";
 
@@ -39,7 +38,6 @@ type ContactBits = {
 };
 
 async function contactsForJob(job: CheckJob): Promise<ContactBits> {
-  const lead = await findLeadForCheck(job.id, job.url);
   let scan: ScanContact | null = hasScanContact(job.contact) ? job.contact || null : null;
   if (!scan) {
     try {
@@ -50,17 +48,10 @@ async function contactsForJob(job: CheckJob): Promise<ContactBits> {
       console.error("[notify] scan contact lookup failed", err);
     }
   }
-  const merged = mergeScanContact(
-    lead
-      ? { name: lead.name, email: lead.email, phone: lead.phone, source: lead.source }
-      : null,
-    scan
-  );
   return {
-    name: merged?.name,
-    email: merged?.email,
-    phone: merged?.phone,
-    company: lead?.company,
+    name: scan?.name,
+    email: scan?.email,
+    phone: scan?.phone,
   };
 }
 

@@ -16,6 +16,7 @@ import {
   saveScanContact,
 } from "./scan-contacts";
 import { randomUUID } from "crypto";
+import { CONSENT_TEXT_VERSION, ScanConsentRequiredError } from "./consent";
 
 export { isParserConfigured, getParserBase };
 
@@ -66,7 +67,27 @@ export type CreateScanLead = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  consent?: boolean | null;
+  consent_text_version?: string | null;
 };
+
+/** Browser payload: never include contacts read from data/ or /tmp. */
+export function publicCheckJob(job: CheckJob): Omit<CheckJob, "contact"> {
+  const view = { ...job };
+  delete view.contact;
+  return view;
+}
+
+function consentedScanContact(lead?: CreateScanLead | null): ScanContact | null {
+  const contact = normalizeScanContact(lead);
+  if (!contact) return null;
+  if (contact.consent !== true) throw new ScanConsentRequiredError();
+  return {
+    ...contact,
+    consent: true,
+    consent_text_version: CONSENT_TEXT_VERSION,
+  };
+}
 
 /** 400/422 that complains about fields the parser build does not know yet. */
 export function isUnknownFieldRejection(status: number, text: string): boolean {
@@ -135,6 +156,8 @@ function scanCreateBody(
       ...(contact.name ? { name: contact.name } : {}),
       ...(contact.email ? { email: contact.email } : {}),
       ...(contact.phone ? { phone: contact.phone } : {}),
+      consent: true,
+      consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
       source: "landing",
     };
   }
@@ -225,7 +248,7 @@ export async function createCheck(
 ): Promise<CheckJob> {
   const createdAt = new Date().toISOString();
   const domain = domainFromUrl(url);
-  const contact = normalizeScanContact(lead);
+  const contact = consentedScanContact(lead);
 
   if (!isParserConfigured()) {
     const id = randomUUID();

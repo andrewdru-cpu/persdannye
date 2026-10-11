@@ -15,7 +15,7 @@ async function ensureFile(): Promise<void> {
   }
 }
 
-export async function listLeads(): Promise<Lead[]> {
+async function listLeads(): Promise<Lead[]> {
   let raw: string;
   try {
     await ensureFile();
@@ -49,23 +49,4 @@ export async function addLead(
     console.error("[leads] save failed, continuing", err);
   }
   return lead;
-}
-
-export async function findLeadForCheck(
-  checkId?: string,
-  url?: string
-): Promise<Lead | null> {
-  const leads = await listLeads();
-  if (checkId) {
-    const byCheck = leads.find((l) => l.checkId === checkId);
-    if (byCheck) return byCheck;
-  }
-  if (url) {
-    const needle = url.replace(/\/$/, "").toLowerCase();
-    const byUrl = leads.find(
-      (l) => l.url && l.url.replace(/\/$/, "").toLowerCase() === needle
-    );
-    if (byUrl) return byUrl;
-  }
-  return null;
 }
