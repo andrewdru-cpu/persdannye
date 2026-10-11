@@ -5,7 +5,13 @@ import { checkGroupsTitle, faqItems, footerParagraphs, formCopy } from "./blocks
 import { leadConsent, marketingConsent, reportConsent } from "./consents.ts";
 import { flags } from "./flags.ts";
 import { fillPlaceholders, placeholders } from "./placeholders.ts";
+import {
+  CHECKS_COUNT_REVALIDATE_SECONDS,
+  PARSER_CHECKS_COUNT_PATH,
+  parseVisibleChecksCount,
+} from "../lib/checks-count.ts";
 import { company, privacyContactLabel, PRIVACY_CONTACT_TODO } from "../lib/company.ts";
+import { heroChecksPhrase, heroSublineWithCount } from "../lib/hero-checks.ts";
 import {
   claimPlaceholders,
   claims,
@@ -65,25 +71,27 @@ const bannedPatterns: RegExp[] = [
   /@persdannye\.ru/iu,
   /п\.\s*3\.1/u,
   /рекомендац\p{L}*\s+ркн/iu,
+  /десятк/iu,
+  /все\s+требования\s+152-ФЗ/iu,
+  /полная\s+проверка/iu,
 ];
 
 const timeClaim = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)/iu;
-const checksClaim = /десятк\p{L}*\s+проверок/iu;
+const countPhraseBans = [/десятк/iu, /все\s+требования\s+152-ФЗ/iu, /полная\s+проверка/iu];
 
 const MAIN_H1 = "Проверьте сайт на соответствие 152-ФЗ — и получите план, что исправить";
 const MAIN_H1_TIME =
   "Проверьте сайт на соответствие 152-ФЗ за несколько минут — и получите план, что исправить";
 const SUB =
   "Политика, согласия, cookie, формы и сторонние сервисы — проверяем публичную часть сайта. Автоматическая проверка, не является юридической консультацией.";
-const SUB_CHECKS =
-  "Политика, согласия, cookie, формы и сторонние сервисы — десятки проверок публичной части сайта. Автоматическая проверка, не является юридической консультацией.";
 
 describe("rendered landing copy", () => {
   const live = renderedLandingCopy();
 
-  it("keeps both claim flags off", () => {
+  it("keeps the speed and checks-count flags off", () => {
     assert.equal(claims.time_verified, false);
-    assert.equal(claims.checks_count_verified, false);
+    assert.equal(flags.hero_checks_count, false);
+    assert.equal("hero_dozens_claim" in flags, false);
   });
 
   it("does not contain banned advertising phrases", () => {
@@ -104,13 +112,10 @@ describe("rendered landing copy", () => {
     assert.equal(resolved.subline, SUB);
     assert.equal(resolved.cta, "Проверить сайт");
     assert.equal(timeClaim.test(live), false);
-    assert.equal(checksClaim.test(live), false);
     assert.equal(live.includes(claimPlaceholders.time), false);
-    assert.equal(live.includes(claimPlaceholders.checks), false);
     assert.equal(live.includes("Даже лендинг с формой"), false);
     assert.equal(live.includes("проверим и покажем, что поправить"), false);
     assert.equal(live.includes("до того, как это сделает проверка"), false);
-    assert.equal(live.includes("десятки"), false);
     assert.equal(checkGroupsTitle, "Что проверяем");
     assert.equal(live.includes("Обычно это занимает несколько минут"), false);
     assert.equal(live.includes("Суммы для ИП и юрлиц разные"), false);
@@ -130,28 +135,74 @@ describe("rendered landing copy", () => {
 
   it("inserts the time phrase into the main H1 only when time_verified is true", () => {
     const resolved = renderHero({
-      claims: { time_verified: true, checks_count_verified: false },
+      claims: { time_verified: true },
+      checksCountEnabled: true,
+      checksCount: 40,
     });
     assert.equal(resolved.headline, MAIN_H1_TIME);
-    assert.equal(resolved.subline, SUB);
-    assert.equal(resolved.subline.includes(claimPlaceholders.checks), false);
+    assert.equal(resolved.subline.startsWith("более 20 проверок по 152-ФЗ. "), true);
+    assert.equal(resolved.headline.includes("десятк"), false);
   });
 
-  it("rewrites the dash in the sub only when checks_count_verified is true", () => {
-    const resolved = renderHero({
-      claims: { time_verified: false, checks_count_verified: true },
+  it("does not render the banned count claims for any flag or count", () => {
+    for (const enabled of [false, true]) {
+      for (const count of [null, 19, 20, 21, 40]) {
+        const text = renderedLandingCopy({ checksCountEnabled: enabled, checksCount: count });
+        for (const pattern of countPhraseBans) {
+          assert.equal(pattern.test(text), false, `${pattern.source} enabled=${enabled} count=${count}`);
+        }
+        assert.equal(text.includes("Что проверяем: десятки"), false);
+      }
+    }
+  });
+});
+
+describe("hero checks count phrase", () => {
+  const cases: Array<[number | null, string | null]> = [
+    [null, null],
+    [19, null],
+    [20, "20 проверок по 152-ФЗ"],
+    [21, "более 20 проверок по 152-ФЗ"],
+    [40, "более 20 проверок по 152-ФЗ"],
+  ];
+
+  for (const [count, phrase] of cases) {
+    it(`maps N=${count} when the flag is on`, () => {
+      assert.equal(heroChecksPhrase(true, count), phrase);
+      const subline = heroSublineWithCount(true, count);
+      if (phrase) {
+        assert.equal(subline, `${phrase}. ${SUB}`);
+      } else {
+        assert.equal(subline, SUB);
+      }
     });
-    assert.equal(resolved.headline, MAIN_H1);
-    assert.equal(resolved.subline, SUB_CHECKS);
-    assert.equal(resolved.headline.includes(claimPlaceholders.time), false);
+  }
+
+  it("drops the phrase when the flag is off even if N is high", () => {
+    assert.equal(heroChecksPhrase(false, 40), null);
+    assert.equal(heroSublineWithCount(false, 40), SUB);
+    assert.equal(renderHero({ checksCountEnabled: false, checksCount: 40 }).subline, SUB);
+  });
+});
+
+describe("parser checks-count payload", () => {
+  it("reads the public path and a 300 second revalidate", () => {
+    assert.equal(PARSER_CHECKS_COUNT_PATH, "/public/checks-count");
+    assert.equal(CHECKS_COUNT_REVALIDATE_SECONDS, 300);
   });
 
-  it("renders both claim phrases only when both flags are true", () => {
-    const resolved = renderHero({
-      claims: { time_verified: true, checks_count_verified: true },
-    });
-    assert.equal(resolved.headline, MAIN_H1_TIME);
-    assert.equal(resolved.subline, SUB_CHECKS);
+  it("accepts an integer count with a rules version", () => {
+    assert.equal(
+      parseVisibleChecksCount({ visible_checks_count: 21, rules_version: "2026-10-11" }),
+      21,
+    );
+  });
+
+  it("rejects a non-integer, a missing version, and a broken body", () => {
+    assert.equal(parseVisibleChecksCount({ visible_checks_count: 20.5, rules_version: "v" }), null);
+    assert.equal(parseVisibleChecksCount({ visible_checks_count: "21", rules_version: "v" }), null);
+    assert.equal(parseVisibleChecksCount({ visible_checks_count: 21 }), null);
+    assert.equal(parseVisibleChecksCount(null), null);
   });
 });
 
@@ -160,7 +211,7 @@ const section0Flags = [
   "show_marketing_consent",
   "calc_client_only",
   "hero_speed_claim",
-  "hero_dozens_claim",
+  "hero_checks_count",
   "hero_alt_check",
   "show_rkn_stats",
   "show_rules_update",

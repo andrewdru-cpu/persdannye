@@ -11,14 +11,15 @@ import {
 import { calculatorCopy } from "./calculator";
 import { fixWithUs, sampleFinesNote, sampleReport, sampleRulesLine, whoFor } from "./extra-blocks";
 import { flags } from "./flags";
+import { heroSublineWithCount } from "../lib/hero-checks";
 
 /**
  * Тексты лендинга. Это черновик: финал утверждают маркетинг и юрист.
  * Суммы штрафов здесь не хранятся — они в `content/fines.ts`
  * и попадают на страницу только при одобрении.
  *
- * Живой герой — один заголовок. Срок и число проверок появляются
- * только если включены флаги `hero_speed_claim` и `hero_dozens_claim`.
+ * Живой герой — один заголовок. Срок — только при `hero_speed_claim`.
+ * Число проверок — только при `hero_checks_count` и целом N ≥ 20 от парсера.
  */
 
 export const disclaimer =
@@ -130,26 +131,19 @@ export const calculatorUi = {
   resultHint: "Сумма минимумов и сумма максимумов по отмеченным пунктам. Смягчение и совокупность здесь не учтены.",
 } as const;
 
-/**
- * Те же флаги, что `hero_speed_claim` и `hero_dozens_claim`. Оба false.
- */
+/** Тот же флаг, что `hero_speed_claim`. По умолчанию false. */
 export const claims = {
   time_verified: flags.hero_speed_claim,
-  checks_count_verified: flags.hero_dozens_claim,
 };
 
-/** Не попадают в вёрстку, пока соответствующий флаг false. */
+/** Не попадает в вёрстку, пока `hero_speed_claim` false. */
 export const claimPlaceholders = {
   time: "за несколько минут",
-  checks: "десятки проверок",
 } as const;
 
 const HERO_CTA = "Проверить сайт";
 
 const MAIN_HEADLINE = "Проверьте сайт на соответствие 152-ФЗ — и получите план, что исправить";
-
-const SUB_LEAD = "Политика, согласия, cookie, формы и сторонние сервисы";
-const SUB_TAIL = "Автоматическая проверка, не является юридической консультацией.";
 
 export type ResolvedHero = {
   headline: string;
@@ -159,29 +153,26 @@ export type ResolvedHero = {
 };
 
 export type HeroRenderOptions = {
-  claims?: { time_verified: boolean; checks_count_verified: boolean };
+  claims?: { time_verified: boolean };
+  checksCountEnabled?: boolean;
+  checksCount?: number | null;
 };
-
-function heroSubline(checksCountVerified: boolean): string {
-  const dash = checksCountVerified
-    ? `${claimPlaceholders.checks} публичной части сайта`
-    : "проверяем публичную часть сайта";
-  return `${SUB_LEAD} — ${dash}. ${SUB_TAIL}`;
-}
 
 function mainHeadline(timeVerified: boolean): string {
   if (!timeVerified) return MAIN_HEADLINE;
   return `Проверьте сайт на соответствие 152-ФЗ ${claimPlaceholders.time} — и получите план, что исправить`;
 }
 
-/** Фразы срока и числа проверок только при своих флагах. */
+/** Срок и число проверок только при своих флагах. */
 export function renderHero(options?: HeroRenderOptions): ResolvedHero {
-  const flags = options?.claims ?? claims;
-  const headline = mainHeadline(flags.time_verified);
+  const timeVerified = options?.claims?.time_verified ?? claims.time_verified;
+  const checksEnabled = options?.checksCountEnabled ?? flags.hero_checks_count;
+  const checksCount = options?.checksCount ?? null;
+  const headline = mainHeadline(timeVerified);
   return {
     headline,
     highlight: headline.includes("152-ФЗ") ? "152-ФЗ" : null,
-    subline: heroSubline(flags.checks_count_verified),
+    subline: heroSublineWithCount(checksEnabled, checksCount),
     cta: HERO_CTA,
   };
 }

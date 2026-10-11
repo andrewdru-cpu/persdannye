@@ -1,6 +1,6 @@
 /**
  * Флаги публикации из site-copy v1.1, раздел 0.
- * Все по умолчанию выключены. Суммы, срок и число проверок на превью не показываем.
+ * Все по умолчанию выключены. Суммы, срок и число проверок не показываем ни на превью, ни на проде.
  * Широкий boolean, чтобы ветки с текстами оставались в исходнике.
  */
 export const flags = {
@@ -8,7 +8,8 @@ export const flags = {
   show_marketing_consent: false as boolean,
   calc_client_only: false as boolean,
   hero_speed_claim: false as boolean,
-  hero_dozens_claim: false as boolean,
+  /** Число проверок в подзаголовке героя. Выключено и на превью, и на проде. */
+  hero_checks_count: false as boolean,
   hero_alt_check: false as boolean,
   show_rkn_stats: false as boolean,
   show_rules_update: false as boolean,

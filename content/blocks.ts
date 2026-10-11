@@ -88,9 +88,7 @@ export const dataCallouts = [
   },
 ] as const;
 
-export const checkGroupsTitle = flags.hero_dozens_claim
-  ? "Что проверяем: десятки пунктов по группам"
-  : "Что проверяем";
+export const checkGroupsTitle = "Что проверяем";
 
 export const checkGroups = [
   {

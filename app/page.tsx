@@ -15,13 +15,15 @@ import { RiskCalculator } from "@/components/landing/RiskCalculator";
 import { FinesAmounts } from "@/components/landing/FinesAmounts";
 import { FinesNeutral } from "@/components/landing/FinesNeutral";
 import { flags } from "@/content/flags";
+import { loadVisibleChecksCount } from "@/lib/checks-count";
 import { renderHero } from "@/lib/hero-copy";
 import { finesMode } from "@/lib/fines-gate";
 import { marketingConsentEnabled, showPlaceholderTodos } from "@/lib/runtime-flags";
 
-export default function HomePage() {
+export default async function HomePage() {
   const mode = finesMode();
-  const hero = renderHero();
+  const checksCount = flags.hero_checks_count ? await loadVisibleChecksCount() : null;
+  const hero = renderHero({ checksCount });
   const showFines = flags.show_fines && mode !== "hidden";
 
   return (
