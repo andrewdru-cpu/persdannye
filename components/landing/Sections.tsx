@@ -18,14 +18,7 @@ import {
   faqItems,
   howSteps,
 } from "@/content/blocks";
-import { cta, heroChrome, trustItems } from "@/content/landing";
-
-const audiences = [
-  { t: "Интернет-магазины", d: "Корзина, личный кабинет, рассылки и платёжные формы." },
-  { t: "Сайты услуг", d: "Заявки на Tilda, WordPress, Bitrix и кастомных CMS." },
-  { t: "SaaS и кабинеты", d: "Регистрация, cookies аналитики, интеграции CRM." },
-  { t: "Агентства", d: "Быстрый чек-лист перед сдачей проекта клиенту." },
-];
+import { cta, exampleResult, fixWithUs, heroChrome, trustItems, whoFor } from "@/content/landing";
 
 const heroEase = [0.22, 1, 0.36, 1] as const;
 
@@ -312,41 +305,35 @@ export function ExampleResult() {
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
-            Отчёт
+            {exampleResult.eyebrow}
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            Пример результата
+            {exampleResult.title}
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">
-            Так выглядит экспресс-отчёт: статус, балл и список находок с фактами.
-          </p>
+          <p className="mt-3 max-w-2xl text-white/60">{exampleResult.lead}</p>
         </Reveal>
         <Reveal delay={0.08} className="mt-8">
           <GlassCard className="border-rose-400/25 bg-rose-500/[0.06] p-6 md:p-8">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <div className="text-sm uppercase tracking-[0.14em] text-rose-200">
-                  example-shop.ru — не соответствует
+                  {exampleResult.domain}
                 </div>
                 <div className="mt-2 font-display text-3xl font-semibold text-white">
-                  Найдено 4 риска
+                  {exampleResult.risks}
                 </div>
               </div>
               <div className="text-right">
                 <div className="font-display text-5xl font-semibold text-white">42</div>
-                <div className="text-xs uppercase tracking-wider text-white/50">балл</div>
+                <div className="text-xs uppercase tracking-wider text-white/50">{exampleResult.scoreLabel}</div>
               </div>
             </div>
             <ul className="mt-6 space-y-2 text-sm text-white/70">
-              <li className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                P01 · Нет политики обработки ПДн
-              </li>
-              <li className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                C02 · Cookie без раздельного согласия
-              </li>
-              <li className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                F03 · Форма без явного согласия
-              </li>
+              {exampleResult.findings.map((finding) => (
+                <li key={finding} className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
+                  {finding}
+                </li>
+              ))}
             </ul>
             <CheckLink
               pulse
@@ -367,14 +354,14 @@ export function WhoFor() {
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
-            Аудитория
+            {whoFor.eyebrow}
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            Для кого
+            {whoFor.title}
           </h2>
         </Reveal>
         <Stagger className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {audiences.map((a) => (
+          {whoFor.items.map((a) => (
             <StaggerItem key={a.t}>
               <GlassCard className="h-full p-5 transition hover:border-amber-300/35">
                 <div className="font-display text-2xl font-semibold text-white">{a.t}</div>
@@ -395,15 +382,12 @@ export function FixWithUs() {
         <Reveal>
           <GlassCard gold className="p-8 md:p-12">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/90">
-              Сопровождение
+              {fixWithUs.eyebrow}
             </p>
             <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-              Устраним вместе
+              {fixWithUs.title}
             </h2>
-            <p className="mt-4 max-w-2xl text-white/70">
-              Не оставляем вас с красным списком. Готовим документы, правим формы и
-              cookie-баннер, сопровождаем до устойчивого соответствия.
-            </p>
+            <p className="mt-4 max-w-2xl text-white/70">{fixWithUs.lead}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/#lead">
                 <Button size="lg" pulse>
@@ -497,7 +481,7 @@ export function FAQ({ todos = false }: { todos?: boolean }) {
   );
 }
 
-export function LeadSection() {
+export function LeadSection({ marketingConsent = false }: { marketingConsent?: boolean }) {
   return (
     <section id="lead" className="scroll-mt-24 bg-ink-975 py-20 md:py-28">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 md:grid-cols-2 md:px-6">
@@ -515,7 +499,7 @@ export function LeadSection() {
         </Reveal>
         <Reveal delay={0.08}>
           <GlassCard gold>
-            <LeadForm source="landing-lead" />
+            <LeadForm source="landing-lead" marketingConsent={marketingConsent} />
           </GlassCard>
         </Reveal>
       </div>

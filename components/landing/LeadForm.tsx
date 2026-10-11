@@ -2,18 +2,22 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
+import { ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { Button } from "@/components/ui/Button";
+import { CONSENT_TEXT_VERSION } from "@/lib/consent";
 
 export function LeadForm({
   defaultUrl = "",
   checkId,
   source = "landing",
   cta = "Отправить заявку",
+  marketingConsent = false,
 }: {
   defaultUrl?: string;
   checkId?: string;
   source?: string;
   cta?: string;
+  marketingConsent?: boolean;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,6 +26,7 @@ export function LeadForm({
   const [url, setUrl] = useState(defaultUrl);
   const [message, setMessage] = useState("");
   const [consent, setConsent] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +34,7 @@ export function LeadForm({
     e.preventDefault();
     setError(null);
     if (!consent) {
-      setError("Отметьте согласие на обработку персональных данных");
+      setError("Чтобы прислать отчёт на e-mail, нужно ваше согласие.");
       return;
     }
     setStatus("loading");
@@ -46,7 +51,11 @@ export function LeadForm({
           checkId,
           message: message || undefined,
           consent: true,
+          consent_text_version: CONSENT_TEXT_VERSION,
           source,
+          ...(marketingConsent && marketingOptIn
+            ? { marketing_consent: true, marketing_consent_text_version: CONSENT_TEXT_VERSION }
+            : {}),
         }),
       });
       const data = await res.json();
@@ -108,22 +117,24 @@ export function LeadForm({
         rows={3}
         className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
       />
-      <label className="flex items-start gap-2 text-xs leading-relaxed text-white/65 sm:col-span-2">
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-          className="mt-0.5 accent-amber-400"
-          required
+      <div className="sm:col-span-2">
+        <ReportConsentFields
+          consent={consent}
+          onConsent={(checked) => {
+            setConsent(checked);
+            if (checked) setError(null);
+          }}
+          marketing={marketingOptIn}
+          onMarketing={setMarketingOptIn}
+          showMarketing={marketingConsent}
         />
-        <span>
-          Даю согласие на обработку персональных данных в соответствии с{" "}
-          <Link href="/privacy" className="text-amber-300 hover:underline">
-            Политикой обработки ПДн
-          </Link>
-          . *
-        </span>
-      </label>
+      </div>
+      <p className="text-xs text-white/45 sm:col-span-2">
+        Отправляя форму, вы соглашаетесь с{" "}
+        <Link href="/privacy" className="text-amber-300 hover:underline">
+          политикой обработки ПДн
+        </Link>
+      </p>
       {error && <p className="text-sm text-rose-300 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2">
         <Button type="submit" disabled={status === "loading"} pulse>

@@ -83,7 +83,9 @@ export function RiskCalculator() {
           <GlassCard className="p-5">
             <fieldset>
               <legend className="font-medium text-white">Кто владелец сайта?</legend>
-              <p className="mt-1 text-xs text-white/45">Суммы для ИП и юрлиц разные.</p>
+              {flags.show_fines ? (
+                <p className="mt-1 text-xs text-white/45">{calculatorCopy.ownerHint}</p>
+              ) : null}
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <Choice name="owner" value="ip" current={answers.owner} label="ИП" onChange={(value) => patch({ owner: value as Owner })} />
                 <Choice name="owner" value="legal" current={answers.owner} label="ООО или другое юрлицо" onChange={(value) => patch({ owner: value as Owner })} />
@@ -266,6 +268,9 @@ export function RiskCalculator() {
             {view.cards.length > 0 ? <p className="text-sm text-white/60">{calculatorCopy.separate}</p> : null}
             <p className="text-xs leading-relaxed text-white/45">{calculatorCopy.footnote}</p>
             <p className="text-xs leading-relaxed text-white/55">{calculatorCopy.disclaimer}</p>
+            {flags.show_fines ? (
+              <p className="text-xs leading-relaxed text-white/55">{calculatorCopy.rangesDisclaimer}</p>
+            ) : null}
             <CheckLink className="btn-gold inline-flex min-h-11 w-fit items-center rounded-2xl px-6 py-3 text-sm">
               {calculatorCopy.cta}
             </CheckLink>

@@ -98,6 +98,37 @@ export const faqs = [
 export const footerBlurb =
   "Сканер публичных страниц на контрольные точки 152-ФЗ: политика, cookie, формы и согласия.";
 
+export const exampleResult = {
+  eyebrow: "Отчёт",
+  title: "Пример результата",
+  lead: "Так выглядит экспресс-отчёт: статус, балл и список находок с фактами.",
+  domain: "example-shop.ru — не соответствует",
+  risks: "Найдено 4 риска",
+  scoreLabel: "балл",
+  findings: [
+    "P01 · Нет политики обработки ПДн",
+    "C02 · Cookie без раздельного согласия",
+    "F03 · Форма без явного согласия",
+  ],
+} as const;
+
+export const whoFor = {
+  eyebrow: "Аудитория",
+  title: "Для кого",
+  items: [
+    { t: "Интернет-магазины", d: "Корзина, личный кабинет, рассылки и платёжные формы." },
+    { t: "Сайты услуг", d: "Заявки на Tilda, WordPress, Bitrix и кастомных CMS." },
+    { t: "SaaS и кабинеты", d: "Регистрация, cookies аналитики, интеграции CRM." },
+    { t: "Агентства", d: "Быстрый чек-лист перед сдачей проекта клиенту." },
+  ],
+} as const;
+
+export const fixWithUs = {
+  eyebrow: "Сопровождение",
+  title: "Устраним вместе",
+  lead: "Не оставляем вас с красным списком. Готовим документы, правим формы и cookie-баннер, сопровождаем до устойчивого соответствия.",
+} as const;
+
 export const finesUi = {
   eyebrow: "Ответственность",
   title: "Штрафы по ст. 13.11 КоАП",
@@ -235,8 +266,14 @@ export function renderedLandingCopy(options?: HeroRenderOptions): string {
         footnote: calculatorCopy.footnote,
         disclaimer: calculatorCopy.disclaimer,
         cta: calculatorCopy.cta,
+        ...(flags.show_fines
+          ? { ownerHint: calculatorCopy.ownerHint, rangesDisclaimer: calculatorCopy.rangesDisclaimer }
+          : {}),
         ...(flags.calc_client_only ? { clientOnly: calculatorCopy.clientOnly } : {}),
       },
+      ...(flags.show_example_result ? { exampleResult } : {}),
+      ...(flags.show_who_for ? { whoFor } : {}),
+      ...(flags.show_fix_with_us ? { fixWithUs } : {}),
       footer: footerParagraphs(false),
       faq: faqItems(false),
     },

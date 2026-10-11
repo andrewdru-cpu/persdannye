@@ -5,11 +5,11 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
-import { fillPlaceholders } from "@/content/placeholders";
 import { CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import type { CheckJob, Finding } from "@/lib/types";
 import { cn, domainFromUrl } from "@/lib/utils";
+import { ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { LeadForm } from "@/components/landing/LeadForm";
 
 type Status = "idle" | "running" | "done" | "error";
@@ -270,45 +270,16 @@ export function UrlChecker({
           <span>{formCopy.emailHint}</span>
         </label>
         {leadEmail.trim() ? (
-          <div className="grid gap-3">
-            <label className="flex items-start gap-2 text-xs leading-relaxed text-white/70">
-              <input
-                type="checkbox"
-                name="consent"
-                checked={leadConsent}
-                onChange={(e) => {
-                  setLeadConsent(e.target.checked);
-                  if (e.target.checked) setError(null);
-                }}
-                className="mt-0.5 accent-amber-400"
-              />
-              <span>
-                Я даю{" "}
-                <Link href="/consent" className="text-amber-300 hover:underline">
-                  согласие на обработку персональных данных
-                </Link>{" "}
-                {formCopy.consentTail}
-              </span>
-            </label>
-            {marketingConsent ? (
-              <label className="flex items-start gap-2 text-xs leading-relaxed text-white/70">
-                <input
-                  type="checkbox"
-                  name="marketing"
-                  checked={marketingOptIn}
-                  onChange={(e) => setMarketingOptIn(e.target.checked)}
-                  className="mt-0.5 accent-amber-400"
-                />
-                <span>
-                  {fillPlaceholders(formCopy.marketing, false)}{" "}
-                  <Link href="/consent-marketing" className="text-amber-300 hover:underline">
-                    Условия
-                  </Link>
-                  .
-                </span>
-              </label>
-            ) : null}
-          </div>
+          <ReportConsentFields
+            consent={leadConsent}
+            onConsent={(checked) => {
+              setLeadConsent(checked);
+              if (checked) setError(null);
+            }}
+            marketing={marketingOptIn}
+            onMarketing={setMarketingOptIn}
+            showMarketing={marketingConsent}
+          />
         ) : null}
         <p className="text-xs text-white/45">
           Отправляя форму, вы соглашаетесь с{" "}
@@ -507,6 +478,7 @@ export function UrlChecker({
                   checkId={job.id}
                   source="check-result"
                   cta={job.hasRisks ? "Помочь устранить" : "Получить полный отчёт"}
+                  marketingConsent={marketingConsent}
                 />
               </div>
             </div>
@@ -533,6 +505,7 @@ export function UrlChecker({
                 checkId={job?.id}
                 source="check-error"
                 cta="Помочь с проверкой"
+                marketingConsent={marketingConsent}
               />
             </div>
           </motion.div>

@@ -55,6 +55,9 @@ export interface Lead {
   checkId?: string;
   message?: string;
   consent: boolean;
+  consent_text_version?: string;
+  marketing_consent?: boolean;
+  marketing_consent_text_version?: string;
   createdAt: string;
   source: string;
 }

@@ -40,11 +40,11 @@ export default function HomePage() {
       <DataOnSite />
       <RiskCalculator />
       {showFines && mode === "amounts" ? <FinesAmounts /> : showFines && mode === "neutral" ? <FinesNeutral /> : null}
-      <ExampleResult />
-      <WhoFor />
-      <FixWithUs />
+      {flags.show_example_result ? <ExampleResult /> : null}
+      {flags.show_who_for ? <WhoFor /> : null}
+      {flags.show_fix_with_us ? <FixWithUs /> : null}
       <FAQ todos={showPlaceholderTodos()} />
-      <LeadSection />
+      <LeadSection marketingConsent={marketingConsentEnabled()} />
     </>
   );
 }

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { resolveCalculator, emptyAnswers } from "./calculator.ts";
+import { footerParagraphs } from "./blocks.ts";
 import { flags } from "./flags.ts";
+import { placeholders } from "./placeholders.ts";
 import {
   claimPlaceholders,
   claims,
@@ -90,6 +92,9 @@ describe("rendered landing copy", () => {
     assert.equal(live.includes("до того, как это сделает проверка"), false);
     assert.equal(live.includes("десятки пунктов"), false);
     assert.equal(live.includes("Обычно это занимает несколько минут"), false);
+    assert.equal(live.includes("Суммы для ИП и юрлиц разные"), false);
+    assert.equal(live.includes("Диапазоны — по ст. 13.11"), false);
+    assert.equal(live.includes("в соответствии с"), false);
   });
 
   it("inserts the time phrase into the main H1 only when time_verified is true", () => {
@@ -119,11 +124,38 @@ describe("rendered landing copy", () => {
   });
 });
 
+const section0Flags = [
+  "show_fines",
+  "show_marketing_consent",
+  "calc_client_only",
+  "hero_speed_claim",
+  "hero_dozens_claim",
+  "hero_alt_check",
+  "show_rkn_stats",
+  "show_rules_update",
+  "show_methodology",
+  "show_accuracy",
+  "show_prices",
+  "show_monitoring",
+] as const;
+
 describe("publication flags", () => {
   it("keeps every section-0 flag off", () => {
-    for (const [name, value] of Object.entries(flags)) {
-      assert.equal(value, false, name);
+    for (const name of section0Flags) {
+      assert.equal(flags[name], false, name);
     }
+  });
+
+  it("shows the extra landing blocks until marketing turns them off", () => {
+    assert.equal(flags.show_example_result, true);
+    assert.equal(flags.show_who_for, true);
+    assert.equal(flags.show_fix_with_us, true);
+  });
+
+  it("takes the footer operator name from operator_short_name", () => {
+    const paragraph = footerParagraphs(false).find((line) => line.includes("частная компания"));
+    assert.equal(paragraph?.startsWith(`${placeholders.operator_short_name} —`), true);
+    assert.equal(paragraph?.includes("{{"), false);
   });
 });
 
