@@ -4,14 +4,25 @@
  * mode on Vercel requires a new deployment.
  */
 
-export type FormsMode = "bff" | "direct";
+export type FormsMode = "bff" | "direct" | "mock";
 
 export function getFormsMode(): FormsMode {
-  return process.env.NEXT_PUBLIC_FORMS_MODE === "direct" ? "direct" : "bff";
+  const mode = process.env.NEXT_PUBLIC_FORMS_MODE;
+  if (mode === "direct") return "direct";
+  if (mode === "mock") return "mock";
+  return "bff";
 }
 
 export function isDirectForms(): boolean {
   return getFormsMode() === "direct";
+}
+
+/**
+ * Preview deployments. Subject requests are not sent: a dynamic preview
+ * origin is not on the API CORS allowlist. Check and lead forms stay on BFF.
+ */
+export function isMockForms(): boolean {
+  return getFormsMode() === "mock";
 }
 
 /** Public parser origin, no trailing slash. Null when unset or not http(s). */

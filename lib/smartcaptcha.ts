@@ -1,6 +1,6 @@
-import { isDirectForms } from "./forms-mode";
+import { getSmartCaptchaSiteKey, isDirectForms, isMockForms } from "./forms-mode";
 
-/** Official widget script. Loaded only when forms run in direct mode. */
+/** Official widget script. Loaded in direct mode, and in mock mode when a site key is set. */
 export const SMARTCAPTCHA_SCRIPT_SRC =
   "https://smartcaptcha.yandexcloud.net/captcha.js";
 
@@ -13,5 +13,6 @@ export const SMARTCAPTCHA_SCRIPT_SRC =
 export const SMARTCAPTCHA_TOKEN_FIELD = "smart_token";
 
 export function shouldLoadSmartCaptcha(): boolean {
-  return isDirectForms();
+  if (isDirectForms()) return true;
+  return isMockForms() && Boolean(getSmartCaptchaSiteKey());
 }

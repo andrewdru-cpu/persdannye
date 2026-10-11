@@ -78,7 +78,7 @@ function loadScript(): Promise<void> {
 
 /**
  * Yandex SmartCaptcha. Renders nothing and does not load the script unless
- * forms are in direct mode.
+ * shouldLoadSmartCaptcha() is true (direct mode, or mock mode with a site key).
  */
 export const SmartCaptcha = forwardRef<SmartCaptchaHandle>(function SmartCaptcha(_, ref) {
   const containerRef = useRef<HTMLDivElement>(null);

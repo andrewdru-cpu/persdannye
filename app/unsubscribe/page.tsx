@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { UnsubscribeForm } from "@/components/subject/UnsubscribeForm";
 import { legalContent } from "@/content/legal";
 import { company } from "@/lib/company";
 import { SUBJECT_PAGE_REFERRER, SUBJECT_PAGE_ROBOTS } from "@/lib/subject-request";
@@ -11,9 +12,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Static note. One-click unsubscribe is the link in the email and is served
- * by the parser under /u/ on the API host. This page does not read a query
- * string and does not proxy that path.
+ * Manual opt-out by address. One-click unsubscribe is the link in the email
+ * and is served by the parser on the API host. This page does not read a
+ * query string and does not proxy that path.
  */
 export default function UnsubscribePage() {
   return (
@@ -24,6 +25,7 @@ export default function UnsubscribePage() {
       <h1 className="font-display text-4xl font-semibold text-white">{legalContent.unsubscribeTitle}</h1>
       <p className="mt-4 text-sm leading-relaxed text-white/70">{legalContent.unsubscribeLead}</p>
       <p className="mt-3 text-sm leading-relaxed text-white/70">{legalContent.unsubscribeEmailLink}</p>
+      <UnsubscribeForm />
       <p className="mt-6 text-sm leading-relaxed text-white/70">{legalContent.unsubscribeSubjectContact}</p>
       <p className="mt-3 text-sm leading-relaxed">
         <Link href="/privacy/request" className="text-amber-200 hover:underline">

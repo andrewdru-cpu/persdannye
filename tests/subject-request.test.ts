@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import { legalContent } from "../content/legal";
 import { createMockPublicApi } from "../scripts/mock-public-api.mjs";
+import { getFormsMode, isDirectForms, isMockForms } from "../lib/forms-mode";
+import { shouldLoadSmartCaptcha } from "../lib/smartcaptcha";
 import {
   buildSubjectRequestBody,
   canPostSubjectRequest,
@@ -42,13 +44,33 @@ test("subject pages are noindex, no-referrer, and analytics-free placeholders", 
   assert.equal(isAnalyticsFreePath("/"), false);
 
   const unsubscribePage = fs.readFileSync(path.join(root, "app/unsubscribe/page.tsx"), "utf8");
+  const unsubscribeForm = fs.readFileSync(
+    path.join(root, "components/subject/UnsubscribeForm.tsx"),
+    "utf8"
+  );
   assert.equal(unsubscribePage.includes("searchParams"), false);
   assert.equal(unsubscribePage.includes("postSubjectRequest"), false);
   assert.equal(unsubscribePage.includes("token"), false);
+  assert.equal(unsubscribePage.includes("UnsubscribeForm"), true);
   assert.equal(fs.existsSync(path.join(root, "app/u")), false);
   assert.equal(fs.existsSync(path.join(root, "components/subject/UnsubscribeConfirm.tsx")), false);
   assert.match(legalContent.unsubscribeLead, /ссылке в письме/);
   assert.match(legalContent.unsubscribeEmailLink, /не на этот сайт/);
+  assert.equal(
+    legalContent.unsubscribeNeutral,
+    "Если этот адрес был в нашем списке, он удалён."
+  );
+  assert.equal(legalContent.previewMockBadge, "preview: mock");
+  assert.equal(unsubscribeForm.includes("searchParams"), false);
+  assert.equal(unsubscribeForm.includes("localStorage"), false);
+  assert.equal(unsubscribeForm.includes("sessionStorage"), false);
+  assert.equal(unsubscribeForm.includes("location.search"), false);
+  assert.equal(unsubscribeForm.includes('type="checkbox"'), false);
+  assert.equal(unsubscribeForm.includes('type: "unsubscribe"'), true);
+  assert.equal(unsubscribeForm.includes("postSubjectRequest"), true);
+  assert.equal(unsubscribeForm.includes("unsubscribeNeutral"), true);
+  assert.equal(/мы отправили/i.test(unsubscribeForm), false);
+  assert.equal(/confirmation sent/i.test(legalContent.unsubscribeNeutral), false);
 
   const reply =
     "Если адрес есть в наших системах, ответ придёт письмом на этот адрес в течение 10 рабочих дней";
@@ -89,6 +111,38 @@ test("request id is the only field read from a subject-request body", () => {
   assert.equal(readRequestId({ error: "no such email", email: "secret@example.com" }), null);
   assert.equal(readRequestId(null), null);
   assert.equal(readRequestId(["not-an-object"]), null);
+});
+
+test("mock mode returns the neutral outcome and does not send the address", async () => {
+  const restore = saveEnv([
+    "NEXT_PUBLIC_FORMS_MODE",
+    "NEXT_PUBLIC_PUBLIC_API_BASE",
+    "NEXT_PUBLIC_SMARTCAPTCHA_SITEKEY",
+  ]);
+  process.env.NEXT_PUBLIC_FORMS_MODE = "mock";
+  delete process.env.NEXT_PUBLIC_PUBLIC_API_BASE;
+  delete process.env.NEXT_PUBLIC_SMARTCAPTCHA_SITEKEY;
+  const email = "secret-preview@example.com";
+  let called = 0;
+  try {
+    assert.equal(getFormsMode(), "mock");
+    assert.equal(isMockForms(), true);
+    assert.equal(isDirectForms(), false);
+    assert.equal(shouldLoadSmartCaptcha(), false);
+    assert.equal(canPostSubjectRequest(), true);
+    const result = await postSubjectRequest(
+      { type: "unsubscribe", email, captchaToken: "ignored" },
+      async () => {
+        called += 1;
+        return new Response("{}", { status: 202 });
+      }
+    );
+    assert.equal(called, 0);
+    assert.deepEqual(result, { networkError: false, requestId: null });
+    assert.equal(JSON.stringify(result).includes(email), false);
+  } finally {
+    restore();
+  }
 });
 
 test("bff mode does not call the network for a subject request", async () => {
@@ -186,6 +240,26 @@ test("direct mode posts subject requests only to /public/subject-request and sta
     const broken = await postSubjectRequest({ type: "delete", email }, async () => {
       throw new Error("network");
     });
+    const seen: RequestInit[] = [];
+    const directUnsubscribe = await postSubjectRequest(
+      { type: "unsubscribe", email, captchaToken: "cap" },
+      async (_input, init) => {
+        seen.push(init ?? {});
+        return new Response(JSON.stringify({ request_id: "c".repeat(16) }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    );
+    assert.equal(seen[0]?.credentials, "omit");
+    assert.equal(seen[0]?.mode, "cors");
+    assert.deepEqual(JSON.parse(String(seen[0]?.body)), {
+      type: "unsubscribe",
+      email,
+      captcha_token: "cap",
+    });
+    assert.equal("token" in JSON.parse(String(seen[0]?.body)), false);
+    assert.deepEqual(directUnsubscribe, { networkError: false, requestId: "c".repeat(16) });
     assert.deepEqual(failed, { networkError: false, requestId: null });
     assert.deepEqual(broken, { networkError: true, requestId: null });
     assert.equal(JSON.stringify(failed).includes(email), false);

@@ -1,3 +1,6 @@
+"use client";
+
+import { PreviewMockBadge } from "@/components/subject/PreviewMockBadge";
 import { legalContent } from "@/content/legal";
 
 /** Same copy for every HTTP outcome. Only a request id may be shown. */
@@ -8,6 +11,7 @@ export function SubjectRequestResult({ requestId }: { requestId: string | null }
       role="status"
       data-needs-legal-review={legalContent.needs_legal_review ? "true" : "false"}
     >
+      <PreviewMockBadge />
       <p>{legalContent.successMessage}</p>
       {requestId ? (
         <p className="mt-2 text-xs text-white/55">

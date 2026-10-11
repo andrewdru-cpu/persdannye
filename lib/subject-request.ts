@@ -1,4 +1,4 @@
-import { getPublicApiBase, isDirectForms } from "./forms-mode";
+import { getPublicApiBase, isDirectForms, isMockForms } from "./forms-mode";
 import { joinPublicApi } from "./public-api";
 
 export const SUBJECT_REQUEST_PATH = "/public/subject-request";
@@ -24,6 +24,7 @@ export function isAnalyticsFreePath(pathname: string): boolean {
 }
 
 export function canPostSubjectRequest(): boolean {
+  if (isMockForms()) return true;
   return isDirectForms() && Boolean(getPublicApiBase());
 }
 
@@ -51,14 +52,17 @@ export function readRequestId(body: unknown): string | null {
 }
 
 /**
- * Posts only in direct mode. A thrown fetch is the only failure the UI may
- * show. Any HTTP response stays on the same screen: request_id if present,
- * and nothing else from the body.
+ * Posts only in direct mode, with credentials omitted.
+ * Mock mode returns the same neutral outcome and does not call the network,
+ * so the address is not logged or stored here.
+ * A thrown fetch is the only failure the UI may show. Any HTTP response
+ * stays on the same screen: request_id if present, and nothing else.
  */
 export async function postSubjectRequest(
   input: SubjectRequestInput,
   fetchImpl: typeof fetch = fetch
 ): Promise<SubjectRequestOutcome> {
+  if (isMockForms()) return { networkError: false, requestId: null };
   if (!canPostSubjectRequest()) return { networkError: false, requestId: null };
   try {
     const res = await fetchImpl(joinPublicApi(SUBJECT_REQUEST_PATH), {

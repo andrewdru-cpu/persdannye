@@ -2,10 +2,11 @@
 
 import { FormEvent, useRef, useState } from "react";
 import { SmartCaptcha, type SmartCaptchaHandle } from "@/components/captcha/SmartCaptcha";
+import { PreviewMockBadge } from "@/components/subject/PreviewMockBadge";
 import { SubjectRequestResult } from "@/components/subject/SubjectRequestResult";
 import { Button } from "@/components/ui/Button";
 import { legalContent } from "@/content/legal";
-import { isDirectForms } from "@/lib/forms-mode";
+import { shouldLoadSmartCaptcha } from "@/lib/smartcaptcha";
 import {
   canPostSubjectRequest,
   postSubjectRequest,
@@ -18,7 +19,7 @@ const fieldClass =
 
 export function PrivacyRequestForm() {
   const captchaRef = useRef<SmartCaptchaHandle>(null);
-  const direct = isDirectForms();
+  const captcha = shouldLoadSmartCaptcha();
   const [type, setType] = useState<SubjectRequestType>("access");
   const [email, setEmail] = useState("");
   const [pending, setPending] = useState(false);
@@ -44,7 +45,7 @@ export function PrivacyRequestForm() {
       return;
     }
     const captchaToken = captchaRef.current?.getToken().trim() || "";
-    if (direct && !captchaToken) {
+    if (captcha && !captchaToken) {
       setFieldError(legalContent.captchaRequired);
       return;
     }
@@ -73,6 +74,7 @@ export function PrivacyRequestForm() {
       className="mt-6 grid gap-3"
       data-needs-legal-review={legalContent.needs_legal_review ? "true" : "false"}
     >
+      <PreviewMockBadge />
       <label className="grid gap-1 text-sm text-white/70">
         Тип запроса
         <select
@@ -102,7 +104,7 @@ export function PrivacyRequestForm() {
       {type === "delete" ? (
         <p className="text-sm leading-relaxed text-white/60">{legalContent.deleteStopList}</p>
       ) : null}
-      {direct ? <SmartCaptcha ref={captchaRef} /> : null}
+      {captcha ? <SmartCaptcha ref={captchaRef} /> : null}
       {fieldError ? <p className="text-sm text-rose-300">{fieldError}</p> : null}
       {networkError ? (
         <p className="text-sm text-rose-300" role="alert">
