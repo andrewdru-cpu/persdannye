@@ -1,1 +1,1 @@
-export { resolveHeroVariant, type ResolvedHero } from "@/content/hero-variants";
+export { renderHero, type ResolvedHero } from "@/content/landing";

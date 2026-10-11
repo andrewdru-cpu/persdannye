@@ -2,6 +2,10 @@
  * Тексты лендинга. Это черновик: финал утверждают маркетинг и юрист.
  * Суммы штрафов здесь не хранятся — они в `content/fines.ts`
  * и попадают на страницу только при одобрении.
+ *
+ * Живой герой — вариант `default`: без срока и без числа проверок
+ * (ст. 5 38-ФЗ). Второй вариант `claims` подставляет фразы только
+ * при своих флагах `claims.time_verified` и `claims.checks_count_verified`.
  */
 
 export const disclaimer =
@@ -20,12 +24,12 @@ export const heroChrome = {
   kicker: "Для собственника без штатного юриста",
   facts: [
     { k: "URL", v: "достаточно" },
-    { k: "минуты", v: "до рисков" },
+    { k: "план", v: "исправлений" },
     { k: "152-ФЗ", v: "точки контроля" },
   ],
   checkerTitle: "Экспресс-проверка",
   checkerText: "URL достаточно. Статус и находки обновляются по ходу проверки.",
-  checkerBadge: "Быстро",
+  checkerBadge: "По URL",
 } as const;
 
 export const trustItems = [
@@ -40,16 +44,16 @@ export const trustItems = [
     d: "Политика, cookie, формы, согласия и сведения об операторе.",
   },
   {
-    k: "минуты",
-    t: "до списка рисков",
-    d: "Статус и находки появляются по ходу проверки.",
+    k: "план",
+    t: "исправлений",
+    d: "Находки с пояснениями, что поправить на сайте.",
   },
 ] as const;
 
 export const marqueeItems = [
   "аудит 152-ФЗ",
   "cookie · формы · политики",
-  "экспресс-скан по URL",
+  "проверка по URL",
   "без установки кода",
   "список рисков с пояснениями",
   "закрытый контур проверки",
@@ -110,3 +114,114 @@ export const calculatorUi = {
   resultLabel: "Ориентир по отмеченному",
   resultHint: "Сумма минимумов и сумма максимумов по отмеченным пунктам. Смягчение и совокупность здесь не учтены.",
 } as const;
+
+/**
+ * Утверждения о сроке и числе проверок. Оба false, пока юрист не подтвердит.
+ * Широкий boolean, чтобы ветки с фразами оставались в исходнике.
+ */
+export const claims = {
+  time_verified: false as boolean,
+  checks_count_verified: false as boolean,
+};
+
+/** Не попадают в вёрстку, пока соответствующий флаг false. */
+export const claimPlaceholders = {
+  time: "за несколько минут",
+  checks: "десятки проверок",
+} as const;
+
+export type HeroVariantId = "default" | "claims";
+
+/** Какой вариант на живой странице. Флаги claims на `default` не влияют. */
+export const activeHeroVariant: HeroVariantId = "default";
+
+const safeHero = {
+  headline: "Даже лендинг с формой делает вас оператором персональных данных",
+  highlight: "оператором персональных данных",
+  subline:
+    "Проверьте обязательные элементы сайта по 152-ФЗ и получите список наблюдений и план исправлений.",
+} as const;
+
+export type ResolvedHero = {
+  variant: HeroVariantId;
+  headline: string;
+  highlight: string;
+  subline: string;
+};
+
+export type HeroRenderOptions = {
+  variant?: HeroVariantId;
+  claims?: { time_verified: boolean; checks_count_verified: boolean };
+};
+
+function claimsSubline(flags: {
+  time_verified: boolean;
+  checks_count_verified: boolean;
+}): string {
+  const time = flags.time_verified ? claimPlaceholders.time : "";
+  const checks = flags.checks_count_verified ? claimPlaceholders.checks : "";
+
+  if (time && checks) {
+    return `Проверьте обязательные элементы сайта по 152-ФЗ ${time}: ${checks}, список наблюдений и план исправлений.`;
+  }
+  if (time) {
+    return `Проверьте обязательные элементы сайта по 152-ФЗ ${time} и получите список наблюдений и план исправлений.`;
+  }
+  if (checks) {
+    return `Проверьте обязательные элементы сайта по 152-ФЗ и получите ${checks}: список наблюдений и план исправлений.`;
+  }
+  return safeHero.subline;
+}
+
+/** Живой герой и второй вариант. `default` всегда без срока и без числа проверок. */
+export function renderHero(options?: HeroRenderOptions): ResolvedHero {
+  const variant = options?.variant ?? activeHeroVariant;
+  if (variant === "default") {
+    return { variant: "default", ...safeHero };
+  }
+  return {
+    variant: "claims",
+    headline: safeHero.headline,
+    highlight: safeHero.highlight,
+    subline: claimsSubline(options?.claims ?? claims),
+  };
+}
+
+function collectText(value: unknown, out: string[]): void {
+  if (typeof value === "string") {
+    out.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectText(item, out);
+    return;
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) collectText(item, out);
+  }
+}
+
+/**
+ * Текст, который лендинг реально показывает: герой уже с учётом флагов.
+ * Плейсхолдеры claims сюда не попадают, пока флаги false.
+ */
+export function renderedLandingCopy(options?: HeroRenderOptions): string {
+  const parts: string[] = [];
+  collectText(renderHero(options), parts);
+  collectText(
+    {
+      disclaimer,
+      cta,
+      heroChrome,
+      trustItems,
+      marqueeItems,
+      whatWeCheckLead,
+      faqs,
+      footerBlurb,
+      finesUi,
+      calculatorUi,
+    },
+    parts,
+  );
+  return parts.join("\n");
+}

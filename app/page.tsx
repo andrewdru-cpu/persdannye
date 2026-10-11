@@ -11,12 +11,12 @@ import {
 } from "@/components/landing/Sections";
 import { FinesAmounts } from "@/components/landing/FinesAmounts";
 import { FinesNeutral } from "@/components/landing/FinesNeutral";
-import { resolveHeroVariant } from "@/lib/hero-copy";
+import { renderHero } from "@/lib/hero-copy";
 import { finesMode } from "@/lib/fines-gate";
 
 export default function HomePage() {
   const mode = finesMode();
-  const hero = resolveHeroVariant(mode === "amounts");
+  const hero = renderHero();
 
   return (
     <>
