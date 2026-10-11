@@ -88,12 +88,14 @@ export function UrlChecker({
   initialUrl = "",
   pulseCta = false,
   hideTimers = false,
+  ctaLabel = "Проверить свой сайт",
 }: {
   compact?: boolean;
   initialUrl?: string;
   pulseCta?: boolean;
   /** Вариант героя C: не показывать длительность рядом с заголовком. */
   hideTimers?: boolean;
+  ctaLabel?: string;
 }) {
   const reduce = useReducedMotion();
   const [url, setUrl] = useState(initialUrl);
@@ -243,7 +245,7 @@ export function UrlChecker({
             pulse={pulseCta && status === "idle"}
             className="w-full sm:w-auto"
           >
-            {status === "running" ? "Проверяем…" : "Проверить свой сайт"}
+            {status === "running" ? "Проверяем…" : ctaLabel}
           </Button>
         </div>
 

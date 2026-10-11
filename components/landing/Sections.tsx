@@ -209,7 +209,7 @@ export function Hero({
                 {heroChrome.checkerBadge}
               </span>
             </div>
-            <UrlChecker compact pulseCta hideTimers={hideTimers} />
+            <UrlChecker compact pulseCta hideTimers={hideTimers} ctaLabel={ctaLabel} />
           </GlassCard>
         </motion.div>
       </div>
