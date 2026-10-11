@@ -9,11 +9,19 @@ function barUnits(value: number, scale: number): number {
   return Math.min(100, Math.max(1.5, (value / scale) * 100));
 }
 
+function BasisNote({ basis }: { basis: "proven" | "likely" }) {
+  if (basis !== "likely") return null;
+  return (
+    <span className="mt-1 block text-xs font-normal leading-relaxed text-amber-100/85">
+      {finesCatalog.likelyNote}
+    </span>
+  );
+}
+
 export function FinesAmounts() {
   const scale = Math.max(
     ...finesCatalog.rows.flatMap((row) => [row.ip.max, row.legal.max]),
   );
-  const hasUnsplit = finesCatalog.rows.some((row) => row.unsplitInSpec);
 
   return (
     <>
@@ -34,17 +42,17 @@ export function FinesAmounts() {
               {finesUi.title}
             </h2>
             <p className="mt-3 max-w-2xl text-white/70">{finesUi.lead}</p>
-            <p className="mt-2 text-xs text-white/55">
-              {finesCatalog.article}. По состоянию на {finesCatalog.as_of}. Источник:{" "}
-              {finesCatalog.source}.
-            </p>
           </Reveal>
 
           <div className="mt-8">
+            <p className="mb-4 text-sm leading-relaxed text-white/80">{finesCatalog.caption}</p>
             <ul className="grid gap-3 md:hidden">
               {finesCatalog.rows.map((row) => (
                 <li key={row.id} className="rounded-3xl border border-amber-200/20 bg-white/[0.03] p-4">
-                  <p className="font-medium text-white">{row.violation}</p>
+                  <p className="font-medium text-white">
+                    {row.violation}
+                    <BasisNote basis={row.status_basis} />
+                  </p>
                   <dl className="mt-3 grid grid-cols-2 gap-3">
                     <div>
                       <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100/80">
@@ -72,9 +80,7 @@ export function FinesAmounts() {
               aria-label={finesUi.title}
             >
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                <caption className="sr-only">
-                  {finesUi.title}. {finesCatalog.article}. Источник: {finesCatalog.source}.
-                </caption>
+                <caption className="sr-only">{finesCatalog.caption}</caption>
                 <thead className="bg-amber-100/[0.06] text-amber-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 font-semibold">
@@ -96,6 +102,7 @@ export function FinesAmounts() {
                     <tr key={row.id} className="border-t border-amber-200/15">
                       <th scope="row" className="px-4 py-3 font-medium text-white">
                         {row.violation}
+                        <BasisNote basis={row.status_basis} />
                       </th>
                       <td className="whitespace-nowrap px-4 py-3 tabular-nums text-white/80">
                         {row.ip.label}
@@ -109,9 +116,7 @@ export function FinesAmounts() {
                 </tbody>
               </table>
             </div>
-            {hasUnsplit ? (
-              <p className="mt-3 max-w-3xl text-xs leading-relaxed text-white/60">{finesUi.unsplitNote}</p>
-            ) : null}
+            <p className="mt-3 max-w-3xl text-xs leading-relaxed text-white/70">{finesCatalog.footnote}</p>
           </div>
 
           <figure className="mt-10" aria-hidden="true">
@@ -123,7 +128,14 @@ export function FinesAmounts() {
               {finesCatalog.rows.map((row) => (
                 <li key={row.id}>
                   <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <span className="text-sm font-medium text-white">{row.violation}</span>
+                    <span className="text-sm font-medium text-white">
+                      {row.violation}
+                      {row.status_basis === "likely" ? (
+                        <span className="mt-1 block text-xs font-normal text-amber-100/85">
+                          {finesCatalog.likelyNote}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="text-xs text-amber-100/80">{row.norm}</span>
                   </div>
                   <div className="grid gap-1.5">
@@ -161,6 +173,7 @@ export function FinesAmounts() {
       <FineCalculator
         issues={calculatorIssueViews()}
         excludedNote={finesCatalog.calculatorExcludedNote}
+        likelyNote={finesCatalog.likelyNote}
       />
     </>
   );

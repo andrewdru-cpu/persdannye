@@ -1,12 +1,10 @@
 /**
- * Черновики первого экрана. Финал — за маркетингом и юристом.
+ * Черновики первого экрана без сумм. Финал формулировок — за маркетингом.
  *
  * Переключатель: `activeHeroVariantId`.
- * Если у выбранного варианта `containsFineAmount` и штрафы не одобрены
- * (`NEXT_PUBLIC_SHOW_FINES=true` и `approved: true` в `content/fines.ts`),
- * страница берёт `heroFallbackVariantId` — заголовок без сумм.
- *
- * Не импортировать из клиентских компонентов: иначе суммы попадут в браузерный бандл.
+ * Вариантов с суммами и непроверенных утверждений о проверке Роскомнадзора здесь нет.
+ * Если у варианта стоит `containsFineAmount`, страница всё равно берёт запасной
+ * заголовок без цифр, пока штрафы не одобрены.
  */
 
 export type HeroVariant = {
@@ -16,41 +14,29 @@ export type HeroVariant = {
   highlight?: string;
   subline: string;
   containsFineAmount: boolean;
-  needs_legal_review: boolean;
 };
 
 export const heroVariants: readonly HeroVariant[] = [
   {
-    id: "fine-one-form",
-    headline: "Штраф до 700 000 ₽ за одну форму на сайте.",
-    highlight: "700 000 ₽",
-    subline: "Проверьте за 60 секунд — и спите спокойно.",
-    containsFineAmount: true,
-    needs_legal_review: false,
-  },
-  {
     id: "landing-is-operator",
     headline: "Даже лендинг с формой — это оператор ПДн.",
     highlight: "оператор ПДн",
-    subline: "Не дайте штрафу закрыть бизнес.",
+    subline: "Проверьте сайт на требования 152-ФЗ за минуту.",
     containsFineAmount: false,
-    needs_legal_review: false,
   },
   {
-    id: "rkn-already-scanning",
-    headline: "Роскомнадзор уже сканирует ваш сайт…",
-    highlight: "сканирует ваш сайт",
-    // Подзаголовок в ТЗ не задан — временная строка, её заменит маркетинг.
-    subline: "Посмотрите, какие риски видны на публичных страницах.",
+    id: "public-pages",
+    headline: "Политика, форма и cookie — требования 152-ФЗ.",
+    highlight: "152-ФЗ",
+    subline: "Проверьте публичные страницы и получите список рисков.",
     containsFineAmount: false,
-    needs_legal_review: true,
   },
 ];
 
-/** Какой черновик показывать, когда суммы разрешены. */
-export const activeHeroVariantId = "fine-one-form";
+/** Какой черновик показывать. */
+export const activeHeroVariantId = "landing-is-operator";
 
-/** Заголовок без цифр. Обязан иметь containsFineAmount: false. */
+/** Заголовок без цифр. */
 export const heroFallbackVariantId = "landing-is-operator";
 
 export type ResolvedHero = {
@@ -72,6 +58,9 @@ export function resolveHeroVariant(showAmounts: boolean): ResolvedHero {
   }
 
   const chosen = active.containsFineAmount && !showAmounts ? fallback : active;
+  if (chosen.containsFineAmount && !showAmounts) {
+    throw new Error("hero variants: нет заголовка без сумм");
+  }
   return {
     id: chosen.id,
     headline: chosen.headline,

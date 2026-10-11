@@ -14,9 +14,9 @@ export type CalculatorIssueProp = {
   label: string;
   hint: string;
   norm: string;
+  likely: boolean;
   ip: Span;
   legal: Span;
-  repeat: { norm: string; ip: Span; legal: Span } | null;
 };
 
 type BusinessKind = "ip" | "legal";
@@ -24,29 +24,27 @@ type BusinessKind = "ip" | "legal";
 export function FineCalculator({
   issues,
   excludedNote,
+  likelyNote,
 }: {
   issues: readonly CalculatorIssueProp[];
   excludedNote: string;
+  likelyNote: string;
 }) {
   const [business, setBusiness] = useState<BusinessKind | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [repeat, setRepeat] = useState(false);
 
   const lines = useMemo(() => {
     if (!business) return [];
     return issues
       .filter((issue) => selected.includes(issue.id))
-      .map((issue) => {
-        const repeated = repeat ? issue.repeat : null;
-        const span = repeated ? repeated[business] : issue[business];
-        return {
-          id: issue.id,
-          label: issue.label,
-          norm: repeated ? repeated.norm : issue.norm,
-          ...span,
-        };
-      });
-  }, [business, issues, repeat, selected]);
+      .map((issue) => ({
+        id: issue.id,
+        label: issue.label,
+        norm: issue.norm,
+        likely: issue.likely,
+        ...issue[business],
+      }));
+  }, [business, issues, selected]);
 
   const total: RubleSpan | null = lines.length > 0 ? sumSpans(lines) : null;
 
@@ -135,27 +133,17 @@ export function FineCalculator({
                       <span className="mt-1 block text-xs leading-relaxed text-white/65">
                         {issue.hint}
                       </span>
+                      {issue.likely ? (
+                        <span className="mt-1 block text-xs leading-relaxed text-amber-100/85">
+                          {likelyNote}
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 );
               })}
             </div>
           </fieldset>
-
-          <label className="mt-4 flex min-h-12 cursor-pointer items-start gap-3 rounded-2xl border border-white/10 px-3 py-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-amber-300">
-            <input
-              type="checkbox"
-              checked={repeat}
-              onChange={(event) => setRepeat(event.target.checked)}
-              className="mt-1 size-4 shrink-0 accent-amber-400"
-            />
-            <span>
-              <span className="block text-sm font-medium text-white">{calculatorUi.repeat}</span>
-              <span className="mt-1 block text-xs leading-relaxed text-white/65">
-                {calculatorUi.repeatHint}
-              </span>
-            </span>
-          </label>
 
           <div
             className="mt-6 rounded-2xl border border-amber-200/25 bg-black/25 p-4 md:p-5"
@@ -180,6 +168,9 @@ export function FineCalculator({
                       <span>
                         {line.label}{" "}
                         <span className="text-white/50">· {line.norm}</span>
+                        {line.likely ? (
+                          <span className="mt-0.5 block text-xs text-amber-100/85">{likelyNote}</span>
+                        ) : null}
                       </span>
                       <span className="tabular-nums">
                         {formatRub(line.min)} — {formatRub(line.max)}
