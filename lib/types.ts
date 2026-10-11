@@ -7,7 +7,12 @@ export type StatusBasis = "proven" | "likely";
 
 export interface Finding {
   rule_id: string;
+  /**
+   * Plain text. The parser may include the literal `[контактные данные скрыты]`.
+   * Render it as text; do not treat the brackets as markup.
+   */
   title: string;
+  /** Same plain-text rule as `title`, including `[контактные данные скрыты]`. */
   fact: string;
   severity: FindingSeverity;
   /**
@@ -90,7 +95,11 @@ export interface CheckJob {
   reportUrl?: string | null;
   warning?: string | null;
   error?: string | null;
-  /** Lead fields supplied with the check, if any. */
+  /**
+   * Lead fields supplied with the check, if any.
+   * `inn` and `org_name` from GET /public/check/{id} are not stored here:
+   * approved copy does not show them, and null (sole proprietor) shows nothing.
+   */
   contact?: ScanContact | null;
   createdAt: string;
   updatedAt: string;

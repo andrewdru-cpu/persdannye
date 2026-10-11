@@ -123,6 +123,8 @@ export function createMockPublicApi() {
         url: check.url,
         score: robotsPartial ? 64 : 37,
         pdf_ready: true,
+        inn: robotsPartial ? null : "7707083893",
+        org_name: robotsPartial ? null : "ООО Пример",
         ...(robotsPartial ? { mode: "static_fallback", rules_version: "2026.10" } : {}),
         findings: robotsPartial
           ? [
@@ -163,7 +165,7 @@ export function createMockPublicApi() {
               {
                 rule_id: "P01",
                 title: "Нет политики",
-                fact: "Документ по ст. 18.1 не найден.",
+                fact: "Документ по ст. 18.1 не найден. [контактные данные скрыты]",
                 severity: "high",
                 screenshot: "data:image/png;base64,AAAA",
               },

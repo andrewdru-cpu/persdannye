@@ -23,6 +23,7 @@ import {
   publicErrorMessage,
   PublicApiError,
 } from "../lib/public-api";
+import { publicCheckRecord, publicCheckResponseSchema } from "../lib/public-check-schema";
 import { shouldLoadSmartCaptcha, SMARTCAPTCHA_SCRIPT_SRC } from "../lib/smartcaptcha";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -251,7 +252,11 @@ test("direct mode sends PD only to /public/* and keeps report_url", async () => 
     assert.equal(polled.reportUrl, created.reportUrl);
     assert.equal(polled.findings.length, 1);
     assert.deepEqual(Object.keys(polled.findings[0]).sort(), ["fact", "rule_id", "severity", "title"]);
-    assert.equal(polled.findings[0].fact, "Документ по ст. 18.1 не найден.");
+    assert.equal(polled.findings[0].fact, "Документ по ст. 18.1 не найден. [контактные данные скрыты]");
+    assert.equal(serialized.includes("7707083893"), false);
+    assert.equal(serialized.includes("ООО Пример"), false);
+    assert.equal("inn" in polled, false);
+    assert.equal("org_name" in polled, false);
     assert.equal(publicCheckPdfUrl(created.id), `${origin}/public/check/${created.id}/pdf`);
 
     const pdf = await fetch(publicCheckPdfUrl(created.id));
@@ -535,6 +540,72 @@ test("BFF labels scans with origin site_form and the UI drops scan contacts", as
   assert.equal(ui.includes("job.contact"), false);
   assert.equal(ui.includes("job.phone"), false);
   assert.equal(ui.includes("job.email"), false);
+});
+
+test("public check parses null and non-null inn and org_name without showing them", () => {
+  const hidden = "[контактные данные скрыты]";
+  const finding = {
+    rule_id: "P01",
+    title: `Политика ${hidden}`,
+    fact: `Текст ${hidden}`,
+    severity: "high",
+    screenshot: "data:image/png;base64,AAAA",
+    email: "hidden@example.com",
+  };
+  const cases = [
+    { inn: null, org_name: null },
+    { inn: "7707083893", org_name: "ООО Ромашка" },
+  ];
+  for (const org of cases) {
+    const body = {
+      check_id: "a".repeat(16),
+      status: "done",
+      url: "https://example.ru",
+      score: 12,
+      findings: [finding],
+      inventory: null,
+      unexpected_field: { email: "secret@example.com" },
+      ...org,
+    };
+    const parsed = publicCheckResponseSchema.safeParse(body);
+    assert.equal(parsed.success, true);
+    if (!parsed.success) continue;
+    assert.equal(parsed.data.inn, org.inn);
+    assert.equal(parsed.data.org_name, org.org_name);
+    assert.equal(publicCheckRecord(body).inn, undefined);
+    assert.equal(publicCheckRecord(body).org_name, undefined);
+
+    const job = mapPublicCheck(body, "https://example.ru", body.check_id);
+    const serialized = JSON.stringify(job);
+    assert.equal(serialized.includes("7707083893"), false);
+    assert.equal(serialized.includes("ООО Ромашка"), false);
+    assert.equal(serialized.includes("secret@example.com"), false);
+    assert.equal(serialized.includes("hidden@example.com"), false);
+    assert.equal("inn" in job, false);
+    assert.equal("org_name" in job, false);
+    assert.equal(job.findings[0].title, finding.title);
+    assert.equal(job.findings[0].fact, finding.fact);
+
+    const displayed = checkForDisplay({ ...job, inn: org.inn, org_name: org.org_name } as never);
+    const shown = JSON.stringify(displayed);
+    assert.equal("inn" in displayed, false);
+    assert.equal("org_name" in displayed, false);
+    assert.equal(shown.includes("7707083893"), false);
+    assert.equal(shown.includes("ООО Ромашка"), false);
+    assert.equal(shown.includes(hidden), true);
+  }
+
+  const nullOnly = publicCheckResponseSchema.safeParse({
+    inn: null,
+    org_name: null,
+    findings: [{ rule_id: "P01", title: null, fact: hidden, extra: 1 }],
+  });
+  assert.equal(nullOnly.success, true);
+
+  const ui = fs.readFileSync(path.join(root, "components/check/UrlChecker.tsx"), "utf8");
+  assert.equal(ui.includes("dangerouslySetInnerHTML"), false);
+  assert.equal(ui.includes("org_name"), false);
+  assert.equal(ui.includes("job.inn"), false);
 });
 
 test("created check keeps only the report_url from 202", async () => {

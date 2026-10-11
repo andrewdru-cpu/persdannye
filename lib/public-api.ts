@@ -10,6 +10,7 @@ import { SMARTCAPTCHA_TOKEN_FIELD } from "./smartcaptcha";
 import type { CheckJob, Finding } from "./types";
 import { domainFromUrl, normalizeUrl } from "./utils";
 import { getPublicApiBase } from "./forms-mode";
+import { publicCheckRecord } from "./public-check-schema";
 import { CONSENT_TEXT_VERSION } from "../content/consent";
 
 export class PublicApiError extends Error {
@@ -274,7 +275,7 @@ export function mapCreatedCheck(body: unknown, submittedUrl: string): CheckJob {
 }
 
 export function mapPublicCheck(body: unknown, fallbackUrl: string, id: string): CheckJob {
-  const record = asRecord(body) ?? {};
+  const record = publicCheckRecord(body);
   const checkId = textField(record.check_id, 128) || id;
   let url = textField(record.url, 2000) || fallbackUrl;
   try {

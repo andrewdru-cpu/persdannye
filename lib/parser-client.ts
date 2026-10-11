@@ -93,12 +93,16 @@ export function publicCheckJob(job: CheckJob): Omit<CheckJob, "contact"> {
     email?: unknown;
     lead?: unknown;
     contacts?: unknown;
+    inn?: unknown;
+    org_name?: unknown;
   };
   delete view.contact;
   delete view.phone;
   delete view.email;
   delete view.lead;
   delete view.contacts;
+  delete view.inn;
+  delete view.org_name;
   return view;
 }
 
