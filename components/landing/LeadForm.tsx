@@ -1,8 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
+import { SmartCaptcha, type SmartCaptchaHandle } from "@/components/captcha/SmartCaptcha";
 import { Button } from "@/components/ui/Button";
+import { LEAD_CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { runLead } from "@/lib/forms-client";
+import { isDirectForms } from "@/lib/forms-mode";
 
 export function LeadForm({
   defaultUrl = "",
@@ -24,6 +28,8 @@ export function LeadForm({
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const direct = isDirectForms();
+  const captchaRef = useRef<SmartCaptchaHandle>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -32,25 +38,26 @@ export function LeadForm({
       setError("Отметьте согласие на обработку персональных данных");
       return;
     }
+    if (direct && !captchaRef.current?.getToken()) {
+      setError("Подтвердите, что вы не робот");
+      return;
+    }
     setStatus("loading");
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email,
-          phone: phone || undefined,
-          company: companyName || undefined,
-          url: url || undefined,
-          checkId,
-          message: message || undefined,
-          consent: true,
-          source,
-        }),
+      await runLead({
+        name,
+        email,
+        phone: phone || undefined,
+        company: companyName || undefined,
+        url: url || undefined,
+        checkId,
+        message: message || undefined,
+        source,
+        consentAccepted: true,
+        textVersion: LEAD_CONSENT_TEXT_VERSION,
+        smartToken: direct ? captchaRef.current?.getToken() || "" : undefined,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Ошибка отправки");
+      if (direct) captchaRef.current?.reset();
       setStatus("ok");
     } catch (err) {
       setStatus("error");
@@ -124,6 +131,11 @@ export function LeadForm({
           . *
         </span>
       </label>
+      {direct && (
+        <div className="sm:col-span-2">
+          <SmartCaptcha ref={captchaRef} />
+        </div>
+      )}
       {error && <p className="text-sm text-rose-300 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2">
         <Button type="submit" disabled={status === "loading"} pulse>

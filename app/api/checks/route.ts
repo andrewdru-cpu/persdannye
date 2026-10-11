@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { rejectDirectModeBff } from "@/lib/bff-guard";
 import { isScanConsentRequiredError } from "@/lib/consent";
 import { createCheck, publicCheckJob } from "@/lib/parser-client";
 import { normalizeUrl } from "@/lib/utils";
@@ -20,6 +21,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const blocked = rejectDirectModeBff();
+  if (blocked) return blocked;
   try {
     const json = await req.json();
     const parsed = bodySchema.safeParse(json);

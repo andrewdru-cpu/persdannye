@@ -165,6 +165,8 @@ function scanCreateBody(
 }
 
 async function postScan(body: Record<string, unknown>): Promise<Response> {
+  // BFF stays on the service API. /public/* expects a browser SmartCaptcha
+  // token and site CORS, not this service login.
   return parserFetch("/api/scans", {
     method: "POST",
     body: JSON.stringify(body),

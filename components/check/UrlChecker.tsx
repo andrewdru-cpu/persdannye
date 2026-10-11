@@ -3,9 +3,13 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
+import { SmartCaptcha, type SmartCaptchaHandle } from "@/components/captcha/SmartCaptcha";
 import { Button } from "@/components/ui/Button";
 import { CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { pollCheck, runCheck } from "@/lib/forms-client";
+import { isDirectForms } from "@/lib/forms-mode";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
+import { publicCheckPdfUrl } from "@/lib/public-api";
 import type { CheckJob, Finding } from "@/lib/types";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { LeadForm } from "@/components/landing/LeadForm";
@@ -93,6 +97,9 @@ export function UrlChecker({
   pulseCta?: boolean;
 }) {
   const reduce = useReducedMotion();
+  const direct = isDirectForms();
+  const captchaRef = useRef<SmartCaptchaHandle>(null);
+  const jobRef = useRef<CheckJob | null>(null);
   const [url, setUrl] = useState(initialUrl);
   const [leadName, setLeadName] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
@@ -101,6 +108,7 @@ export function UrlChecker({
   const contactsRef = useRef<HTMLDetailsElement>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [job, setJob] = useState<CheckJob | null>(null);
+  jobRef.current = job;
   const [error, setError] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -130,11 +138,8 @@ export function UrlChecker({
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/checks/${jobId}`, { cache: "no-store" });
-        const data = await res.json();
+        const next = await pollCheck(jobId, jobRef.current);
         if (cancelled) return;
-        if (!res.ok) throw new Error(data.error || "Ошибка опроса");
-        const next = data as CheckJob;
         setJob(next);
         if (["done", "error", "blocked"].includes(String(next.phase))) {
           setStatus(next.phase === "done" ? "done" : "error");
@@ -163,32 +168,29 @@ export function UrlChecker({
       setError("Отметьте согласие на обработку персональных данных");
       return;
     }
+    if (direct && !captchaRef.current?.getToken()) {
+      setError("Подтвердите, что вы не робот");
+      return;
+    }
     setError(null);
     setJob(null);
     setStartedAt(Date.now());
     setElapsedSec(0);
     setStatus("running");
 
-    const lead =
-      name || email || phone
-        ? {
-            name: name || undefined,
-            email: email || undefined,
-            phone: phone || undefined,
-            consent: true,
-            consent_text_version: CONSENT_TEXT_VERSION,
-          }
-        : undefined;
+    const hasContact = Boolean(name || email || phone);
 
     try {
-      const res = await fetch("/api/checks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(lead ? { url, lead } : { url }),
+      const next = await runCheck({
+        url,
+        name: hasContact ? name || undefined : undefined,
+        email: hasContact ? email || undefined : undefined,
+        phone: hasContact ? phone || undefined : undefined,
+        consentAccepted: hasContact ? true : undefined,
+        textVersion: hasContact ? CONSENT_TEXT_VERSION : undefined,
+        smartToken: direct ? captchaRef.current?.getToken() || "" : undefined,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Не удалось запустить проверку");
-      const next = data as CheckJob;
+      if (direct) captchaRef.current?.reset();
       setJob(next);
       if (["done", "error", "blocked"].includes(String(next.phase))) {
         setStatus(next.phase === "done" ? "done" : "error");
@@ -209,6 +211,16 @@ export function UrlChecker({
   const progress = terminal ? 100 : Math.max(phaseProgress, creep);
   const activeStep = PHASE_STEPS[Math.min(Math.max(step, 0), PHASE_STEPS.length - 1)];
   const stepLabel = job?.phase === "done" ? PHASE_STEPS.length : Math.max(step, 0) + 1;
+  let pdfHref = "";
+  if (job && direct) {
+    try {
+      pdfHref = publicCheckPdfUrl(job.id);
+    } catch {
+      pdfHref = "";
+    }
+  } else if (job) {
+    pdfHref = `/api/checks/${job.id}/pdf`;
+  }
 
   return (
     <div className={cn("w-full", compact ? "" : "mx-auto max-w-2xl")}>
@@ -295,6 +307,11 @@ export function UrlChecker({
             </label>
           </div>
         </details>
+        {direct && (
+          <div className="sm:max-w-md">
+            <SmartCaptcha ref={captchaRef} />
+          </div>
+        )}
         {error && status !== "running" && status !== "error" && (
           <p className="text-sm text-rose-300" role="alert">
             {error}
@@ -391,11 +408,13 @@ export function UrlChecker({
             </ol>
             {job?.warning && <p className="mt-3 text-xs text-amber-100/80">{job.warning}</p>}
             <p className="mt-3 text-xs text-white/40">
-              {job?.mock
-                ? "Демо-режим (PARSER_API_BASE не задан). Подключите парсер через env."
-                : job
-                  ? "Живой парсер · обновление каждые 1,5 с"
-                  : "Отправляем URL. Интерфейс не блокируется."}
+              {direct
+                ? "Публичный API · обновление каждые 1,5 с"
+                : job?.mock
+                  ? "Демо-режим (PARSER_API_BASE не задан). Подключите парсер через env."
+                  : job
+                    ? "Живой парсер · обновление каждые 1,5 с"
+                    : "Отправляем URL. Интерфейс не блокируется."}
             </p>
           </motion.div>
         )}
@@ -449,13 +468,27 @@ export function UrlChecker({
               </p>
             )}
 
-            {job.pdfReady && !job.mock && (
-              <a
-                href={`/api/checks/${job.id}/pdf`}
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/35 bg-amber-400/10 px-5 py-3 text-sm font-semibold text-amber-50 transition hover:border-amber-100/60 hover:bg-amber-400/20"
-              >
-                Скачать PDF-отчёт
-              </a>
+            {(direct ? job.phase === "done" || job.pdfReady : job.pdfReady && !job.mock) && (
+              <div className="flex flex-wrap gap-3">
+                {pdfHref && (
+                  <a
+                    href={pdfHref}
+                    className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/35 bg-amber-400/10 px-5 py-3 text-sm font-semibold text-amber-50 transition hover:border-amber-100/60 hover:bg-amber-400/20"
+                  >
+                    Скачать PDF-отчёт
+                  </a>
+                )}
+                {job.reportUrl && (
+                  <a
+                    href={job.reportUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white/85 transition hover:border-white/30 hover:bg-white/10"
+                  >
+                    Публичная страница отчёта
+                  </a>
+                )}
+              </div>
             )}
 
             <div className="glass-card glass-card-gold p-5 md:p-6">

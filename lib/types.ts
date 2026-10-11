@@ -34,6 +34,11 @@ export interface CheckJob {
   push?: boolean;
   /** True when parser has a PDF report ready to fetch server-side. */
   pdfReady?: boolean;
+  /**
+   * Public report URL from POST /public/check (202). The raw /r/{token}
+   * exists only inside this URL — keep the URL, do not split the token out.
+   */
+  reportUrl?: string | null;
   warning?: string | null;
   error?: string | null;
   /** Lead fields supplied with the check, if any. */

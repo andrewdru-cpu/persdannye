@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { rejectDirectModeBff } from "@/lib/bff-guard";
 import { addLead } from "@/lib/leads-store";
 import { notifyNewLead } from "@/lib/notify";
 
@@ -18,6 +19,8 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
+  const blocked = rejectDirectModeBff();
+  if (blocked) return blocked;
   try {
     const json = await req.json();
     const parsed = schema.safeParse(json);

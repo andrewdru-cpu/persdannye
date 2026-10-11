@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --import ./tests/register.mjs --test tests/*.test.ts",
+    "mock:public-api": "node scripts/mock-public-api.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
