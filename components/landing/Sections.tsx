@@ -58,12 +58,14 @@ export function Hero({
   headline,
   highlight,
   subline,
+  sublineNarrow,
   ctaLabel = cta.primary,
   marketingConsent = false,
 }: {
   headline: string;
   highlight: string | null;
   subline: string;
+  sublineNarrow: string;
   ctaLabel?: string;
   marketingConsent?: boolean;
 }) {
@@ -120,7 +122,8 @@ export function Hero({
             animate="show"
             className="mt-6 max-w-xl text-base leading-relaxed text-white/72 md:text-lg"
           >
-            {subline}
+            <span className="md:hidden">{sublineNarrow}</span>
+            <span className="hidden md:inline">{subline}</span>
           </motion.p>
           <motion.div
             custom={5}

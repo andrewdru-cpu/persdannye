@@ -11,7 +11,7 @@ import {
 import { calculatorCopy } from "./calculator";
 import { fixWithUs, sampleFinesNote, sampleReport, sampleRulesLine, whoFor } from "./extra-blocks";
 import { flags } from "./flags";
-import { heroSublineWithCount } from "../lib/hero-checks";
+import { heroSublineNarrowWithCount, heroSublineWithCount } from "../lib/hero-checks";
 
 /**
  * Тексты лендинга. Это черновик: финал утверждают маркетинг и юрист.
@@ -149,6 +149,7 @@ export type ResolvedHero = {
   headline: string;
   highlight: string | null;
   subline: string;
+  sublineNarrow: string;
   cta: string;
 };
 
@@ -173,6 +174,7 @@ export function renderHero(options?: HeroRenderOptions): ResolvedHero {
     headline,
     highlight: headline.includes("152-ФЗ") ? "152-ФЗ" : null,
     subline: heroSublineWithCount(checksEnabled, checksCount),
+    sublineNarrow: heroSublineNarrowWithCount(checksEnabled, checksCount),
     cta: HERO_CTA,
   };
 }

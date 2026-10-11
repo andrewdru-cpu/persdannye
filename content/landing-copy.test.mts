@@ -8,14 +8,17 @@ import { fillPlaceholders, placeholders } from "./placeholders.ts";
 import {
   CHECKS_COUNT_MAX_AGE_MS,
   CHECKS_COUNT_REVALIDATE_SECONDS,
+  CHECKS_COUNT_WARN,
   PARSER_CHECKS_COUNT_PATH,
+  checksCountForRender,
+  parseGeneratedAt,
   parseVisibleChecksCount,
   resetChecksCountCache,
   resolveVisibleChecksCount,
 } from "../lib/checks-count.ts";
 import { safeHref } from "../lib/safe-href.ts";
 import { company, privacyContactLabel, PRIVACY_CONTACT_TODO } from "../lib/company.ts";
-import { heroChecksPhrase, heroSublineWithCount } from "../lib/hero-checks.ts";
+import { HERO_SUBLINE_NARROW, heroChecksPhrase, heroSublineNarrowWithCount, heroSublineWithCount } from "../lib/hero-checks.ts";
 import {
   claimPlaceholders,
   claims,
@@ -167,20 +170,41 @@ describe("hero checks count phrase", () => {
     [19, null],
     [20, "20 проверок по 152-ФЗ"],
     [21, "более 20 проверок по 152-ФЗ"],
+    [29, "более 20 проверок по 152-ФЗ"],
+    [30, "более 20 проверок по 152-ФЗ"],
     [40, "более 20 проверок по 152-ФЗ"],
+    [45, "более 20 проверок по 152-ФЗ"],
   ];
 
   for (const [count, phrase] of cases) {
     it(`maps N=${count} when the flag is on`, () => {
       assert.equal(heroChecksPhrase(true, count), phrase);
       const subline = heroSublineWithCount(true, count);
+      const narrow = heroSublineNarrowWithCount(true, count);
       if (phrase) {
         assert.equal(subline, `${phrase}. ${SUB}`);
+        assert.equal(narrow, `${phrase}. ${HERO_SUBLINE_NARROW}`);
       } else {
         assert.equal(subline, SUB);
+        assert.equal(narrow, HERO_SUBLINE_NARROW);
       }
+      assert.equal(subline.includes("не является юридической консультацией"), true);
+      assert.equal(narrow.includes("не юридическая консультация"), true);
     });
   }
+
+  it("keeps the legal disclaimer in both width variants", () => {
+    const plain = renderHero();
+    assert.equal(plain.subline, SUB);
+    assert.equal(plain.sublineNarrow, HERO_SUBLINE_NARROW);
+    assert.equal(plain.subline.includes("не является юридической консультацией"), true);
+    assert.equal(plain.sublineNarrow.includes("не юридическая консультация"), true);
+    const counted = renderHero({ checksCountEnabled: true, checksCount: 30 });
+    assert.equal(counted.subline.startsWith("более 20 проверок по 152-ФЗ. "), true);
+    assert.equal(counted.sublineNarrow.startsWith("более 20 проверок по 152-ФЗ. "), true);
+    assert.equal(counted.subline.endsWith(SUB), true);
+    assert.equal(counted.sublineNarrow.endsWith(HERO_SUBLINE_NARROW), true);
+  });
 
   it("drops the phrase when the flag is off even if N is high", () => {
     assert.equal(heroChecksPhrase(false, 40), null);
@@ -210,24 +234,78 @@ describe("parser checks-count payload", () => {
     assert.equal(parseVisibleChecksCount(null), null);
   });
 
-  it("drops the number on error, timeout, and a response older than 24 hours", async () => {
+  it("hides a successful response once it is 24 hours old", () => {
+    const start = 1_700_000_000_000;
+    const fresh = { count: 21, fetchedAt: start, generatedAt: null };
+    assert.equal(checksCountForRender(fresh, start + CHECKS_COUNT_MAX_AGE_MS - 1), 21);
+    assert.equal(checksCountForRender(fresh, start + CHECKS_COUNT_MAX_AGE_MS), null);
+    assert.equal(heroChecksPhrase(true, checksCountForRender(fresh, start + CHECKS_COUNT_MAX_AGE_MS)), null);
+  });
+
+  it("hides the number when a later request fails 25 hours after the last success", async () => {
     resetChecksCountCache();
     const start = 1_700_000_000_000;
-    let calls = 0;
-    const fail = async () => {
-      calls += 1;
+    const ok = await resolveVisibleChecksCount(start, async () => ({ count: 21, generatedAt: null }));
+    assert.equal(checksCountForRender(ok, start), 21);
+    const later = start + 25 * 60 * 60 * 1000;
+    const afterError = await resolveVisibleChecksCount(later, async () => {
       throw new Error("timeout");
+    });
+    assert.equal(checksCountForRender(afterError, later), null);
+    assert.equal(heroChecksPhrase(true, checksCountForRender(afterError, later)), null);
+  });
+
+  it("keeps a success younger than 24 hours when the next request fails", async () => {
+    resetChecksCountCache();
+    const start = 1_700_000_000_000;
+    await resolveVisibleChecksCount(start, async () => ({ count: 21, generatedAt: null }));
+    const later = start + 60 * 60 * 1000;
+    const afterError = await resolveVisibleChecksCount(later, async () => {
+      throw new Error("timeout");
+    });
+    assert.equal(checksCountForRender(afterError, later), 21);
+  });
+
+  it("treats generated_at as the data age and ignores unknown fields", () => {
+    const now = 1_700_000_000_000;
+    const body = {
+      visible_checks_count: 21,
+      rules_version: "2026-10-11",
+      generated_at: new Date(now - 25 * 60 * 60 * 1000).toISOString(),
+      unexpected: "ignore",
     };
-    assert.equal(await resolveVisibleChecksCount(start, async () => 21), 21);
-    assert.equal(await resolveVisibleChecksCount(start + 1_000, fail), 21);
-    assert.equal(calls, 0);
-    assert.equal(await resolveVisibleChecksCount(start + 301_000, fail), null);
-    assert.equal(calls, 1);
-    assert.equal(await resolveVisibleChecksCount(start + 302_000, async () => 40), 40);
+    assert.equal(parseVisibleChecksCount(body), 21);
+    const stale = { count: 21, fetchedAt: now, generatedAt: parseGeneratedAt(body) };
+    assert.equal(checksCountForRender(stale, now), null);
+    const freshBody = { ...body, generated_at: new Date(now - 60_000).toISOString() };
     assert.equal(
-      await resolveVisibleChecksCount(start + 302_000 + CHECKS_COUNT_MAX_AGE_MS, async () => null),
-      null,
+      checksCountForRender({ count: 21, fetchedAt: now, generatedAt: parseGeneratedAt(freshBody) }, now),
+      21,
     );
+    assert.equal(parseGeneratedAt({ ...body, generated_at: "not-a-date" }), null);
+  });
+
+  it("warns once per new receipt when N is at least 30", async () => {
+    resetChecksCountCache();
+    const warnings: string[] = [];
+    const original = console.warn;
+    console.warn = (message?: unknown) => {
+      warnings.push(String(message));
+    };
+    const start = 1_700_000_000_000;
+    try {
+      await resolveVisibleChecksCount(start, async () => ({ count: 29, generatedAt: null }));
+      await resolveVisibleChecksCount(start + 301_000, async () => ({ count: 30, generatedAt: null }));
+      await resolveVisibleChecksCount(start + 302_000, async () => ({ count: 30, generatedAt: null }));
+      await resolveVisibleChecksCount(start + 700_000, async () => ({ count: 30, generatedAt: null }));
+      await resolveVisibleChecksCount(start + 1_100_000, async () => ({ count: 45, generatedAt: null }));
+    } finally {
+      console.warn = original;
+    }
+    assert.deepEqual(warnings, [CHECKS_COUNT_WARN, CHECKS_COUNT_WARN]);
+    assert.equal(heroChecksPhrase(true, 29), "более 20 проверок по 152-ФЗ");
+    assert.equal(heroChecksPhrase(true, 30), "более 20 проверок по 152-ФЗ");
+    assert.equal(heroChecksPhrase(true, 45), "более 20 проверок по 152-ФЗ");
   });
 });
 

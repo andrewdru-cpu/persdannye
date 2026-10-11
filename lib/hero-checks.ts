@@ -1,6 +1,10 @@
-/** Подзаголовок героя v1.2 без числа. */
+/** Подзаголовок героя v1.2 без числа. На ширине от md. */
 export const HERO_SUBLINE =
   "Политика, согласия, cookie, формы и сторонние сервисы — проверяем публичную часть сайта. Автоматическая проверка, не является юридической консультацией.";
+
+/** Узкий экран, только CSS, без JS. Оговорка остаётся. */
+export const HERO_SUBLINE_NARROW =
+  "Автоматическая проверка публичной части сайта, не юридическая консультация";
 
 /**
  * Фраза с числом проверок. Формулировку подтвердил Рост.
@@ -15,4 +19,9 @@ export function heroChecksPhrase(enabled: boolean, count: number | null): string
 export function heroSublineWithCount(enabled: boolean, count: number | null): string {
   const phrase = heroChecksPhrase(enabled, count);
   return phrase ? `${phrase}. ${HERO_SUBLINE}` : HERO_SUBLINE;
+}
+
+export function heroSublineNarrowWithCount(enabled: boolean, count: number | null): string {
+  const phrase = heroChecksPhrase(enabled, count);
+  return phrase ? `${phrase}. ${HERO_SUBLINE_NARROW}` : HERO_SUBLINE_NARROW;
 }

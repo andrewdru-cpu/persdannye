@@ -32,6 +32,7 @@ export default async function HomePage() {
         headline={hero.headline}
         highlight={hero.highlight}
         subline={hero.subline}
+        sublineNarrow={hero.sublineNarrow}
         ctaLabel={hero.cta}
         marketingConsent={marketingConsentEnabled()}
       />
