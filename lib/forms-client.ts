@@ -1,3 +1,4 @@
+import { checkForDisplay } from "./check-view";
 import { isDirectForms } from "./forms-mode";
 import {
   createPublicCheck,
@@ -73,7 +74,7 @@ export async function runCheck(
     body: JSON.stringify(bffCheckBody(input)),
   });
   if (!res.ok) throw new Error(await readError(res, "Не удалось запустить проверку"));
-  return (await res.json()) as CheckJob;
+  return checkForDisplay((await res.json()) as CheckJob);
 }
 
 export async function pollCheck(
@@ -86,7 +87,7 @@ export async function pollCheck(
   }
   const res = await fetchImpl(`/api/checks/${encodeURIComponent(id)}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await readError(res, "Ошибка опроса"));
-  return (await res.json()) as CheckJob;
+  return checkForDisplay((await res.json()) as CheckJob);
 }
 
 export async function runLead(

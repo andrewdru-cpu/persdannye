@@ -5,6 +5,8 @@ import path from "node:path";
 import test from "node:test";
 import { createMockPublicApi } from "../scripts/mock-public-api.mjs";
 import { rejectDirectModeBff } from "../lib/bff-guard";
+import { checkForDisplay } from "../lib/check-view";
+import { landingScanCreateBody, publicCheckJob, SITE_FORM_ORIGIN } from "../lib/parser-client";
 import { contentSecurityPolicy, SMARTCAPTCHA_ORIGINS } from "../lib/csp";
 import { pollCheck, runCheck, runLead } from "../lib/forms-client";
 import { getFormsMode } from "../lib/forms-mode";
@@ -374,6 +376,72 @@ test("CSP allows only self, the API origin, and SmartCaptcha", () => {
   assert.match(header, /script-src 'self' 'unsafe-inline'/);
   const dev = contentSecurityPolicy({ NODE_ENV: "development" } as NodeJS.ProcessEnv);
   assert.match(dev, /unsafe-eval/);
+});
+
+test("BFF labels scans with origin site_form and the UI drops scan contacts", async () => {
+  const withLead = landingScanCreateBody("https://example.ru", {
+    name: "Иван",
+    email: "ivan@example.com",
+    phone: "+79990000000",
+    consent: true,
+    consent_text_version: "2026-10-11",
+  });
+  assert.equal(withLead.origin, SITE_FORM_ORIGIN);
+  assert.equal(withLead.mode, "quick");
+  assert.equal((withLead.lead as { email: string }).email, "ivan@example.com");
+
+  const bare = landingScanCreateBody("https://example.ru", null);
+  assert.equal(bare.origin, SITE_FORM_ORIGIN);
+  assert.equal("lead" in bare, false);
+
+  const leaked = {
+    id: "1",
+    url: "https://example.ru/",
+    domain: "example.ru",
+    phase: "done",
+    phaseMessage: "готово",
+    score: 10,
+    findings: [],
+    hasRisks: false,
+    createdAt: "t",
+    updatedAt: "t",
+    mock: false,
+    contact: { phone: "", email: "info@example.ru", name: "Оператор" },
+    phone: "",
+    email: "info@example.ru",
+    lead: { phone: "", email: "" },
+  } as unknown as import("../lib/types").CheckJob;
+
+  for (const view of [publicCheckJob(leaked), checkForDisplay(leaked)]) {
+    const raw = JSON.stringify(view);
+    assert.equal(raw.includes("info@example.ru"), false);
+    assert.equal(raw.includes("Оператор"), false);
+    assert.equal("contact" in view, false);
+    assert.equal("phone" in view, false);
+    assert.equal("email" in view, false);
+    assert.equal(view.phase, "done");
+    assert.equal(view.score, 10);
+  }
+
+  const restore = saveEnv(["NEXT_PUBLIC_FORMS_MODE"]);
+  delete process.env.NEXT_PUBLIC_FORMS_MODE;
+  const fetchImpl: typeof fetch = async () => Response.json(leaked);
+  try {
+    const created = await runCheck({ url: "https://example.ru" }, fetchImpl);
+    const polled = await pollCheck(created.id, created, fetchImpl);
+    assert.equal(JSON.stringify(created).includes("info@example.ru"), false);
+    assert.equal(JSON.stringify(polled).includes("info@example.ru"), false);
+    assert.equal("contact" in created, false);
+    assert.equal("contact" in polled, false);
+    assert.equal(polled.findings.length, 0);
+  } finally {
+    restore();
+  }
+
+  const ui = fs.readFileSync(path.join(root, "components/check/UrlChecker.tsx"), "utf8");
+  assert.equal(ui.includes("job.contact"), false);
+  assert.equal(ui.includes("job.phone"), false);
+  assert.equal(ui.includes("job.email"), false);
 });
 
 test("created check keeps only the report_url from 202", async () => {
