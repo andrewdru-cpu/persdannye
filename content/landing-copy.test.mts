@@ -7,6 +7,7 @@ import { flags } from "./flags.ts";
 import { fillPlaceholders, placeholders } from "./placeholders.ts";
 import {
   CHECKS_COUNT_MAX_AGE_MS,
+  CHECKS_COUNT_MAX_FUTURE_MS,
   CHECKS_COUNT_REVALIDATE_SECONDS,
   CHECKS_COUNT_WARN,
   PARSER_CHECKS_COUNT_PATH,
@@ -218,6 +219,7 @@ describe("parser checks-count payload", () => {
     assert.equal(PARSER_CHECKS_COUNT_PATH, "/public/checks-count");
     assert.equal(CHECKS_COUNT_REVALIDATE_SECONDS, 300);
     assert.equal(CHECKS_COUNT_MAX_AGE_MS, 24 * 60 * 60 * 1000);
+    assert.equal(CHECKS_COUNT_MAX_FUTURE_MS, 5 * 60 * 1000);
   });
 
   it("accepts an integer count with a rules version", () => {
@@ -266,23 +268,71 @@ describe("parser checks-count payload", () => {
     assert.equal(checksCountForRender(afterError, later), 21);
   });
 
-  it("treats generated_at as the data age and ignores unknown fields", () => {
+  function snapshotFrom(body: unknown, fetchedAt: number) {
+    return {
+      count: parseVisibleChecksCount(body) ?? -1,
+      fetchedAt,
+      generatedAt: parseGeneratedAt(body),
+    };
+  }
+
+  it("shows a fresh generated_at in Z or +00:00 and ignores unknown fields", () => {
+    const now = 1_700_000_000_000;
+    const fresh = new Date(now - 60_000).toISOString();
+    const body = {
+      visible_checks_count: 21,
+      rules_version: "2026-10-11",
+      generated_at: fresh,
+      unexpected: "ignore",
+    };
+    assert.equal(parseVisibleChecksCount(body), 21);
+    assert.equal(checksCountForRender(snapshotFrom(body, now), now), 21);
+    const plus = { ...body, generated_at: fresh.replace("Z", "+00:00") };
+    assert.equal(checksCountForRender(snapshotFrom(plus, now), now), 21);
+  });
+
+  it("hides the number when generated_at is 25 hours old", () => {
     const now = 1_700_000_000_000;
     const body = {
       visible_checks_count: 21,
       rules_version: "2026-10-11",
       generated_at: new Date(now - 25 * 60 * 60 * 1000).toISOString(),
-      unexpected: "ignore",
     };
-    assert.equal(parseVisibleChecksCount(body), 21);
-    const stale = { count: 21, fetchedAt: now, generatedAt: parseGeneratedAt(body) };
-    assert.equal(checksCountForRender(stale, now), null);
-    const freshBody = { ...body, generated_at: new Date(now - 60_000).toISOString() };
-    assert.equal(
-      checksCountForRender({ count: 21, fetchedAt: now, generatedAt: parseGeneratedAt(freshBody) }, now),
-      21,
-    );
-    assert.equal(parseGeneratedAt({ ...body, generated_at: "not-a-date" }), null);
+    assert.equal(checksCountForRender(snapshotFrom(body, now), now), null);
+    assert.equal(heroChecksPhrase(true, checksCountForRender(snapshotFrom(body, now), now)), null);
+  });
+
+  it("hides the number when generated_at is more than 5 minutes in the future", () => {
+    const now = 1_700_000_000_000;
+    const ahead = (ms: number) => new Date(now + ms).toISOString();
+    const body = {
+      visible_checks_count: 21,
+      rules_version: "2026-10-11",
+      generated_at: ahead(10 * 60 * 1000),
+    };
+    assert.equal(checksCountForRender(snapshotFrom(body, now), now), null);
+    const exactly = { ...body, generated_at: ahead(CHECKS_COUNT_MAX_FUTURE_MS) };
+    assert.equal(checksCountForRender(snapshotFrom(exactly, now), now), 21);
+    const over = { ...body, generated_at: ahead(CHECKS_COUNT_MAX_FUTURE_MS + 1) };
+    assert.equal(checksCountForRender(snapshotFrom(over, now), now), null);
+  });
+
+  it("hides the number when generated_at has no timezone or is otherwise invalid", () => {
+    const now = 1_700_000_000_000;
+    const base = { visible_checks_count: 21, rules_version: "2026-10-11" };
+    for (const generated_at of ["2026-10-11T12:00:00", "not-a-date", "2026-10-11T12:00:00+03:00", "2026-10-11T12:00:00z"]) {
+      const body = { ...base, generated_at };
+      assert.equal(parseGeneratedAt(body), "invalid");
+      assert.equal(checksCountForRender(snapshotFrom(body, now), now), null);
+    }
+  });
+
+  it("uses fetched_at when generated_at is absent", () => {
+    const now = 1_700_000_000_000;
+    const body = { visible_checks_count: 21, rules_version: "2026-10-11" };
+    assert.equal(parseGeneratedAt(body), null);
+    assert.equal(checksCountForRender(snapshotFrom(body, now), now), 21);
+    assert.equal(checksCountForRender(snapshotFrom(body, now - CHECKS_COUNT_MAX_AGE_MS), now), null);
   });
 
   it("warns once per new receipt when N is at least 30", async () => {

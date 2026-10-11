@@ -7,7 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --import ./content/test-register.mjs --test content/landing-copy.test.mts"
+    "test": "node --experimental-strip-types --import ./content/test-register.mjs --test content/landing-copy.test.mts scripts/vercel-ignore.test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

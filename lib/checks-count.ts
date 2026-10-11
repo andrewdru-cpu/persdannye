@@ -9,6 +9,13 @@ export const CHECKS_COUNT_REVALIDATE_SECONDS = 300;
 /** Старше суток успешный ответ на страницу не попадает. */
 export const CHECKS_COUNT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+/** Дальше чем на 5 минут в будущем generated_at на страницу не попадает. */
+export const CHECKS_COUNT_MAX_FUTURE_MS = 5 * 60 * 1000;
+
+/** ISO UTC: Z или +00:00, дробные секунды по желанию. Без зоны и другие смещения — нет. */
+const GENERATED_AT_UTC =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)$/;
+
 export const CHECKS_COUNT_TIMEOUT_MS = 2000;
 
 /** Стабильный тег для алерта DevOps. Без числа и без персональных данных. */
@@ -18,7 +25,11 @@ export const CHECKS_COUNT_WARN =
 export type ChecksCountSnapshot = {
   count: number;
   fetchedAt: number;
-  generatedAt: number | null;
+  /**
+   * null — поля generated_at не было, возраст берём из fetched_at.
+   * "invalid" — поле было, но это не ISO UTC с Z или +00:00.
+   */
+  generatedAt: number | null | "invalid";
 };
 
 let memory: ChecksCountSnapshot | null = null;
@@ -39,24 +50,34 @@ export function parseVisibleChecksCount(body: unknown): number | null {
   return count;
 }
 
-/** ISO из generated_at, если поле есть и разбирается. Иначе null, поле не мешает ответу. */
-export function parseGeneratedAt(body: unknown): number | null {
+/**
+ * generated_at парсера: ISO UTC с Z или +00:00.
+ * Поля нет — null (старая версия, дальше решает fetched_at).
+ * Поле есть, но без зоны, с другим смещением или не разбирается — "invalid".
+ * Неизвестные поля не читаются.
+ */
+export function parseGeneratedAt(body: unknown): number | null | "invalid" {
   if (!body || typeof body !== "object" || !("generated_at" in body)) return null;
   const value = (body as { generated_at?: unknown }).generated_at;
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string" || !GENERATED_AT_UTC.test(value)) return "invalid";
   const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) return null;
+  if (!Number.isFinite(ms)) return "invalid";
   return ms;
 }
 
 /**
  * Сравнение в момент рендера. Next при ошибке revalidate может вернуть старое тело навсегда,
- * поэтому возраст читаем из fetched_at, а не из факта «кэш ещё жив».
+ * поэтому возраст своего запроса читаем из fetched_at.
+ * Если generated_at есть, он тоже должен быть не старше 24 ч и не дальше 5 мин в будущем.
  */
 export function checksCountForRender(snapshot: ChecksCountSnapshot | null, now: number): number | null {
   if (!snapshot) return null;
   if (now - snapshot.fetchedAt >= CHECKS_COUNT_MAX_AGE_MS) return null;
-  if (snapshot.generatedAt !== null && now - snapshot.generatedAt >= CHECKS_COUNT_MAX_AGE_MS) return null;
+  if (snapshot.generatedAt === "invalid") return null;
+  if (typeof snapshot.generatedAt === "number") {
+    if (now - snapshot.generatedAt >= CHECKS_COUNT_MAX_AGE_MS) return null;
+    if (snapshot.generatedAt - now > CHECKS_COUNT_MAX_FUTURE_MS) return null;
+  }
   return snapshot.count;
 }
 
@@ -76,12 +97,12 @@ function warnOnLargeCount(snapshot: ChecksCountSnapshot): void {
  */
 export async function resolveVisibleChecksCount(
   now: number,
-  fetcher: () => Promise<{ count: number; generatedAt: number | null } | null>,
+  fetcher: () => Promise<{ count: number; generatedAt: number | null | "invalid" } | null>,
 ): Promise<ChecksCountSnapshot | null> {
   if (memory && now - memory.fetchedAt < CHECKS_COUNT_REVALIDATE_SECONDS * 1000) {
     return memory;
   }
-  let received: { count: number; generatedAt: number | null } | null = null;
+  let received: { count: number; generatedAt: number | null | "invalid" } | null = null;
   try {
     received = await fetcher();
   } catch {
@@ -91,11 +112,11 @@ export async function resolveVisibleChecksCount(
     return memory && checksCountForRender(memory, now) !== null ? memory : null;
   }
   memory = { count: received.count, fetchedAt: now, generatedAt: received.generatedAt };
-  warnOnLargeCount(memory);
+  if (checksCountForRender(memory, now) !== null) warnOnLargeCount(memory);
   return memory;
 }
 
-async function fetchParserCount(): Promise<{ count: number; generatedAt: number | null } | null> {
+async function fetchParserCount(): Promise<{ count: number; generatedAt: number | null | "invalid" } | null> {
   const base = getParserBase();
   if (!base) return null;
   const headers = new Headers();
