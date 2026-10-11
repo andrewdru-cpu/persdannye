@@ -46,6 +46,15 @@ export function CookieBanner() {
     if (!existing) setVisible(true);
   }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    if (visible) root.dataset.cookieOpen = "true";
+    else delete root.dataset.cookieOpen;
+    return () => {
+      delete root.dataset.cookieOpen;
+    };
+  }, [visible]);
+
   function acceptAll() {
     const c: CookieConsent = {
       necessary: true,

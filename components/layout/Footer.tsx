@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { footerBlurb } from "@/content/landing";
+import { LegalDisclaimer } from "@/components/landing/LegalDisclaimer";
 import { company } from "@/lib/company";
 
 export function Footer() {
@@ -8,10 +10,7 @@ export function Footer() {
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 md:grid-cols-3 md:px-6">
         <div>
           <div className="mb-3 font-display text-2xl font-semibold text-white">{company.brand}</div>
-          <p className="text-sm leading-relaxed text-white/60">
-            Сканер соответствия сайтов требованиям Роскомнадзора и 152-ФЗ.
-            Актуализируем базу требований каждый день.
-          </p>
+          <p className="text-sm leading-relaxed text-white/60">{footerBlurb}</p>
         </div>
         <div>
           <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-300/90">
@@ -63,8 +62,11 @@ export function Footer() {
           </ul>
         </div>
       </div>
-      <div className="border-t border-white/5 py-4 text-center text-xs text-white/40">
-        © {new Date().getFullYear()} {company.legalName}. Все права защищены.
+      <div className="border-t border-white/5 px-4 py-6 text-center">
+        <LegalDisclaimer className="mx-auto max-w-3xl text-white/70" />
+        <p className="mt-3 text-xs text-white/45">
+          © {new Date().getFullYear()} {company.legalName}. Все права защищены.
+        </p>
       </div>
     </footer>
   );

@@ -4,7 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { CookieBanner } from "@/components/layout/CookieBanner";
-import { StickyMobileCta } from "@/components/layout/StickyMobileCta";
+import { StickyCta } from "@/components/layout/StickyCta";
 import { AnalyticsGate } from "@/components/layout/AnalyticsGate";
 import { SiteAtmosphere } from "@/components/motion/SiteAtmosphere";
 import { company } from "@/lib/company";
@@ -50,11 +50,11 @@ export default function RootLayout({
         <SiteAtmosphere />
         <div className="relative z-[1]">
           <Header />
-          <main className="pb-24 md:pb-0">{children}</main>
+          <main>{children}</main>
           <Footer />
           <CookieBanner />
           <AnalyticsGate />
-          <StickyMobileCta />
+          <StickyCta />
         </div>
       </body>
     </html>

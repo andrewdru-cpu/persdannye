@@ -41,6 +41,10 @@ body {
   position: relative;
 }
 
+body.has-sticky-cta {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+
 h1,
 h2,
 h3,

@@ -26,9 +26,11 @@ export default function CheckPage() {
           </p>
         </Reveal>
         <Reveal delay={0.08} className="mt-8">
-          <GlassCard gold>
-            <UrlChecker />
-          </GlassCard>
+          <div id="url-check" className="scroll-mt-28">
+            <GlassCard gold>
+              <UrlChecker />
+            </GlassCard>
+          </div>
         </Reveal>
       </div>
     </div>

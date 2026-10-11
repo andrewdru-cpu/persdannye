@@ -9,24 +9,8 @@ import { UrlChecker } from "@/components/check/UrlChecker";
 import { LeadForm } from "@/components/landing/LeadForm";
 import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
-
-const trustItems = [
-  {
-    k: "1000+",
-    t: "компаний",
-    d: "Уже обратились за проверкой и сопровождением по 152-ФЗ.",
-  },
-  {
-    k: "24/7",
-    t: "актуальность РКН",
-    d: "Базу требований Роскомнадзора обновляем каждый день.",
-  },
-  {
-    k: "минуты",
-    t: "до списка рисков",
-    d: "Экспресс-скан без установки кода — URL достаточно.",
-  },
-];
+import { CheckLink } from "@/components/landing/CheckLink";
+import { cta, faqs, heroChrome, trustItems, whatWeCheckLead } from "@/content/landing";
 
 const howSteps = [
   {
@@ -67,26 +51,27 @@ const audiences = [
   { t: "Агентства", d: "Быстрый чек-лист перед сдачей проекта клиенту." },
 ];
 
-const faqs = [
-  {
-    q: "Это юридическое заключение?",
-    a: "Экспресс-проверка — технический скрининг по правилам 152-ФЗ и практике РКН. Полное юридическое заключение готовит юрист после разбора отчёта.",
-  },
-  {
-    q: "Как часто обновляются правила?",
-    a: "Базу требований Роскомнадзора и контрольных точек актуализируем ежедневно.",
-  },
-  {
-    q: "Нужен ли доступ в админку сайта?",
-    a: "Для экспресс-проверки достаточно публичного URL. Для устранения можем работать с вашей командой или подрядчиком.",
-  },
-  {
-    q: "Что с персональными данными в заявке?",
-    a: "Обрабатываем только для связи по запросу, по Политике обработки ПДн, с вашим явным согласием.",
-  },
-];
-
 const heroEase = [0.22, 1, 0.36, 1] as const;
+
+function HeroHeadline({
+  headline,
+  highlight,
+  sheen,
+}: {
+  headline: string;
+  highlight: string | null;
+  sheen: boolean;
+}) {
+  if (!highlight || !headline.includes(highlight)) return headline;
+  const start = headline.indexOf(highlight);
+  return (
+    <>
+      {headline.slice(0, start)}
+      <span className={sheen ? "gold-text-sheen" : "text-amber-100"}>{highlight}</span>
+      {headline.slice(start + highlight.length)}
+    </>
+  );
+}
 
 const heroLine = {
   hidden: { opacity: 0, y: 32, filter: "blur(8px)" },
@@ -98,11 +83,19 @@ const heroLine = {
   }),
 };
 
-export function Hero() {
+export function Hero({
+  headline,
+  highlight,
+  subline,
+}: {
+  headline: string;
+  highlight: string | null;
+  subline: string;
+}) {
   const reduce = useReducedMotion();
 
   return (
-    <section className="relative overflow-hidden pb-20 pt-14 md:pb-32 md:pt-24">
+    <section id="hero" className="relative overflow-hidden pb-20 pt-14 md:pb-32 md:pt-24">
       <HeroBackdrop />
       <div className="relative mx-auto grid max-w-6xl items-start gap-12 px-4 md:px-6 lg:grid-cols-12 lg:gap-16">
         <motion.div
@@ -118,7 +111,7 @@ export function Hero() {
             className="inline-flex items-center gap-2 rounded-full border border-amber-200/35 bg-amber-100/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-50"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_12px_rgba(231,211,161,0.9)]" />
-            Закрытый контур · 152-ФЗ / РКН
+            {heroChrome.badge}
           </motion.div>
           <motion.p
             custom={1}
@@ -127,19 +120,16 @@ export function Hero() {
             animate="show"
             className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-200/80"
           >
-            До штрафа — не после
+            {heroChrome.kicker}
           </motion.p>
           <motion.h1
             custom={2}
             variants={reduce ? undefined : heroLine}
             initial={reduce ? false : "hidden"}
             animate="show"
-            className="mt-3 max-w-xl font-display text-[2.7rem] font-semibold leading-[0.98] text-white sm:text-6xl md:text-7xl"
+            className="mt-3 max-w-2xl text-balance font-display text-[2.15rem] font-semibold leading-[1.05] text-white sm:text-5xl md:text-6xl"
           >
-            Найдите несоответствие{" "}
-            <span className={reduce ? "text-amber-100" : "gold-text-sheen"}>
-              Роскомнадзора
-            </span>
+            <HeroHeadline headline={headline} highlight={highlight} sheen={!reduce} />
           </motion.h1>
           <motion.div
             custom={3}
@@ -155,9 +145,7 @@ export function Hero() {
             animate="show"
             className="mt-6 max-w-xl text-base leading-relaxed text-white/72 md:text-lg"
           >
-            «ПерсДанные» проводит экспресс-аудит сайта для собственника и юриста:
-            политики, cookie, формы и согласия. Факты — сразу, план устранения — с
-            нашей командой. Базу требований РКН обновляем каждый день.
+            {subline}
           </motion.p>
           <motion.div
             custom={5}
@@ -166,14 +154,15 @@ export function Hero() {
             animate="show"
             className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap"
           >
-            <Link href="/check" className="w-full sm:w-auto">
-              <Button size="lg" pulse className="w-full sm:w-auto">
-                Проверить свой сайт
-              </Button>
-            </Link>
+            <CheckLink
+              pulse
+              className="btn-gold min-h-12 w-full rounded-2xl px-7 py-3.5 text-base sm:w-auto"
+            >
+              {cta.primary}
+            </CheckLink>
             <Link href="/#lead" className="w-full sm:w-auto">
               <Button size="lg" variant="secondary" className="w-full sm:w-auto">
-                Получить полный отчёт
+                {cta.secondary}
               </Button>
             </Link>
           </motion.div>
@@ -184,11 +173,7 @@ export function Hero() {
             animate="show"
             className="mt-8 grid grid-cols-3 gap-3 border-t border-amber-200/15 pt-5"
           >
-            {[
-              ["1000+", "компаний"],
-              ["минуты", "до рисков"],
-              ["24/7", "база РКН"],
-            ].map(([k, v]) => (
+            {heroChrome.facts.map(({ k, v }) => (
               <div key={v}>
                 <dt className="font-display text-2xl text-amber-100 sm:text-3xl">{k}</dt>
                 <dd className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/50 sm:text-xs">
@@ -200,7 +185,8 @@ export function Hero() {
         </motion.div>
 
         <motion.div
-          className="min-w-0 lg:col-span-5"
+          id="url-check"
+          className="min-w-0 scroll-mt-28 lg:col-span-5"
           initial={reduce ? false : { opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={reduce ? { duration: 0 } : { delay: 0.35, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
@@ -209,14 +195,14 @@ export function Hero() {
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <div className="font-display text-3xl font-semibold text-white">
-                  Экспресс-проверка
+                  {heroChrome.checkerTitle}
                 </div>
                 <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/55">
-                  URL достаточно. Статус и находки обновляются по ходу проверки.
+                  {heroChrome.checkerText}
                 </p>
               </div>
               <span className="shrink-0 rounded-full border border-amber-200/35 bg-amber-100/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-50">
-                Быстро
+                {heroChrome.checkerBadge}
               </span>
             </div>
             <UrlChecker compact pulseCta />
@@ -324,10 +310,7 @@ export function WhatWeCheck() {
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             Что мы проверяем
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">
-            Контрольные точки по 152-ФЗ и практике Роскомнадзора — с акцентом на то,
-            за что реально штрафуют.
-          </p>
+          <p className="mt-3 max-w-2xl text-white/60">{whatWeCheckLead}</p>
         </Reveal>
         <Stagger className="mt-8 grid gap-3 md:grid-cols-2">
           {checkItems.map((item) => (
@@ -386,11 +369,12 @@ export function ExampleResult() {
                 F03 · Форма без явного согласия
               </li>
             </ul>
-            <Link href="/check" className="mt-6 inline-block">
-              <Button size="lg" pulse>
-                Проверить свой сайт
-              </Button>
-            </Link>
+            <CheckLink
+              pulse
+              className="btn-gold mt-6 min-h-12 rounded-2xl px-7 py-3.5 text-base"
+            >
+              {cta.primary}
+            </CheckLink>
           </GlassCard>
         </Reveal>
       </div>
@@ -444,14 +428,12 @@ export function FixWithUs() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/#lead">
                 <Button size="lg" pulse>
-                  Получить полный отчёт
+                  {cta.secondary}
                 </Button>
               </Link>
-              <Link href="/check">
-                <Button size="lg" variant="secondary">
-                  Сначала проверить сайт
-                </Button>
-              </Link>
+              <CheckLink className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/40 bg-[#14110c]/80 px-7 py-3.5 text-base text-[#f7f1e6] hover:border-amber-100/70 hover:bg-amber-200/10">
+                {cta.checkFirst}
+              </CheckLink>
             </div>
           </GlassCard>
         </Reveal>

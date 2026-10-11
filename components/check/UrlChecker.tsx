@@ -116,6 +116,12 @@ export function UrlChecker({
   }, [job, url]);
 
   useEffect(() => {
+    if (window.location.hash !== "#url-check") return;
+    const input = document.getElementById("url-check-input");
+    if (input instanceof HTMLElement) input.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
     if (status !== "running" || startedAt == null) return;
     const tick = () => setElapsedSec(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     tick();
@@ -215,8 +221,12 @@ export function UrlChecker({
       <form onSubmit={onSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
+            id="url-check-input"
+            name="url"
             type="text"
             required
+            inputMode="url"
+            autoComplete="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="example.ru или https://example.ru"

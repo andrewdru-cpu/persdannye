@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { company } from "@/lib/company";
-import { Button } from "@/components/ui/Button";
+import { cta } from "@/content/landing";
+import { CheckLink } from "@/components/landing/CheckLink";
 import { cn } from "@/lib/utils";
 
 const nav = [
@@ -36,11 +37,9 @@ export function Header() {
               {item.label}
             </Link>
           ))}
-          <Link href="/check">
-            <Button size="sm" pulse>
-              Проверить свой сайт
-            </Button>
-          </Link>
+          <CheckLink pulse className="btn-gold min-h-9 rounded-lg px-3 py-1.5 text-sm">
+            {cta.primary}
+          </CheckLink>
         </nav>
         <button
           type="button"
@@ -71,11 +70,12 @@ export function Header() {
                   {item.label}
                 </Link>
               ))}
-              <Link href="/check" onClick={() => setOpen(false)}>
-                <Button className="w-full" size="md">
-                  Проверить свой сайт
-                </Button>
-              </Link>
+              <CheckLink
+                onNavigate={() => setOpen(false)}
+                className="btn-gold min-h-11 w-full rounded-xl px-5 py-2.5 text-sm"
+              >
+                {cta.primary}
+              </CheckLink>
             </div>
           </motion.div>
         )}
