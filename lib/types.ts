@@ -12,6 +12,11 @@ export interface Finding {
    * as violations. `needs_check` and `not_checked` do not.
    */
   status?: string;
+  /**
+   * Why a rule was not applied. `robots_disallow` with `not_checked`
+   * means the site blocked the crawler; it is not a violation.
+   */
+  reason?: string;
 }
 
 /** Contacts captured on the landing at the moment a scan is created. */
@@ -40,7 +45,7 @@ export interface CheckJob {
    * do not set this. In progress, follows `push` only.
    */
   hasRisks: boolean;
-  /** True only when the scan payload set `static_fallback: true`. */
+  /** True when the scan payload set `mode` to `static_fallback`. */
   staticFallback?: boolean;
   /** `rules_version` when the parser sent a non-empty string. */
   rulesVersion?: string | null;

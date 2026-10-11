@@ -1,6 +1,6 @@
 import { jobHasRisks } from "./finding-status";
 import type { CheckJob, Finding } from "./types";
-import { friendlyPhaseMessage, phaseIndex, PHASE_STEPS } from "./phases";
+import { friendlyPhaseMessage, LIMITED_SCAN_MESSAGE, phaseIndex, PHASE_STEPS } from "./phases";
 import { domainFromUrl } from "./utils";
 
 const MOCK_FINDINGS: Finding[] = [
@@ -78,17 +78,30 @@ const PARTIAL_FINDINGS: Finding[] = [
   },
 ];
 
+const ROBOTS_FINDINGS: Finding[] = [
+  {
+    rule_id: "R01",
+    title: "robots.txt закрыл страницы",
+    fact: "Disallow не дал открыть страницы, правило не применялось.",
+    severity: "info",
+    status: "not_checked",
+    reason: "robots_disallow",
+  },
+];
+
 type MockState = {
   createdAt: number;
   url: string;
   domain: string;
-  variant: "risks" | "ok" | "blocked" | "partial" | "review";
+  variant: "risks" | "ok" | "blocked" | "partial" | "review" | "robots" | "siteblock";
 };
 
 const mockJobs = new Map<string, MockState>();
 
 function pickVariant(url: string): MockState["variant"] {
   const host = domainFromUrl(url).toLowerCase();
+  if (host.includes("robots")) return "robots";
+  if (host.includes("siteblock")) return "siteblock";
   if (host.includes("blocked") || host.includes("fail")) return "blocked";
   if (host.includes("partial") || host.includes("fallback")) return "partial";
   if (host.includes("review")) return "review";
@@ -134,6 +147,27 @@ export function mockGetScan(id: string): CheckJob | null {
     PHASE_STEPS.length,
     Math.floor(elapsed / stepMs)
   );
+
+  if (step >= PHASE_STEPS.length && (state.variant === "robots" || state.variant === "siteblock")) {
+    const robots = state.variant === "robots";
+    return {
+      id,
+      url: state.url,
+      domain,
+      phase: robots ? "blocked_by_robots" : "blocked_by_site",
+      phaseMessage: LIMITED_SCAN_MESSAGE,
+      score: null,
+      findings: robots ? ROBOTS_FINDINGS : [],
+      hasRisks: false,
+      staticFallback: false,
+      rulesVersion: null,
+      error: null,
+      pdfReady: false,
+      createdAt: new Date(state.createdAt).toISOString(),
+      updatedAt: new Date().toISOString(),
+      mock: true,
+    };
+  }
 
   if (step >= PHASE_STEPS.length) {
     const findings =

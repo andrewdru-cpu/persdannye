@@ -9,13 +9,20 @@ import { CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { findingStatusLabel, isViolation, violationCount } from "@/lib/finding-status";
 import { pollCheck, runCheck } from "@/lib/forms-client";
 import { isDirectForms } from "@/lib/forms-mode";
-import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
+import { ACTIVE_POLL_MS, isLimitedScan, LIMITED_SCAN_MESSAGE, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import { publicCheckPdfUrl } from "@/lib/public-api";
 import type { CheckJob, Finding } from "@/lib/types";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { LeadForm } from "@/components/landing/LeadForm";
 
-type Status = "idle" | "running" | "done" | "error";
+type Status = "idle" | "running" | "done" | "error" | "limited";
+
+function finishedStatus(phase: string): Status | null {
+  if (isLimitedScan(phase)) return "limited";
+  if (phase === "done") return "done";
+  if (phase === "error" || phase === "blocked") return "error";
+  return null;
+}
 
 const severityRu: Record<string, string> = {
   critical: "Критично",
@@ -151,9 +158,8 @@ export function UrlChecker({
         const next = await pollCheck(jobId, jobRef.current);
         if (cancelled) return;
         setJob(next);
-        if (["done", "error", "blocked"].includes(String(next.phase))) {
-          setStatus(next.phase === "done" ? "done" : "error");
-        }
+        const finished = finishedStatus(String(next.phase));
+        if (finished) setStatus(finished);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "Ошибка опроса");
@@ -202,9 +208,8 @@ export function UrlChecker({
       });
       if (direct) captchaRef.current?.reset();
       setJob(next);
-      if (["done", "error", "blocked"].includes(String(next.phase))) {
-        setStatus(next.phase === "done" ? "done" : "error");
-      }
+      const finished = finishedStatus(String(next.phase));
+      if (finished) setStatus(finished);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
       setStatus("error");
@@ -213,7 +218,7 @@ export function UrlChecker({
 
   const shownPhase = job?.phase || "queued";
   const step = phaseIndex(String(shownPhase));
-  const terminal = ["done", "error", "blocked"].includes(String(job?.phase));
+  const terminal = Boolean(finishedStatus(String(job?.phase || "")));
   const phaseProgress = terminal
     ? 100
     : Math.max(8, Math.round(((Math.max(step, 0) + 1) / (PHASE_STEPS.length + 1)) * 100));
@@ -533,7 +538,63 @@ export function UrlChecker({
           </motion.div>
         )}
 
-        {(status === "error" || job?.phase === "blocked") && (
+        {status === "limited" && job && (
+          <motion.div
+            key="limited"
+            initial={reduce ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={reduce ? { duration: 0 } : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="relative mt-6 space-y-5"
+          >
+            <div className="glass-card border-amber-200/35 bg-amber-400/10 p-5 md:p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+                Готово за {elapsedSec} с
+              </p>
+              <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
+                {LIMITED_SCAN_MESSAGE}
+              </h3>
+              <p className="mt-2 text-sm text-white/70">
+                Автоматический обход {domain || "сайта"} остановился. Это не ошибка и не нарушение.
+              </p>
+              {job.rulesVersion ? (
+                <p className="mt-2 text-xs text-white/45">Версия правил: {job.rulesVersion}</p>
+              ) : null}
+            </div>
+
+            {job.staticFallback ? (
+              <p className="rounded-2xl border border-amber-200/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+                Сайт проверен частично
+              </p>
+            ) : null}
+
+            {job.findings.length > 0 ? (
+              <ul className="space-y-3">
+                {job.findings.map((f) => (
+                  <FindingCard key={f.rule_id + f.title} f={f} />
+                ))}
+              </ul>
+            ) : null}
+
+            <div className="glass-card glass-card-gold p-5 md:p-6">
+              <h4 className="font-display text-2xl font-semibold text-white md:text-3xl">
+                Заявка на ручную проверку
+              </h4>
+              <p className="mt-1 text-sm leading-relaxed text-white/65">
+                Оставьте контакты — проверим {domain || "сайт"} вручную.
+              </p>
+              <div className="mt-4">
+                <LeadForm
+                  defaultUrl={job.url}
+                  checkId={job.id}
+                  source="check-manual"
+                  cta="Оставить заявку на ручную проверку"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {(status === "error" || job?.phase === "blocked") && status !== "limited" && (
           <motion.div
             key="err"
             initial={reduce ? false : { opacity: 0, y: 8 }}

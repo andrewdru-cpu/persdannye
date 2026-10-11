@@ -10,6 +10,7 @@ import {
   violationCount,
 } from "../lib/finding-status";
 import { mapUpstreamScan } from "../lib/parser-client";
+import { isLimitedScan, isTerminal, LIMITED_SCAN_MESSAGE } from "../lib/phases";
 import { mapPublicCheck, sanitizeFindings } from "../lib/public-api";
 
 const text = {
@@ -69,8 +70,10 @@ test("push stays a legacy signal only when findings have no status", () => {
   );
   assert.equal(readStaticFallback(undefined), false);
   assert.equal(readStaticFallback(false), false);
+  assert.equal(readStaticFallback(true), false);
   assert.equal(readStaticFallback("true"), false);
-  assert.equal(readStaticFallback(true), true);
+  assert.equal(readStaticFallback("quick"), false);
+  assert.equal(readStaticFallback(" static_fallback "), true);
   assert.equal(readRulesVersion(undefined), null);
   assert.equal(readRulesVersion("  "), null);
   assert.equal(readRulesVersion(" 2026.10 "), "2026.10");
@@ -82,7 +85,7 @@ test("public and BFF mappers share status, fallback, and rules version", () => {
     phase: "done",
     url: "https://shop.example",
     score: 70,
-    static_fallback: true,
+    mode: "static_fallback",
     rules_version: "2026.10",
     push: true,
     findings: [
@@ -109,7 +112,7 @@ test("public and BFF mappers share status, fallback, and rules version", () => {
     {
       status: "done",
       findings: [{ ...text, status: "needs_check" }],
-      static_fallback: false,
+      mode: "quick",
       rules_version: "",
     },
     "https://shop.example",
@@ -122,8 +125,74 @@ test("public and BFF mappers share status, fallback, and rules version", () => {
 
   const absent = sanitizeFindings([{ ...text }]);
   assert.equal(absent[0].status, undefined);
-  const legacy = mapPublicCheck({ status: "done", findings: [{ ...text }] }, "https://shop.example", "old");
+  const legacy = mapPublicCheck(
+    { status: "done", findings: [{ ...text }], static_fallback: true },
+    "https://shop.example",
+    "old"
+  );
   assert.equal(legacy.hasRisks, true);
   assert.equal(legacy.staticFallback, false);
   assert.equal(legacy.rulesVersion, null);
+});
+
+test("robots and site blocks are a manual-check outcome, not a violation or an error", () => {
+  const finding = {
+    ...text,
+    status: "not_checked",
+    reason: "robots_disallow",
+    screenshot: "shot",
+  };
+  for (const status of ["blocked_by_robots", "BLOCKED_BY_SITE"]) {
+    const pub = mapPublicCheck(
+      {
+        status,
+        url: "https://shop.example",
+        error: "timeout",
+        message: "blocked",
+        push: true,
+        findings: [finding],
+        static_fallback: true,
+      },
+      "https://shop.example",
+      "lim"
+    );
+    const bff = mapUpstreamScan(
+      {
+        phase: status,
+        url: "https://shop.example",
+        error: "timeout",
+        message: "blocked",
+        push: true,
+        findings: [finding],
+        static_fallback: true,
+      },
+      "https://shop.example"
+    );
+    for (const job of [pub, bff]) {
+      assert.equal(isLimitedScan(job.phase), true);
+      assert.equal(isTerminal(job.phase), true);
+      assert.equal(job.phaseMessage, LIMITED_SCAN_MESSAGE);
+      assert.equal(job.hasRisks, false);
+      assert.equal(job.error, null);
+      assert.equal(job.staticFallback, false);
+      assert.equal(violationCount(job.findings), 0);
+      assert.equal(job.findings[0].status, "not_checked");
+      assert.equal(job.findings[0].reason, "robots_disallow");
+      assert.equal(isViolation(job.findings[0]), false);
+    }
+  }
+
+  const unchecked = normalizeFindings([{ ...text, reason: "robots_disallow" }]);
+  assert.equal(unchecked[0].reason, "robots_disallow");
+  assert.equal("status" in unchecked[0], false);
+  assert.equal(isViolation(unchecked[0]), false);
+
+  const partial = mapPublicCheck(
+    { status: "done", mode: "STATIC_FALLBACK", findings: [] },
+    "https://shop.example",
+    "part"
+  );
+  assert.equal(partial.staticFallback, true);
+  assert.equal(partial.hasRisks, false);
+  assert.equal(isLimitedScan("done"), false);
 });

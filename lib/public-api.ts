@@ -4,7 +4,7 @@ import {
   readRulesVersion,
   readStaticFallback,
 } from "./finding-status";
-import { friendlyPhaseMessage, normalizePhase } from "./phases";
+import { friendlyPhaseMessage, isLimitedScan, normalizePhase } from "./phases";
 import { SMARTCAPTCHA_TOKEN_FIELD } from "./smartcaptcha";
 import type { CheckJob, Finding } from "./types";
 import { domainFromUrl, normalizeUrl } from "./utils";
@@ -301,12 +301,15 @@ export function mapPublicCheck(body: unknown, fallbackUrl: string, id: string): 
     score,
     findings,
     hasRisks,
-    staticFallback: readStaticFallback(record.static_fallback),
+    staticFallback: readStaticFallback(record.mode),
     rulesVersion: readRulesVersion(record.rules_version),
     pdfReady,
     reportUrl: safeHttpUrl(record.report_url),
     warning: null,
-    error: phase === "error" || phase === "blocked" ? friendlyPhaseMessage(phase, domain) : null,
+    error:
+      isLimitedScan(phase) || (phase !== "error" && phase !== "blocked")
+        ? null
+        : friendlyPhaseMessage(phase, domain),
     createdAt: now,
     updatedAt: now,
     mock: false,

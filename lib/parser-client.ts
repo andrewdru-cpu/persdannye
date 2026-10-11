@@ -2,6 +2,7 @@ import { getParserBase, isParserConfigured, parserFetch, parserJson, readParserB
 import { mockCreateScan, mockGetScan } from "./mock-parser";
 import {
   friendlyPhaseMessage,
+  isLimitedScan,
   isTerminal,
   normalizePhase,
   type ParserPhase,
@@ -38,7 +39,7 @@ interface UpstreamScan {
   score?: number | null;
   findings?: unknown;
   push?: boolean;
-  static_fallback?: unknown;
+  mode?: unknown;
   rules_version?: unknown;
   warning?: string | null;
   error?: string | null;
@@ -148,11 +149,11 @@ function mapUpstream(
     findings,
     hasRisks,
     push,
-    staticFallback: readStaticFallback(data.static_fallback),
+    staticFallback: readStaticFallback(data.mode),
     rulesVersion: readRulesVersion(data.rules_version),
     pdfReady: mock ? false : resolvePdfReady(data, phase),
     warning: data.warning ?? warning ?? null,
-    error: data.error ?? (phase === "error" ? data.message : null) ?? null,
+    error: isLimitedScan(phase) ? null : (data.error ?? (phase === "error" ? data.message : null) ?? null),
     // Phones in /api/scans are always empty; emails are role-based or empty.
     // The UI does not render them. Visitor contacts live only in the BFF store.
     contact: null,
