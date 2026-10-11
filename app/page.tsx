@@ -43,7 +43,7 @@ export default function HomePage() {
       {flags.show_example_result ? <ExampleResult /> : null}
       {flags.show_who_for ? <WhoFor /> : null}
       {flags.show_fix_with_us ? <FixWithUs /> : null}
-      <FAQ todos={showPlaceholderTodos()} />
+      <FAQ todos={showPlaceholderTodos()} showFinesTable={showFines} />
       <LeadSection marketingConsent={marketingConsentEnabled()} />
     </>
   );

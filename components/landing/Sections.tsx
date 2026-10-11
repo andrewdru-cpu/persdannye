@@ -451,8 +451,14 @@ export function DataOnSite() {
   );
 }
 
-export function FAQ({ todos = false }: { todos?: boolean }) {
-  const items = faqItems(todos);
+export function FAQ({
+  todos = false,
+  showFinesTable = false,
+}: {
+  todos?: boolean;
+  showFinesTable?: boolean;
+}) {
+  const items = faqItems(todos, showFinesTable);
   return (
     <section id="faq" className="scroll-mt-24 border-t border-amber-200/10 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">

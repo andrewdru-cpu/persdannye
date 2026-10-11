@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { resolveCalculator, emptyAnswers } from "./calculator.ts";
-import { footerParagraphs } from "./blocks.ts";
+import { faqItems, footerParagraphs } from "./blocks.ts";
 import { flags } from "./flags.ts";
 import { placeholders } from "./placeholders.ts";
 import {
   claimPlaceholders,
   claims,
+  exampleResult,
+  fixWithUs,
   renderHero,
   renderedLandingCopy,
+  whoFor,
 } from "./landing.ts";
 
 /** Рекламные формулировки, которых не должно быть в показанном тексте лендинга. */
@@ -69,8 +72,10 @@ describe("rendered landing copy", () => {
   });
 
   it("does not contain banned advertising phrases", () => {
+    const parked = JSON.stringify({ exampleResult, whoFor, fixWithUs });
     for (const pattern of bannedPatterns) {
       assert.equal(pattern.test(live), false, pattern.source);
+      assert.equal(pattern.test(parked), false, pattern.source);
     }
   });
 
@@ -95,6 +100,9 @@ describe("rendered landing copy", () => {
     assert.equal(live.includes("Суммы для ИП и юрлиц разные"), false);
     assert.equal(live.includes("Диапазоны — по ст. 13.11"), false);
     assert.equal(live.includes("в соответствии с"), false);
+    assert.equal(live.includes("диапазоны — в таблице выше"), false);
+    assert.equal(live.includes("Пример результата"), false);
+    assert.equal(live.includes("Устраним вместе"), false);
   });
 
   it("inserts the time phrase into the main H1 only when time_verified is true", () => {
@@ -146,10 +154,17 @@ describe("publication flags", () => {
     }
   });
 
-  it("shows the extra landing blocks until marketing turns them off", () => {
-    assert.equal(flags.show_example_result, true);
-    assert.equal(flags.show_who_for, true);
-    assert.equal(flags.show_fix_with_us, true);
+  it("keeps the unreviewed landing blocks off, including on preview", () => {
+    assert.equal(flags.show_example_result, false);
+    assert.equal(flags.show_who_for, false);
+    assert.equal(flags.show_fix_with_us, false);
+  });
+
+  it("mentions the fines table in FAQ 2 only when that table is shown", () => {
+    const hidden = faqItems(false, false).find((item) => item.q.startsWith("Что происходит"));
+    const shown = faqItems(false, true).find((item) => item.q.startsWith("Что происходит"));
+    assert.equal(hidden?.a.includes("диапазоны — в таблице выше"), false);
+    assert.equal(shown?.a.includes("диапазоны — в таблице выше"), true);
   });
 
   it("takes the footer operator name from operator_short_name", () => {

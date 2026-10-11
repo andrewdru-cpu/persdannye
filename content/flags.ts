@@ -16,8 +16,8 @@ export const flags = {
   show_accuracy: false as boolean,
   show_prices: false as boolean,
   show_monitoring: false as boolean,
-  /** Блоки вне v1.1. По умолчанию видны, маркетинг может выключить. */
-  show_example_result: true as boolean,
-  show_who_for: true as boolean,
-  show_fix_with_us: true as boolean,
+  /** Блоки вне v1.1. Выключены, пока их не посмотрит юрист, в том числе на превью. */
+  show_example_result: false as boolean,
+  show_who_for: false as boolean,
+  show_fix_with_us: false as boolean,
 };
