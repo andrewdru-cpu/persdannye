@@ -1,4 +1,4 @@
-import { company } from "../lib/company";
+import { company, privacyContactLabel } from "../lib/company";
 
 /**
  * Значения {{плейсхолдеров}} из раздела 8.4.
@@ -12,7 +12,6 @@ export const placeholders: Record<string, string> = {
   policy_url: "/privacy",
   consent_url: "/consent",
   consent_lead_url: "/consent-lead",
-  privacy_contact_email: company.dpoEmail,
   operator_site: company.website,
   operator_short_name: company.shortName,
   operator_full_name: company.legalName,
@@ -20,7 +19,6 @@ export const placeholders: Record<string, string> = {
   operator_inn: company.inn,
   operator_ogrn: company.ogrn,
   operator_address: company.address,
-  operator_email_pd: company.dpoEmail,
   retention_months_goal1: "36 месяцев",
   marketing_consent_term: "3 года",
 };
@@ -29,6 +27,9 @@ const token = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;
 
 export function fillPlaceholders(input: string, todos: boolean): string {
   return input.replace(token, (match, key: string) => {
+    if (key === "privacy_contact_email" || key === "operator_email_pd") {
+      return privacyContactLabel() ?? "";
+    }
     const value = placeholders[key];
     if (value) return value;
     if (todos) return `TODO: ${key}`;

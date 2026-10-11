@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { company } from "@/lib/company";
+import { company, privacyContactLabel } from "@/lib/company";
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение",
@@ -98,7 +98,10 @@ export default function TermsPage() {
         <p>{company.legalName}</p>
         <p>ИНН {company.inn}, ОГРН {company.ogrn}</p>
         <p>{company.address}</p>
-        <p>{company.email} · {company.phone}</p>
+        <p>
+          {privacyContactLabel() ? <>{privacyContactLabel()} · </> : null}
+          {company.phone}
+        </p>
       </Sec>
     </article>
   );

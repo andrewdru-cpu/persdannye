@@ -3,7 +3,8 @@ import { describe, it } from "node:test";
 import { resolveCalculator, emptyAnswers } from "./calculator.ts";
 import { faqItems, footerParagraphs, formCopy } from "./blocks.ts";
 import { flags } from "./flags.ts";
-import { placeholders } from "./placeholders.ts";
+import { fillPlaceholders, placeholders } from "./placeholders.ts";
+import { company, privacyContactLabel, PRIVACY_CONTACT_TODO } from "../lib/company.ts";
 import {
   claimPlaceholders,
   claims,
@@ -60,6 +61,7 @@ const bannedPatterns: RegExp[] = [
   /помощь\s+специалиста/iu,
   /устраним\s+риск/iu,
   /исправим\s+за\s+вас/iu,
+  /@persdannye\.ru/iu,
 ];
 
 const timeClaim = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)/iu;
@@ -184,6 +186,25 @@ describe("publication flags", () => {
     const shown = faqItems(false, true).find((item) => item.q.startsWith("Что происходит"));
     assert.equal(hidden?.a.includes("диапазоны — в таблице выше"), false);
     assert.equal(shown?.a.includes("диапазоны — в таблице выше"), true);
+  });
+
+  it("maps both mail placeholders to the empty privacy contact", () => {
+    assert.equal(company.privacy_contact_email, "");
+    assert.equal("dpoEmail" in company, false);
+    assert.equal(privacyContactLabel("", "production"), null);
+    assert.equal(privacyContactLabel("", "preview"), PRIVACY_CONTACT_TODO);
+    const previous = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = "preview";
+    try {
+      assert.equal(fillPlaceholders("{{privacy_contact_email}}", true), PRIVACY_CONTACT_TODO);
+      assert.equal(fillPlaceholders("{{operator_email_pd}}", true), PRIVACY_CONTACT_TODO);
+      process.env.VERCEL_ENV = "production";
+      assert.equal(fillPlaceholders("{{operator_email_pd}}", false), "");
+      assert.equal(fillPlaceholders("{{privacy_contact_email}}", false), "");
+    } finally {
+      if (previous === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = previous;
+    }
   });
 
   it("takes the footer operator name from operator_short_name", () => {
