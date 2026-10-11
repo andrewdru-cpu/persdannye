@@ -41,7 +41,7 @@ export function normalizeScanContact(
   };
   if (input.consent === true) {
     contact.consent = true;
-    contact.consent_text_version = input.consent_text_version?.trim() || CONSENT_TEXT_VERSION;
+    contact.consent_text_version = CONSENT_TEXT_VERSION;
   }
   return contact;
 }
@@ -60,8 +60,7 @@ export function mergeScanContact(
     ...(consent
       ? {
           consent: true as const,
-          consent_text_version:
-            primary?.consent_text_version || fallback?.consent_text_version || CONSENT_TEXT_VERSION,
+          consent_text_version: CONSENT_TEXT_VERSION,
         }
       : {}),
   };
@@ -92,7 +91,7 @@ export async function saveScanContact(
     ...(contact.consent === true
       ? {
           consent: true as const,
-          consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
+          consent_text_version: CONSENT_TEXT_VERSION,
         }
       : {}),
     url,

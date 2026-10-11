@@ -15,7 +15,6 @@ const bodySchema = z.object({
       email: z.string().trim().max(200).optional(),
       phone: z.string().trim().max(40).optional(),
       consent: z.boolean().optional(),
-      consent_text_version: z.string().trim().max(64).optional(),
     })
     .optional(),
 });
@@ -51,7 +50,6 @@ export async function POST(req: Request) {
             email,
             phone,
             consent: lead?.consent,
-            consent_text_version: lead?.consent_text_version,
           }
         : undefined
     );

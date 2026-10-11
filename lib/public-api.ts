@@ -10,6 +10,7 @@ import { SMARTCAPTCHA_TOKEN_FIELD } from "./smartcaptcha";
 import type { CheckJob, Finding } from "./types";
 import { domainFromUrl, normalizeUrl } from "./utils";
 import { getPublicApiBase } from "./forms-mode";
+import { CONSENT_TEXT_VERSION } from "../content/consent";
 
 export class PublicApiError extends Error {
   status: number;
@@ -94,19 +95,18 @@ function requireCaptcha(token: string | undefined): string {
   return smartToken;
 }
 
-function requireConsent(accepted: boolean | undefined, textVersion: string | undefined): {
+function requireConsent(accepted: boolean | undefined): {
   accepted: true;
   text_version: string;
 } {
-  const version = textVersion?.trim() || "";
-  if (accepted !== true || !version) {
+  if (accepted !== true) {
     throw new PublicApiError(
       "Нужно согласие на обработку персональных данных",
       422,
       "consent_required"
     );
   }
-  return { accepted: true, text_version: version };
+  return { accepted: true, text_version: CONSENT_TEXT_VERSION };
 }
 
 export function buildPublicCheckBody(input: PublicCheckInput): Record<string, unknown> {
@@ -123,7 +123,7 @@ export function buildPublicCheckBody(input: PublicCheckInput): Record<string, un
   const contacts = compactContact(input);
   if (contacts) {
     body.contacts = contacts;
-    body.consent = requireConsent(input.consentAccepted, input.textVersion);
+    body.consent = requireConsent(input.consentAccepted);
   }
   return body;
 }
@@ -153,7 +153,7 @@ export function buildPublicLeadBody(input: PublicLeadInput): Record<string, unkn
     ...(message ? { message } : {}),
     ...(source ? { source } : {}),
     [SMARTCAPTCHA_TOKEN_FIELD]: requireCaptcha(input.smartToken),
-    consent: requireConsent(input.consentAccepted, input.textVersion),
+    consent: requireConsent(input.consentAccepted),
   };
 }
 
@@ -180,6 +180,9 @@ export function publicErrorMessage(status: number, body: unknown): string {
   const code = publicErrorCode(body);
   if (code === "consent_required") {
     return "Нужно согласие на обработку персональных данных";
+  }
+  if (code === "consent_version_unknown") {
+    return "Обновите страницу и повторите";
   }
   if (status === 429 || code === "rate_limited" || code === "too_many_requests") {
     return "Слишком много запросов. Попробуйте чуть позже.";

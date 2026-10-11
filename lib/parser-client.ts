@@ -193,7 +193,7 @@ function scanCreateBody(
       ...(contact.email ? { email: contact.email } : {}),
       ...(contact.phone ? { phone: contact.phone } : {}),
       consent: true,
-      consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
+      consent_text_version: CONSENT_TEXT_VERSION,
       source: "landing",
     };
   }

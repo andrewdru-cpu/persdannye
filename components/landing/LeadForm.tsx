@@ -4,7 +4,7 @@ import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { SmartCaptcha, type SmartCaptchaHandle } from "@/components/captcha/SmartCaptcha";
 import { Button } from "@/components/ui/Button";
-import { LEAD_CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { CONSENT_POLICY_LABEL, CONSENT_TEXT } from "@/content/consent";
 import { runLead } from "@/lib/forms-client";
 import { isDirectForms } from "@/lib/forms-mode";
 
@@ -54,7 +54,6 @@ export function LeadForm({
         message: message || undefined,
         source,
         consentAccepted: true,
-        textVersion: LEAD_CONSENT_TEXT_VERSION,
         smartToken: direct ? captchaRef.current?.getToken() || "" : undefined,
       });
       if (direct) captchaRef.current?.reset();
@@ -124,11 +123,11 @@ export function LeadForm({
           required
         />
         <span>
-          Даю согласие на обработку персональных данных в соответствии с{" "}
+          {CONSENT_TEXT.slice(0, CONSENT_TEXT.indexOf(CONSENT_POLICY_LABEL))}
           <Link href="/privacy" className="text-amber-300 hover:underline">
-            Политикой обработки ПДн
+            {CONSENT_POLICY_LABEL}
           </Link>
-          . *
+          {" *"}
         </span>
       </label>
       {direct && (

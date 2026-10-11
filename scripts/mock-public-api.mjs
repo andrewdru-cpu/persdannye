@@ -8,6 +8,8 @@
  *   Same body for every email. access carries no personal data.
  *
  * Contacts without consent.accepted and text_version -> 422 consent_required.
+ * text_version outside CONSENT_TEXT_VERSIONS -> 422 consent_version_unknown.
+ * The allowlist matches content/consent.ts (persdannye#4): "2026-10-11".
  * The status payload deliberately includes contact-like fields so the site
  * client can prove it drops them.
  */
@@ -25,6 +27,17 @@ function send(res, status, body, contentType = "application/json; charset=utf-8"
     "Cache-Control": "no-store",
   });
   res.end(payload);
+}
+
+const CONSENT_TEXT_VERSIONS = new Set(["2026-10-11"]);
+
+function consentError(body) {
+  const consent = body?.consent;
+  if (consent?.accepted !== true || typeof consent?.text_version !== "string" || !consent.text_version) {
+    return "consent_required";
+  }
+  if (!CONSENT_TEXT_VERSIONS.has(consent.text_version)) return "consent_version_unknown";
+  return null;
 }
 
 function hasContacts(body) {
@@ -68,9 +81,9 @@ export function createMockPublicApi() {
         return;
       }
       if (hasContacts(body)) {
-        const consent = body.consent;
-        if (consent?.accepted !== true || typeof consent?.text_version !== "string" || !consent.text_version) {
-          send(res, 422, { error: "consent_required" });
+        const consentCode = consentError(body);
+        if (consentCode) {
+          send(res, 422, { error: consentCode });
           return;
         }
       }
@@ -197,9 +210,9 @@ export function createMockPublicApi() {
     }
 
     if (req.method === "POST" && url.pathname === "/public/lead") {
-      const consent = body?.consent;
-      if (consent?.accepted !== true || typeof consent?.text_version !== "string" || !consent.text_version) {
-        send(res, 422, { error: "consent_required" });
+      const consentCode = consentError(body);
+      if (consentCode) {
+        send(res, 422, { error: consentCode });
         return;
       }
       if (typeof body?.smart_token !== "string" || !body.smart_token.trim()) {

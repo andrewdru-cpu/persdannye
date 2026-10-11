@@ -3,20 +3,24 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import test from "node:test";
+import { CONSENT_POLICY_LABEL, CONSENT_TEXT, CONSENT_TEXT_VERSION } from "../content/consent";
 import { createMockPublicApi } from "../scripts/mock-public-api.mjs";
 import { rejectDirectModeBff } from "../lib/bff-guard";
 import { checkForDisplay } from "../lib/check-view";
 import { landingScanCreateBody, publicCheckJob, SITE_FORM_ORIGIN } from "../lib/parser-client";
+import { normalizeScanContact } from "../lib/scan-contacts";
 import { contentSecurityPolicy, SMARTCAPTCHA_ORIGINS } from "../lib/csp";
 import { pollCheck, runCheck, runLead } from "../lib/forms-client";
 import { getFormsMode } from "../lib/forms-mode";
 import {
   buildPublicCheckBody,
+  buildPublicLeadBody,
   createPublicCheck,
   getPublicCheck,
   joinPublicApi,
   mapPublicCheck,
   publicCheckPdfUrl,
+  publicErrorMessage,
   PublicApiError,
 } from "../lib/public-api";
 import { shouldLoadSmartCaptcha, SMARTCAPTCHA_SCRIPT_SRC } from "../lib/smartcaptcha";
@@ -33,6 +37,94 @@ function saveEnv(keys: string[]) {
     }
   };
 }
+
+test("consent version stays the persdannye#4 string and the client cannot replace it", async () => {
+  assert.equal(CONSENT_TEXT_VERSION, "2026-10-11");
+  assert.equal(
+    CONSENT_TEXT,
+    "Я даю согласие на обработку персональных данных в соответствии с Политикой обработки персональных данных"
+  );
+  assert.equal(CONSENT_TEXT.endsWith(CONSENT_POLICY_LABEL), true);
+  const libConsent = fs.readFileSync(path.join(root, "lib/consent.ts"), "utf8");
+  assert.equal(libConsent.includes("2026-10-11"), false);
+  const checker = fs.readFileSync(path.join(root, "components/check/UrlChecker.tsx"), "utf8");
+  const leadForm = fs.readFileSync(path.join(root, "components/landing/LeadForm.tsx"), "utf8");
+  assert.equal(checker.includes("CONSENT_TEXT"), true);
+  assert.equal(leadForm.includes("CONSENT_TEXT"), true);
+  assert.equal(checker.includes("textVersion"), false);
+  assert.equal(leadForm.includes("textVersion"), false);
+
+  const forged = "1999-01-01";
+  const check = buildPublicCheckBody({
+    url: "example.ru",
+    email: "a@b.c",
+    consentAccepted: true,
+    textVersion: forged,
+    smartToken: "tok",
+  });
+  assert.equal((check.consent as { text_version: string }).text_version, CONSENT_TEXT_VERSION);
+  assert.equal(JSON.stringify(check).includes(forged), false);
+
+  const lead = buildPublicLeadBody({
+    name: "Анна",
+    email: "a@b.c",
+    consentAccepted: true,
+    textVersion: forged,
+    smartToken: "tok",
+  });
+  assert.equal((lead.consent as { text_version: string }).text_version, CONSENT_TEXT_VERSION);
+
+  const stored = normalizeScanContact({
+    email: "a@b.c",
+    consent: true,
+    consent_text_version: forged,
+  });
+  assert.equal(stored?.consent_text_version, CONSENT_TEXT_VERSION);
+
+  assert.equal(publicErrorMessage(422, { error: "consent_version_unknown" }), "Обновите страницу и повторите");
+  assert.equal(
+    publicErrorMessage(422, { detail: { code: "consent_version_unknown" } }),
+    "Обновите страницу и повторите"
+  );
+
+  const restore = saveEnv(["NEXT_PUBLIC_FORMS_MODE", "NEXT_PUBLIC_PUBLIC_API_BASE"]);
+  process.env.NEXT_PUBLIC_FORMS_MODE = "direct";
+  process.env.NEXT_PUBLIC_PUBLIC_API_BASE = "http://127.0.0.1:9";
+  const mock = createMockPublicApi();
+  try {
+    await assert.rejects(
+      () =>
+        createPublicCheck(
+          {
+            url: "https://example.ru",
+            email: "a@b.c",
+            consentAccepted: true,
+            textVersion: forged,
+            smartToken: "tok",
+          },
+          async () => Response.json({ error: "consent_version_unknown" }, { status: 422 })
+        ),
+      (err: unknown) => err instanceof PublicApiError && err.message === "Обновите страницу и повторите"
+    );
+
+    const origin = await mock.listen();
+    const bad = await fetch(`${origin}/public/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: "https://example.ru",
+        smart_token: "tok",
+        contacts: { email: "a@b.c" },
+        consent: { accepted: true, text_version: forged },
+      }),
+    });
+    assert.equal(bad.status, 422);
+    assert.deepEqual(await bad.json(), { error: "consent_version_unknown" });
+  } finally {
+    restore();
+    await mock.close();
+  }
+});
 
 test("default forms mode is bff and does not load SmartCaptcha", () => {
   const restore = saveEnv(["NEXT_PUBLIC_FORMS_MODE"]);
@@ -80,7 +172,7 @@ test("bff check and lead still post to this site's /api routes", async () => {
         email: "anna@example.com",
         phone: "+79990000000",
         consentAccepted: true,
-        textVersion: "2026-10-11",
+        textVersion: "not-the-allowlist",
       },
       fetchImpl
     );
@@ -384,8 +476,9 @@ test("BFF labels scans with origin site_form and the UI drops scan contacts", as
     email: "ivan@example.com",
     phone: "+79990000000",
     consent: true,
-    consent_text_version: "2026-10-11",
+    consent_text_version: "not-the-allowlist",
   });
+  assert.equal((withLead.lead as { consent_text_version: string }).consent_text_version, "2026-10-11");
   assert.equal(withLead.origin, SITE_FORM_ORIGIN);
   assert.equal(withLead.mode, "quick");
   assert.equal((withLead.lead as { email: string }).email, "ivan@example.com");

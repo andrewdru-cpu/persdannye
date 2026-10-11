@@ -1,3 +1,4 @@
+import { CONSENT_TEXT_VERSION } from "../content/consent";
 import { checkForDisplay } from "./check-view";
 import { isDirectForms } from "./forms-mode";
 import {
@@ -27,7 +28,7 @@ function bffCheckBody(input: CheckFormInput): Record<string, unknown> {
         email,
         phone,
         consent: true,
-        consent_text_version: input.textVersion,
+        consent_text_version: CONSENT_TEXT_VERSION,
       },
     };
   }

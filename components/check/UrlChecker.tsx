@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { SmartCaptcha, type SmartCaptchaHandle } from "@/components/captcha/SmartCaptcha";
 import { Button } from "@/components/ui/Button";
-import { CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { CONSENT_POLICY_LABEL, CONSENT_TEXT } from "@/content/consent";
 import {
   findingStatusLabel,
   INVENTORY_HEADING,
@@ -242,7 +242,6 @@ export function UrlChecker({
         email: hasContact ? email || undefined : undefined,
         phone: hasContact ? phone || undefined : undefined,
         consentAccepted: hasContact ? true : undefined,
-        textVersion: hasContact ? CONSENT_TEXT_VERSION : undefined,
         smartToken: direct ? captchaRef.current?.getToken() || "" : undefined,
       });
       if (direct) captchaRef.current?.reset();
@@ -353,9 +352,9 @@ export function UrlChecker({
                 className="mt-0.5 accent-amber-400"
               />
               <span>
-                Я даю согласие на обработку персональных данных в соответствии с{" "}
+                {CONSENT_TEXT.slice(0, CONSENT_TEXT.indexOf(CONSENT_POLICY_LABEL))}
                 <Link href="/privacy" className="text-amber-300 hover:underline">
-                  Политикой обработки персональных данных
+                  {CONSENT_POLICY_LABEL}
                 </Link>
               </span>
             </label>
