@@ -11,6 +11,7 @@
 #   **/__tests__/**
 #   .github/**
 # Любая ошибка (нет истории git, битый SHA, сбой diff) — собирать, exit 1.
+# Пустой diff тоже пропускается: так не тратится дневной лимит на повтор того же дерева.
 # Проверка списков без git: sh scripts/vercel-ignore.sh --paths < paths.txt
 
 is_skippable() {
