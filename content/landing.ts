@@ -35,7 +35,6 @@ export const cta = {
 
 export const heroChrome = {
   badge: "152-ФЗ",
-  kicker: "Для собственника без штатного юриста",
   facts: [
     { k: "URL", v: "достаточно" },
     { k: "план", v: "исправлений" },
@@ -143,7 +142,7 @@ export const claimPlaceholders = {
 
 const HERO_CTA = "Проверить сайт";
 
-const MAIN_HEADLINE = "Проверьте сайт на соответствие 152-ФЗ — и получите план, что исправить";
+const MAIN_HEADLINE = "Проверка сайта на 152-ФЗ";
 
 export type ResolvedHero = {
   headline: string;
@@ -161,7 +160,7 @@ export type HeroRenderOptions = {
 
 function mainHeadline(timeVerified: boolean): string {
   if (!timeVerified) return MAIN_HEADLINE;
-  return `Проверьте сайт на соответствие 152-ФЗ ${claimPlaceholders.time} — и получите план, что исправить`;
+  return `Проверка сайта на 152-ФЗ ${claimPlaceholders.time}`;
 }
 
 /** Срок и число проверок только при своих флагах. */

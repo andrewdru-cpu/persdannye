@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { resolveCalculator, emptyAnswers } from "./calculator.ts";
-import { checkGroupsTitle, faqItems, footerParagraphs, formCopy } from "./blocks.ts";
+import { checkGroupsTitle, faqItems, footerParagraphs, formCopy, howSteps } from "./blocks.ts";
 import { leadConsent, marketingConsent, reportConsent } from "./consents.ts";
 import { flags } from "./flags.ts";
 import { fillPlaceholders, placeholders } from "./placeholders.ts";
@@ -88,9 +88,8 @@ const bannedPatterns: RegExp[] = [
 const timeClaim = /за\s+(?:60\s+секунд|минуту|несколько\s+минут)/iu;
 const countPhraseBans = [/десятк/iu, /все\s+требования\s+152-ФЗ/iu, /полная\s+проверка/iu];
 
-const MAIN_H1 = "Проверьте сайт на соответствие 152-ФЗ — и получите план, что исправить";
-const MAIN_H1_TIME =
-  "Проверьте сайт на соответствие 152-ФЗ за несколько минут — и получите план, что исправить";
+const MAIN_H1 = "Проверка сайта на 152-ФЗ";
+const MAIN_H1_TIME = "Проверка сайта на 152-ФЗ за несколько минут";
 const SUB =
   "Политика, согласия, cookie, формы и сторонние сервисы — проверяем публичную часть сайта. Автоматическая проверка, не является юридической консультацией.";
 
@@ -119,6 +118,9 @@ describe("rendered landing copy", () => {
     const resolved = renderHero();
     assert.equal(resolved.headline, MAIN_H1);
     assert.equal(resolved.subline, SUB);
+    assert.equal(live.includes("Для собственника без штатного юриста"), false);
+    assert.equal(live.includes("и получите план, что исправить"), false);
+    assert.equal(howSteps.length, 4);
     assert.equal(resolved.cta, "Проверить сайт");
     assert.equal(timeClaim.test(live), false);
     assert.equal(live.includes(claimPlaceholders.time), false);

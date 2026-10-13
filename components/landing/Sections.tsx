@@ -90,21 +90,12 @@ export function Hero({
             <span className="h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_12px_rgba(231,211,161,0.9)]" />
             {heroChrome.badge}
           </motion.div>
-          <motion.p
-            custom={1}
-            variants={reduce ? undefined : heroLine}
-            initial={reduce ? false : "hidden"}
-            animate="show"
-            className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-200/80"
-          >
-            {heroChrome.kicker}
-          </motion.p>
           <motion.h1
             custom={2}
             variants={reduce ? undefined : heroLine}
             initial={reduce ? false : "hidden"}
             animate="show"
-            className="mt-3 max-w-2xl text-balance font-display text-[2.15rem] font-semibold leading-[1.05] text-white sm:text-5xl md:text-6xl"
+            className="mt-6 max-w-2xl text-balance font-display text-[2.15rem] font-semibold leading-[1.05] text-white sm:text-5xl md:text-6xl"
           >
             <HeroHeadline headline={headline} highlight={highlight} sheen={!reduce} />
           </motion.h1>
@@ -228,12 +219,12 @@ export function HowItWorks() {
             Как это работает
           </h2>
           <p className="mt-3 max-w-2xl text-white/60">
-            Три шага: адрес, отчёт и план, что исправить.
+            Адрес, проверка, отчёт и план исправлений.
           </p>
         </Reveal>
 
         <div className="relative mt-10">
-          <div className="pointer-events-none absolute left-0 right-0 top-8 hidden h-px lg:block">
+          <div className="pointer-events-none absolute left-[2.625rem] right-[calc((100%-3rem)/4-2.625rem)] top-[1.375rem] hidden h-px lg:block">
             <motion.div
               className="h-full origin-left bg-gradient-to-r from-amber-400/0 via-amber-400/60 to-amber-400/0"
               initial={reduce ? { scaleX: 1 } : { scaleX: 0 }}
