@@ -32,7 +32,7 @@ export function FinesAmounts() {
       >
         <div className="mx-auto max-w-6xl px-4 md:px-6">
           <Reveal>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
               {finesUi.eyebrow}
             </p>
             <h2
@@ -123,7 +123,7 @@ export function FinesAmounts() {
             <figcaption className="font-display text-3xl font-semibold text-white">
               {finesUi.chartTitle}
             </figcaption>
-            <p className="mt-2 max-w-2xl text-sm text-white/65">{finesUi.chartCaption}</p>
+            <p className="mt-2 max-w-2xl text-sm text-white/80">{finesUi.chartCaption}</p>
             <ul className="mt-6 space-y-5">
               {finesCatalog.rows.map((row) => (
                 <li key={row.id}>
@@ -193,7 +193,7 @@ function BarRow({
   const fill = tone === "strong" ? "rgba(243,230,196,0.92)" : "rgba(198,161,91,0.72)";
   return (
     <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 sm:grid-cols-[4.25rem_minmax(0,1fr)_auto]">
-      <span className="text-[11px] uppercase tracking-[0.14em] text-white/55">{name}</span>
+      <span className="text-[11px] uppercase tracking-[0.14em] text-white/80">{name}</span>
       <svg viewBox="0 0 100 8" className="h-2 w-full" preserveAspectRatio="none" role="presentation">
         <rect x="0" y="0" width="100" height="8" rx="4" fill="rgba(255,255,255,0.08)" />
         <rect x="0" y="0" width={width} height="8" rx="4" fill={fill} />

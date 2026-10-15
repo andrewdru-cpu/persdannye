@@ -1,20 +1,26 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { flags } from "@/content/flags";
+import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение",
+  robots: flags.show_terms ? undefined : { index: false, follow: false },
 };
 
 export default function TermsPage() {
+  if (!flags.show_terms) {
+    return <LegalPending title="Пользовательское соглашение" />;
+  }
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">
         Пользовательское соглашение (публичная оферта)
       </h1>
-      <p className="mt-2 text-sm text-white/45">
+      <p className="mt-2 text-sm text-white/80">
         Редакция от 21.09.2026 · {company.legalName}
       </p>
 

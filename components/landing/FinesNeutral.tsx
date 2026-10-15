@@ -11,7 +11,7 @@ export function FinesNeutral() {
     >
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             {finesNeutralCopy.eyebrow}
           </p>
           <h2

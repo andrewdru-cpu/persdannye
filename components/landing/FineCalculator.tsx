@@ -62,7 +62,7 @@ export function FineCalculator({
     >
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             {calculatorUi.eyebrow}
           </p>
           <h2
@@ -130,7 +130,7 @@ export function FineCalculator({
                     />
                     <span>
                       <span className="block text-sm font-medium text-white">{issue.label}</span>
-                      <span className="mt-1 block text-xs leading-relaxed text-white/65">
+                      <span className="mt-1 block text-xs leading-relaxed text-white/80">
                         {issue.hint}
                       </span>
                       {issue.likely ? (
@@ -161,13 +161,13 @@ export function FineCalculator({
                 <p className="mt-2 font-display text-3xl font-semibold text-white md:text-4xl">
                   {formatRub(total.min)} — {formatRub(total.max)}
                 </p>
-                <p className="mt-2 text-xs leading-relaxed text-white/65">{calculatorUi.resultHint}</p>
+                <p className="mt-2 text-xs leading-relaxed text-white/80">{calculatorUi.resultHint}</p>
                 <ul className="mt-4 space-y-1.5 text-sm text-white/80">
                   {lines.map((line) => (
                     <li key={line.id} className="flex flex-wrap justify-between gap-x-4 gap-y-1">
                       <span>
                         {line.label}{" "}
-                        <span className="text-white/50">· {line.norm}</span>
+                        <span className="text-white/80">· {line.norm}</span>
                         {line.likely ? (
                           <span className="mt-0.5 block text-xs text-amber-100/85">{likelyNote}</span>
                         ) : null}
@@ -180,7 +180,7 @@ export function FineCalculator({
                 </ul>
               </>
             )}
-            <p className="mt-4 text-xs leading-relaxed text-white/65">{excludedNote}</p>
+            <p className="mt-4 text-xs leading-relaxed text-white/80">{excludedNote}</p>
             <LegalDisclaimer className="mt-3" />
           </div>
         </div>

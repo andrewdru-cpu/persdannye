@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Manrope, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -9,22 +9,27 @@ import { AnalyticsGate } from "@/components/layout/AnalyticsGate";
 import { SiteAtmosphere } from "@/components/motion/SiteAtmosphere";
 import { company } from "@/lib/company";
 
-const manrope = Manrope({
+const manrope = localFont({
+  src: "./fonts/Manrope-wght.ttf",
   variable: "--font-manrope",
-  subsets: ["latin", "cyrillic"],
+  weight: "200 800",
   display: "swap",
+  adjustFontFallback: "Arial",
 });
 
-const display = Cormorant_Garamond({
+const display = localFont({
+  src: "./fonts/CormorantGaramond-wght.ttf",
   variable: "--font-cormorant",
-  subsets: ["latin", "cyrillic"],
-  weight: ["500", "600", "700"],
+  weight: "300 700",
   display: "swap",
+  adjustFontFallback: "Times New Roman",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/GeistMono-wght.ttf",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -47,10 +52,13 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} ${display.variable} ${geistMono.variable} relative min-h-screen bg-ink-950 text-foreground antialiased`}
       >
+        <a className="skip-link" href="#content">
+          К содержанию
+        </a>
         <SiteAtmosphere />
         <div className="relative z-[1]">
           <Header />
-          <main>{children}</main>
+          <main id="content">{children}</main>
           <Footer />
           <CookieBanner />
           <AnalyticsGate />

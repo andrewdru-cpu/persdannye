@@ -140,7 +140,7 @@ export function Hero({
             {heroChrome.facts.map(({ k, v }) => (
               <div key={v}>
                 <dt className="font-display text-2xl text-amber-100 sm:text-3xl">{k}</dt>
-                <dd className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/50 sm:text-xs">
+                <dd className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/80 sm:text-xs">
                   {v}
                 </dd>
               </div>
@@ -161,7 +161,7 @@ export function Hero({
                 <div className="font-display text-3xl font-semibold text-white">
                   {heroChrome.checkerTitle}
                 </div>
-                <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/55">
+                <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/80">
                   {heroChrome.checkerText}
                 </p>
               </div>
@@ -196,7 +196,7 @@ export function Trust() {
               <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">
                 {item.t}
               </div>
-              <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/55">{item.d}</p>
+              <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/80">{item.d}</p>
             </div>
           ))}
         </div>
@@ -212,13 +212,13 @@ export function HowItWorks() {
     <section id="how" className="scroll-mt-24 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             Процесс
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             Как это работает
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">
+          <p className="mt-3 max-w-2xl text-white/80">
             Адрес, проверка, отчёт и план исправлений.
           </p>
         </Reveal>
@@ -252,7 +252,7 @@ export function HowItWorks() {
                     {s.n}
                   </motion.div>
                   <div className="mt-4 font-display text-2xl font-semibold text-white">{s.t}</div>
-                  <p className="mt-2 text-sm text-white/60">{s.d}</p>
+                  <p className="mt-2 text-sm text-white/80">{s.d}</p>
                 </motion.div>
               </StaggerItem>
             ))}
@@ -268,7 +268,7 @@ export function WhatWeCheck() {
     <section id="checks" className="scroll-mt-24 border-y border-amber-200/10 bg-ink-975/80 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             Контроль
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
@@ -280,7 +280,7 @@ export function WhatWeCheck() {
             <StaggerItem key={item.t}>
               <div className="glass-card px-4 py-4 text-sm text-white/75">
                 <div className="font-display text-2xl text-white">{item.t}</div>
-                <p className="mt-2 text-white/65">{item.d}</p>
+                <p className="mt-2 text-white/80">{item.d}</p>
               </div>
             </StaggerItem>
           ))}
@@ -295,13 +295,13 @@ export function ExampleResult() {
     <section className="py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             {sampleReport.eyebrow}
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             {sampleReport.title}
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">{sampleReport.lead}</p>
+          <p className="mt-3 max-w-2xl text-white/80">{sampleReport.lead}</p>
         </Reveal>
         <p className="mt-6 rounded-2xl border border-amber-200/30 bg-amber-200/10 px-4 py-3 text-sm font-medium text-amber-50">
           {sampleReport.banner}
@@ -312,20 +312,20 @@ export function ExampleResult() {
               {sampleReport.domainLabel}:{" "}
               <span className="font-medium text-white">{sampleReport.domain}</span>
             </p>
-            <p className="mt-1 text-sm text-white/60">{sampleReport.checkedAt}</p>
-            {sampleRulesLine ? <p className="mt-1 text-sm text-white/60">{sampleRulesLine}</p> : null}
+            <p className="mt-1 text-sm text-white/80">{sampleReport.checkedAt}</p>
+            {sampleRulesLine ? <p className="mt-1 text-sm text-white/80">{sampleRulesLine}</p> : null}
             <p className="mt-4 text-white/85">{sampleReport.summary}</p>
             <ul className="mt-6 space-y-3">
               {sampleReport.observations.map((item) => (
                 <li key={item.text} className="rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm">
-                  <p className={item.tone === "important" ? "font-medium text-amber-200" : "font-medium text-white/50"}>
+                  <p className={item.tone === "important" ? "font-medium text-amber-200" : "font-medium text-white/80"}>
                     {item.level}
                   </p>
                   <p className="mt-1 text-white/85">{item.text}</p>
-                  <p className="mt-2 text-white/55">Где: {item.where}</p>
-                  <p className="text-white/55">Насколько уверены: {item.confidence}</p>
+                  <p className="mt-2 text-white/80">Где: {item.where}</p>
+                  <p className="text-white/80">Насколько уверены: {item.confidence}</p>
                   <p className="mt-2 text-white/75">Что исправить: {item.fix}</p>
-                  <p className="mt-2 text-white/55">
+                  <p className="mt-2 text-white/80">
                     Норма:{" "}
                     {item.norms.map((norm, index) => {
                       const href = "href" in norm ? safeHref(norm.href) : null;
@@ -365,7 +365,7 @@ export function ExampleResult() {
               ))}
               {sampleFinesNote ? <li>{sampleFinesNote}</li> : null}
             </ul>
-            <p className="mt-6 text-xs leading-relaxed text-white/45">{sampleReport.caption}</p>
+            <p className="mt-6 text-xs leading-relaxed text-white/80">{sampleReport.caption}</p>
             <CheckLink pulse className="btn-gold mt-6 min-h-12 rounded-2xl px-7 py-3.5 text-base">
               {sampleReport.cta}
             </CheckLink>
@@ -381,20 +381,20 @@ export function WhoFor() {
     <section className="border-y border-amber-200/10 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             {whoFor.eyebrow}
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             {whoFor.title}
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">{whoFor.lead}</p>
+          <p className="mt-3 max-w-2xl text-white/80">{whoFor.lead}</p>
         </Reveal>
         <Stagger className="mt-8 grid gap-4 sm:grid-cols-2">
           {whoFor.items.map((a) => (
             <StaggerItem key={a.t}>
               <GlassCard className="h-full p-5 transition hover:border-amber-300/35">
                 <div className="font-display text-2xl font-semibold text-white">{a.t}</div>
-                <p className="mt-2 text-sm text-white/60">{a.d}</p>
+                <p className="mt-2 text-sm text-white/80">{a.d}</p>
               </GlassCard>
             </StaggerItem>
           ))}
@@ -425,7 +425,7 @@ export function FixWithUs() {
               {fixWithUs.services.map((service) => (
                 <li key={service.t} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
                   <div className="font-medium text-white">{service.t}</div>
-                  <p className="mt-1 text-sm text-white/65">{service.d}</p>
+                  <p className="mt-1 text-sm text-white/80">{service.d}</p>
                 </li>
               ))}
             </ul>
@@ -435,7 +435,7 @@ export function FixWithUs() {
                 <li key={duty}>{duty}</li>
               ))}
             </ul>
-            <p className="mt-6 text-sm leading-relaxed text-white/60">{fixWithUs.disclaimer}</p>
+            <p className="mt-6 text-sm leading-relaxed text-white/80">{fixWithUs.disclaimer}</p>
             <div className="mt-8 flex flex-wrap gap-3">
               <CheckLink className="btn-gold inline-flex min-h-12 items-center rounded-2xl px-7 py-3.5 text-base">
                 {fixWithUs.cta}
@@ -461,7 +461,7 @@ export function HowCheckWorks() {
     <section id="method" className="scroll-mt-24 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">Проверка</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">Проверка</p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">Как устроена проверка</h2>
         </Reveal>
         <Stagger className="mt-8 grid gap-3">
@@ -481,7 +481,7 @@ export function DataOnSite() {
     <section id="personal-data" className="scroll-mt-24 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">На сайте</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">На сайте</p>
           <h2 className="mt-2 max-w-3xl font-display text-4xl font-semibold text-white md:text-5xl">
             Что на сайте считается персональными данными
           </h2>
@@ -490,9 +490,9 @@ export function DataOnSite() {
           {dataCallouts.map((item) => (
             <StaggerItem key={item.k}>
               <div className="glass-card h-full p-5">
-                <div className="text-xs uppercase tracking-[0.16em] text-amber-200/80">{item.k}</div>
+                <div className="text-xs uppercase tracking-[0.16em] text-amber-200">{item.k}</div>
                 <p className="mt-2 text-white/85">{item.t}</p>
-                <p className="mt-3 text-xs leading-relaxed text-white/45">{item.s}</p>
+                <p className="mt-3 text-xs leading-relaxed text-white/80">{item.s}</p>
               </div>
             </StaggerItem>
           ))}
@@ -514,7 +514,7 @@ export function FAQ({
     <section id="faq" className="scroll-mt-24 border-t border-amber-200/10 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             Вопросы
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
@@ -528,7 +528,7 @@ export function FAQ({
                 <summary className="cursor-pointer list-none font-medium text-white marker:content-none">
                   {f.q}
                 </summary>
-                <p className="mt-3 text-sm leading-relaxed text-white/65">{f.a}</p>
+                <p className="mt-3 text-sm leading-relaxed text-white/80">{f.a}</p>
               </details>
             </StaggerItem>
           ))}
@@ -543,13 +543,13 @@ export function LeadSection({ marketingConsent = false }: { marketingConsent?: b
     <section id="lead" className="scroll-mt-24 bg-ink-975 py-20 md:py-28">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 md:grid-cols-2 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             Заявка
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             Обсудить исправления
           </h2>
-          <p className="mt-4 text-white/65">
+          <p className="mt-4 text-white/80">
             Имя и телефон или e-mail. Ответим по заявке.
           </p>
         </Reveal>

@@ -93,7 +93,7 @@ export function StickyCta() {
           onChange={(event) => setUrl(event.target.value)}
           placeholder={cta.stickyPlaceholder}
           aria-label="Адрес сайта"
-          className={`${expanded ? "block" : "hidden"} h-11 w-36 rounded-full border border-white/15 bg-black/30 px-3 text-sm text-white placeholder:text-white/40 sm:block sm:w-44`}
+          className={`${expanded ? "block" : "hidden"} h-11 w-36 rounded-full border border-white/15 bg-black/30 px-3 text-sm text-white placeholder:text-white/80 sm:block sm:w-44`}
         />
         <button type="submit" className="btn-gold min-h-11 rounded-full px-4 py-2 text-sm">
           {cta.sticky}

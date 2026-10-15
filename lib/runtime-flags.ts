@@ -1,4 +1,4 @@
-import { flags } from "@/content/flags";
+import { flags } from "../content/flags";
 
 /** Превью Vercel. В проде оба значения false, пока их явно не включат. */
 export function isPreviewDeployment(): boolean {
@@ -6,14 +6,14 @@ export function isPreviewDeployment(): boolean {
 }
 
 /**
- * Чекбокс рекламной рассылки. В контенте флаг выключен.
- * На превью включён через VERCEL_ENV, либо через NEXT_PUBLIC_MARKETING_CONSENT.
+ * Чекбокс рекламной рассылки. Рассылки на сайте нет, поэтому превью его само не включает.
+ * Только явный флаг или NEXT_PUBLIC_MARKETING_CONSENT=true.
  */
 export function marketingConsentEnabled(): boolean {
   const override = process.env.NEXT_PUBLIC_MARKETING_CONSENT;
   if (override === "true") return true;
   if (override === "false") return false;
-  return isPreviewDeployment() || flags.show_marketing_consent;
+  return flags.show_marketing_consent;
 }
 
 export function showPlaceholderTodos(): boolean {

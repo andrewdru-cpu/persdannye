@@ -24,4 +24,16 @@ export const flags = {
   /** Кнопка «Обсудить исправления» и форма #lead. Включена: форма переведена на 8.1-lead. */
   show_lead_form: true as boolean,
   show_platform_hints: false as boolean,
+  /** Реквизиты в футере: наименование, ИНН, ОГРН, адрес, телефон. */
+  show_requisites: false as boolean,
+  /** Страница оферты и ссылка в футере. Текст не выдумываем. */
+  show_offer: false as boolean,
+  /** Страница возврата и ссылка в футере. Текст не выдумываем. */
+  show_refund: false as boolean,
+  /** Юртекст политики cookie и ссылка в футере. Баннер может вести на /cookies и при выключенном флаге. */
+  show_cookie_policy: false as boolean,
+  /** Пользовательское соглашение и ссылка в футере. */
+  show_terms: false as boolean,
+  /** Порядок удаления данных и ссылка в футере. Текст не выдумываем. */
+  show_data_deletion: false as boolean,
 };

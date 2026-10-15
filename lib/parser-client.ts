@@ -6,7 +6,8 @@ import {
   normalizePhase,
   type ParserPhase,
 } from "./phases";
-import type { CheckJob, Finding, ScanContact } from "./types";
+import type { CheckJob, Finding, Recommendation, ScanContact } from "./types";
+import { findingsForClient, scanHasRisks } from "./check-report";
 import { domainFromUrl } from "./utils";
 import {
   findScanContact,
@@ -36,6 +37,7 @@ interface UpstreamScan {
   phase_message?: string | null;
   score?: number | null;
   findings?: Finding[];
+  recommendations?: Recommendation[];
   push?: boolean;
   warning?: string | null;
   error?: string | null;
@@ -75,7 +77,7 @@ export type CreateScanLead = {
 
 /** Browser payload: never include contacts read from data/ or /tmp. */
 export function publicCheckJob(job: CheckJob): Omit<CheckJob, "contact"> {
-  const view = { ...job };
+  const view = { ...job, findings: findingsForClient(job.findings) };
   delete view.contact;
   return view;
 }
@@ -117,9 +119,10 @@ function mapUpstream(
   const domain = domainFromUrl(url);
   const phase = normalizePhase(data.phase || data.status || "queued") as ParserPhase | string;
   const findings = Array.isArray(data.findings) ? data.findings : [];
+  const recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
   const push = Boolean(data.push);
   const done = phase === "done";
-  const hasRisks = done ? push || findings.length > 0 : push;
+  const hasRisks = scanHasRisks(done, push, findings);
 
   return {
     id: checkId,
@@ -134,6 +137,7 @@ function mapUpstream(
     ),
     score: data.score ?? null,
     findings,
+    recommendations,
     hasRisks,
     push,
     pdfReady: mock ? false : resolvePdfReady(data, phase),
@@ -288,6 +292,7 @@ export async function createCheck(
     phaseMessage: friendlyPhaseMessage("queued", domain),
     score: null,
     findings: [],
+    recommendations: [],
     hasRisks: false,
     pdfReady: false,
     warning: data.warning ?? null,

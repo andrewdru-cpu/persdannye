@@ -375,6 +375,12 @@ const section0Flags = [
   "show_accuracy",
   "show_prices",
   "show_monitoring",
+  "show_requisites",
+  "show_offer",
+  "show_refund",
+  "show_cookie_policy",
+  "show_terms",
+  "show_data_deletion",
 ] as const;
 
 describe("publication flags", () => {
@@ -455,6 +461,8 @@ describe("publication flags", () => {
       paragraph,
       `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`,
     );
+    assert.equal(footerParagraphs(false).some((line) => line.includes("ИНН")), false);
+    assert.equal(footerParagraphs(false, true).some((line) => line.includes("ИНН")), true);
   });
 });
 

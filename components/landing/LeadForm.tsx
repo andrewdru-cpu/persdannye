@@ -83,39 +83,44 @@ export function LeadForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Имя *"
+        aria-label="Имя"
         autoComplete="name"
-        className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
       />
       <input
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="Телефон"
+        aria-label="Телефон"
         autoComplete="tel"
         inputMode="tel"
-        className="field-luxury px-3 py-2.5 text-sm"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75"
       />
       <input
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="E-mail"
+        aria-label="E-mail"
         autoComplete="email"
         inputMode="email"
-        className="field-luxury px-3 py-2.5 text-sm"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75"
       />
       <input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="Сайт"
+        aria-label="Сайт"
         inputMode="url"
-        className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
       />
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Сообщение"
+        aria-label="Сообщение"
         rows={3}
-        className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
       />
       <div className="sm:col-span-2">
         <ReportConsentFields
@@ -137,7 +142,7 @@ export function LeadForm({
           {status === "loading" ? "Отправляем…" : cta}
         </Button>
       </div>
-      <PolicyLine className="text-xs text-white/45 sm:col-span-2" />
+      <PolicyLine className="text-xs text-white/80 sm:col-span-2" />
     </form>
   );
 }

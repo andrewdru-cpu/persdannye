@@ -15,13 +15,13 @@ export default function CheckPage() {
       <div className="pointer-events-none absolute left-1/2 top-0 h-80 w-[680px] -translate-x-1/2 rounded-full bg-amber-200/15 blur-[120px]" />
       <div className="relative mx-auto max-w-3xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
             Экспресс-аудит
           </p>
           <h1 className="mt-3 font-display text-4xl font-semibold leading-[1.02] text-white md:text-6xl">
             Проверить свой сайт
           </h1>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/65">
+          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/80">
             Введите URL — ход проверки и наблюдения обновляются на странице.
             Страницу можно листать: проверка не блокирует экран.
           </p>

@@ -14,9 +14,12 @@ export const footerDisclaimer = [
 
 const privateCompanySentence = `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`;
 
-export function footerParagraphs(todos: boolean): string[] {
-  const filled = footerDisclaimer.map((paragraph) => fillPlaceholders(paragraph, todos));
-  filled.splice(4, 0, privateCompanySentence);
+export function footerParagraphs(todos: boolean, showRequisites = flags.show_requisites): string[] {
+  const source = showRequisites
+    ? footerDisclaimer
+    : footerDisclaimer.filter((paragraph) => !paragraph.includes("{{operator_inn}}"));
+  const filled = source.map((paragraph) => fillPlaceholders(paragraph, todos));
+  filled.splice(Math.min(4, filled.length), 0, privateCompanySentence);
   return filled;
 }
 

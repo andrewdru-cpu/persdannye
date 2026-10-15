@@ -6,23 +6,16 @@ import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
 import { CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
-import type { CheckJob, Finding } from "@/lib/types";
+import type { CheckJob } from "@/lib/types";
+import { CheckReport } from "@/components/check/CheckReport";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { LeadForm } from "@/components/landing/LeadForm";
 
 type Status = "idle" | "running" | "done" | "error";
 
-const severityRu: Record<string, string> = {
-  critical: "Критично",
-  high: "Высокий",
-  medium: "Средний",
-  low: "Низкий",
-  info: "Инфо",
-};
-
 const fieldClass =
-  "field-luxury w-full px-4 py-3 text-sm text-white placeholder:text-white/35";
+  "field-luxury w-full px-4 py-3 text-sm text-white placeholder:text-white/75";
 
 function Burst({ tone }: { tone: "success" | "error" | "risk" }) {
   const reduce = useReducedMotion();
@@ -50,37 +43,6 @@ function Burst({ tone }: { tone: "success" | "error" | "risk" }) {
         />
       ))}
     </div>
-  );
-}
-
-function FindingCard({ f }: { f: Finding }) {
-  const reduce = useReducedMotion();
-  return (
-    <motion.li
-      initial={reduce ? false : { opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="glass-card p-4"
-    >
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono text-xs text-amber-100">
-          {f.rule_id}
-        </span>
-        <span
-          className={cn(
-            "rounded-md px-2 py-0.5 text-xs font-medium",
-            f.severity === "critical" || f.severity === "high"
-              ? "bg-rose-500/20 text-rose-200"
-              : f.severity === "medium"
-                ? "bg-amber-500/20 text-amber-50"
-                : "bg-white/10 text-white/70"
-          )}
-        >
-          {severityRu[f.severity] || f.severity}
-        </span>
-      </div>
-      <div className="font-medium text-white">{f.title}</div>
-      <p className="mt-1 text-sm text-white/65">{f.fact}</p>
-    </motion.li>
   );
 }
 
@@ -255,7 +217,7 @@ export function UrlChecker({
           </Button>
         </div>
 
-        <label className="grid gap-1 text-xs text-white/60">
+        <label className="grid gap-1 text-xs text-white/80">
           {formCopy.emailLabel}
           <input
             value={leadEmail}
@@ -280,7 +242,7 @@ export function UrlChecker({
             showMarketing={marketingConsent}
           />
         ) : null}
-        <PolicyLine className="text-xs text-white/45" />
+        <PolicyLine className="text-xs text-white/80" />
         {error && status !== "running" && status !== "error" && (
           <p className="text-sm text-rose-300" role="alert">
             {error}
@@ -306,14 +268,14 @@ export function UrlChecker({
                 <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
                   Проверяем {domain || "сайт"}…
                 </h3>
-                <p className="mt-1 text-sm text-white/60">
+                <p className="mt-1 text-sm text-white/80">
                   {job?.phaseMessage || "Запускаем проверку. Страницу можно листать — отчёт появится здесь."}
                 </p>
               </div>
               {heroSurface ? null : (
                 <div className="shrink-0 text-right" aria-label={`Прошло ${elapsedSec} секунд`}>
                   <div className="font-display text-4xl leading-none text-amber-100">{elapsedSec}</div>
-                  <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/45">
+                  <div className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/80">
                     секунд
                   </div>
                 </div>
@@ -331,7 +293,7 @@ export function UrlChecker({
                 transition={reduce ? { duration: 0 } : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
               />
             </div>
-            <div className="mt-2 flex items-center justify-between text-xs text-white/45">
+            <div className="mt-2 flex items-center justify-between text-xs text-white/80">
               <span>
                 {activeStep
                   ? heroSurface
@@ -356,7 +318,7 @@ export function UrlChecker({
                         ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
                         : active
                           ? "border-amber-300/45 bg-amber-400/10 text-amber-50"
-                          : "border-white/10 bg-white/[0.02] text-white/40"
+                          : "border-white/10 bg-white/[0.02] text-white/80"
                     )}
                   >
                     <div className="flex items-center justify-between gap-2 font-medium">
@@ -388,7 +350,7 @@ export function UrlChecker({
               })}
             </ol>
             {job?.warning && <p className="mt-3 text-xs text-amber-100/80">{job.warning}</p>}
-            <p className="mt-3 text-xs text-white/40">
+            <p className="mt-3 text-xs text-white/80">
               {job?.mock
                 ? "Демо-режим (PARSER_API_BASE не задан). Подключите парсер через env."
                 : job
@@ -410,7 +372,7 @@ export function UrlChecker({
           >
             <div className="glass-card relative overflow-hidden p-5 md:p-6">
               <div className="relative">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/80">
                   {heroSurface ? "Готово" : `Готово за ${elapsedSec} с`}
                 </p>
                 <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
@@ -420,18 +382,7 @@ export function UrlChecker({
               </div>
             </div>
 
-            {job.findings.length > 0 ? (
-              <ul className="space-y-3">
-                {job.findings.map((f) => (
-                  <FindingCard key={f.rule_id + f.title} f={f} />
-                ))}
-              </ul>
-            ) : (
-              <p className="glass-card border-emerald-400/20 bg-emerald-500/5 p-4 text-sm text-emerald-100">
-                Критичных нарушений в экспресс-проверке не найдено. Полный аудит
-                юриста может выявить дополнительные риски.
-              </p>
-            )}
+            <CheckReport job={job} />
 
             {job.pdfReady && !job.mock && (
               <a
@@ -446,7 +397,7 @@ export function UrlChecker({
               <h4 className="font-display text-2xl font-semibold text-white md:text-3xl">
                 Обсудить исправления
               </h4>
-              <p className="mt-1 text-sm leading-relaxed text-white/65">
+              <p className="mt-1 text-sm leading-relaxed text-white/80">
                 Оставьте имя и телефон или e-mail, если хотите ответ по этому сайту.
               </p>
               <div className="mt-4">
@@ -488,7 +439,7 @@ export function UrlChecker({
       </AnimatePresence>
 
       {!compact && status === "idle" ? (
-        <p className="mt-3 text-center text-xs leading-relaxed text-white/40">
+        <p className="mt-3 text-center text-xs leading-relaxed text-white/80">
           Экспресс-проверка не заменяет юридический аудит.
         </p>
       ) : null}

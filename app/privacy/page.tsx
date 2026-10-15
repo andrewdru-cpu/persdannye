@@ -14,7 +14,7 @@ export default function PrivacyPage() {
       <h1 className="text-3xl font-semibold text-white md:text-4xl">
         Политика обработки персональных данных
       </h1>
-      <p className="mt-2 text-sm text-white/45">
+      <p className="mt-2 text-sm text-white/80">
         Редакция от 21.09.2026 · оператор: {company.legalName}
       </p>
 
