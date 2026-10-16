@@ -42,6 +42,15 @@ npm run dev
 
 Без Telegram-переменных сайт работает как обычно, алерты просто не уходят.
 
+## Деплой
+
+В Production env Vercel (`VERCEL_ENV=production`):
+
+- Не задавайте `E2E`, `SUPPRESSION_MOCK`, `OUTBOUND_MOCK`. Непустое значение останавливает прод-сборку. Проверка смотрит на `VERCEL_ENV`, поэтому локальная сборка и CI без `VERCEL_ENV=production` не падают из-за `NODE_ENV=production`.
+- `ALLOWED_ORIGINS` и `PD_BFF_SIGNING_SECRET` обязательны.
+
+На превью эти три переменные можно оставить. В Production их переносить нельзя.
+
 ## Parser BFF
 
 Браузер вызывает только:

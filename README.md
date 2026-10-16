@@ -66,6 +66,15 @@ When `PARSER_API_BASE` is set, an accepted lead is forwarded once to `POST {BASE
 
 When `PD_BFF_SIGNING_SECRET` is unset, those three headers are omitted. A parser **429** is returned unchanged, including `Retry-After`. Lead names, emails, and phones are not written into HTTP responses or server logs. An address that is logged has its last IPv4 octet (or IPv6 interface id) cleared.
 
+## Deploy
+
+Vercel Production (`VERCEL_ENV=production`):
+
+- Do not set `E2E`, `SUPPRESSION_MOCK`, or `OUTBOUND_MOCK`. Any non-empty value stops the production build. The check reads `VERCEL_ENV`, so a local build and CI (no `VERCEL_ENV=production`) still succeed when `NODE_ENV=production`.
+- `ALLOWED_ORIGINS` and `PD_BFF_SIGNING_SECRET` are required.
+
+Preview may keep the mock variables. They are not copied into Production.
+
 ## Company / legal
 
 Edit `lib/company.ts` (INN, OGRN, address, emails, phone).
