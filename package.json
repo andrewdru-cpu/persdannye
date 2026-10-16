@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
+    "prebuild": "node scripts/reject-production-mocks.mjs",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --import ./content/test-register.mjs --test content/landing-copy.test.mts content/check-report.test.mts content/leads.test.mts scripts/audit-allowlist.test.mjs scripts/vercel-ignore.test.mjs"
+    "test": "node --experimental-strip-types --import ./content/test-register.mjs --test content/landing-copy.test.mts content/check-report.test.mts content/leads.test.mts content/leads-bff.test.mts scripts/audit-allowlist.test.mjs scripts/vercel-ignore.test.mjs scripts/reject-production-mocks.test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

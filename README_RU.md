@@ -23,6 +23,8 @@ npm run dev
 - `PARSER_API_EMAIL` + `PARSER_API_PASSWORD` — JWT через `POST {BASE}/api/auth/login`
 - или `PARSER_API_TOKEN` — Bearer, если пользователей в БД ещё нет
 - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` — мгновенные алерты менеджеру
+- `ALLOWED_ORIGINS` — точные Origin для `POST /api/leads` через запятую (прод и preview Vercel). Нет заголовка, `null` и чужой хост — 403
+- `PD_BFF_SIGNING_SECRET` — ключ HMAC для `X-PD-Sig` (`ts.ip`) на запросе лида в парсер. Если секрет пуст, заголовки `X-PD-Client-IP`, `X-PD-Ts` и `X-PD-Sig` не отправляются
 - Если токен или chat id не заданы, алерт пропускается с записью в лог (сайт не падает)
 - `NEXT_PUBLIC_SHOW_FINES=true` — вместе с `approved: true` в `content/fines.ts` показывает таблицу штрафов и калькулятор. Пока юрист не поставил `approved: true`, даже с флагом цифр нет. Без флага блок скрыт целиком.
 
@@ -39,6 +41,15 @@ npm run dev
 2. **Новая заявка** (`POST /api/leads`) — отдельное сообщение «Новый клиент с лендинга» с полями формы и призывом взять в работу
 
 Без Telegram-переменных сайт работает как обычно, алерты просто не уходят.
+
+## Деплой
+
+В Production env Vercel (`VERCEL_ENV=production`):
+
+- Не задавайте `E2E`, `SUPPRESSION_MOCK`, `OUTBOUND_MOCK`, если `VERCEL_ENV=production` или `PD_DEPLOY_ENV=prod`. Непустое значение останавливает такую сборку. `NODE_ENV` не проверяется: локальная сборка и CI без этих флагов проходят, в том числе при `E2E=1`.
+- `ALLOWED_ORIGINS` и `PD_BFF_SIGNING_SECRET` обязательны.
+
+На превью эти три переменные можно оставить. В Production их переносить нельзя. На VPS задаётся `PD_DEPLOY_ENV=prod`.
 
 ## Parser BFF
 
