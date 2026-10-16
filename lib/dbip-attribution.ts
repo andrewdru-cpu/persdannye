@@ -1,8 +1,12 @@
+import { flags } from "../content/flags";
 import { safeHref } from "./safe-href";
 
-/** Включается только явным NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION=true. На превью тоже выключен. */
+export const DBIP_SOURCES_PATH = "/sources";
+export const DBIP_SOURCES_LABEL = "Источники данных";
+
+/** Включается флагом show_dbip_attribution. По умолчанию выключен, в том числе на превью. */
 export function dbipAttributionEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION === "true";
+  return flags.show_dbip_attribution;
 }
 
 export const DBIP_HOME_HREF = "https://db-ip.com";

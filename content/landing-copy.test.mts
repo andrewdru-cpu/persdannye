@@ -382,6 +382,7 @@ const section0Flags = [
   "show_terms",
   "show_data_deletion",
   "show_site_legal",
+  "show_dbip_attribution",
 ] as const;
 
 describe("publication flags", () => {
@@ -468,37 +469,36 @@ describe("publication flags", () => {
 });
 
 describe("DB-IP attribution", () => {
-  const flag = "NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION";
   const verbatim =
     "Данные о стране и сети IP-адресов: IP Geolocation by DB-IP, лицензия CC BY 4.0.";
 
-  function withFlag(value: string | undefined, run: () => void) {
-    const previous = process.env[flag];
+  function withFlag(value: boolean, run: () => void) {
+    const previous = flags.show_dbip_attribution;
     const preview = process.env.VERCEL_ENV;
-    if (value === undefined) delete process.env[flag];
-    else process.env[flag] = value;
+    const legacy = process.env.NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION;
+    flags.show_dbip_attribution = value;
     try {
       run();
     } finally {
-      if (previous === undefined) delete process.env[flag];
-      else process.env[flag] = previous;
+      flags.show_dbip_attribution = previous;
       if (preview === undefined) delete process.env.VERCEL_ENV;
       else process.env.VERCEL_ENV = preview;
+      if (legacy === undefined) delete process.env.NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION;
+      else process.env.NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION = legacy;
     }
   }
 
   it("renders nothing when the flag is off, including on preview", () => {
-    withFlag(undefined, () => {
+    withFlag(false, () => {
       process.env.VERCEL_ENV = "preview";
-      assert.equal(dbipFooterAttribution(), null);
-    });
-    withFlag("false", () => {
+      process.env.NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION = "true";
+      assert.equal(flags.show_dbip_attribution, false);
       assert.equal(dbipFooterAttribution(), null);
     });
   });
 
   it("renders the verbatim footer line and both links when the flag is on", () => {
-    withFlag("true", () => {
+    withFlag(true, () => {
       const item = dbipFooterAttribution();
       if (!item) throw new Error("expected attribution");
       const text = `${item.before}${item.homeLabel}${item.between}${item.licenseLabel}${item.after}`;
