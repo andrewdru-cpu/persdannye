@@ -13,6 +13,12 @@ function run(env) {
 }
 
 describe("production mock env", () => {
+  it("passes a production build when no mock variables are set", () => {
+    const result = run({ VERCEL_ENV: "production", NODE_ENV: "production" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+  });
+
   it("fails a production build when any mock variable is set", () => {
     for (const key of ["E2E", "SUPPRESSION_MOCK", "OUTBOUND_MOCK"]) {
       const result = run({ VERCEL_ENV: "production", NODE_ENV: "production", [key]: "1" });

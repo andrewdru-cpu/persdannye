@@ -49,7 +49,7 @@ npm run dev
 - Не задавайте `E2E`, `SUPPRESSION_MOCK`, `OUTBOUND_MOCK`, если `VERCEL_ENV=production` или `PD_DEPLOY_ENV=prod`. Непустое значение останавливает такую сборку. `NODE_ENV` не проверяется: локальная сборка и CI без этих флагов проходят, в том числе при `E2E=1`.
 - `ALLOWED_ORIGINS` и `PD_BFF_SIGNING_SECRET` обязательны.
 
-На превью эти три переменные можно оставить. В Production их переносить нельзя.
+На превью эти три переменные можно оставить. В Production их переносить нельзя. На VPS задаётся `PD_DEPLOY_ENV=prod`.
 
 ## Parser BFF
 

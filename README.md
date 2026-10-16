@@ -73,7 +73,7 @@ Vercel Production (`VERCEL_ENV=production`):
 - Do not set `E2E`, `SUPPRESSION_MOCK`, or `OUTBOUND_MOCK` when `VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`. Any non-empty value stops that build. The check does not read `NODE_ENV`, so a local build and CI still succeed when `NODE_ENV=production` and neither flag is set. `E2E=1` alone is allowed.
 - `ALLOWED_ORIGINS` and `PD_BFF_SIGNING_SECRET` are required.
 
-Preview may keep the mock variables. They are not copied into Production.
+Preview may keep the mock variables. They are not copied into Production. On the VPS, set `PD_DEPLOY_ENV=prod`.
 
 ## Company / legal
 
