@@ -23,6 +23,8 @@ npm run dev
 - `PARSER_API_EMAIL` + `PARSER_API_PASSWORD` — JWT через `POST {BASE}/api/auth/login`
 - или `PARSER_API_TOKEN` — Bearer, если пользователей в БД ещё нет
 - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` — мгновенные алерты менеджеру
+- `ALLOWED_ORIGINS` — точные Origin для `POST /api/leads` через запятую (прод и preview Vercel). Нет заголовка, `null` и чужой хост — 403
+- `PD_BFF_SIGNING_SECRET` — ключ HMAC для `X-PD-Sig` (`ts.ip`) на запросе лида в парсер. Если секрет пуст, заголовки `X-PD-Client-IP`, `X-PD-Ts` и `X-PD-Sig` не отправляются
 - Если токен или chat id не заданы, алерт пропускается с записью в лог (сайт не падает)
 - `NEXT_PUBLIC_SHOW_FINES=true` — вместе с `approved: true` в `content/fines.ts` показывает таблицу штрафов и калькулятор. Пока юрист не поставил `approved: true`, даже с флагом цифр нет. Без флага блок скрыт целиком.
 
