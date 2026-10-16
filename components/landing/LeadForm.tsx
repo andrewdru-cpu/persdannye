@@ -1,35 +1,42 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Link from "next/link";
+import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { Button } from "@/components/ui/Button";
+import { formCopy } from "@/content/blocks";
+import { LEAD_CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
 
 export function LeadForm({
   defaultUrl = "",
   checkId,
   source = "landing",
   cta = "Отправить заявку",
+  marketingConsent = false,
 }: {
   defaultUrl?: string;
   checkId?: string;
   source?: string;
   cta?: string;
+  marketingConsent?: boolean;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [url, setUrl] = useState(defaultUrl);
   const [message, setMessage] = useState("");
   const [consent, setConsent] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!consent) {
-      setError("Отметьте согласие на обработку персональных данных");
+    if (!consent) return;
+    const mail = email.trim();
+    const tel = phone.trim();
+    if (!mail && !tel) {
+      setError("Укажите телефон или e-mail.");
       return;
     }
     setStatus("loading");
@@ -39,14 +46,18 @@ export function LeadForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          email,
-          phone: phone || undefined,
-          company: companyName || undefined,
-          url: url || undefined,
+          email: mail || undefined,
+          phone: tel || undefined,
+          url: url.trim() || undefined,
           checkId,
-          message: message || undefined,
+          message: message.trim() || undefined,
           consent: true,
+          consent_text_version: LEAD_CONSENT_TEXT_VERSION,
           source,
+          marketing_consent: marketingConsent && marketingOptIn ? true : false,
+          ...(marketingConsent && marketingOptIn
+            ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
+            : {}),
         }),
       });
       const data = await res.json();
@@ -73,63 +84,66 @@ export function LeadForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Имя *"
-        className="field-luxury px-3 py-2.5 text-sm"
-      />
-      <input
-        required
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email *"
-        className="field-luxury px-3 py-2.5 text-sm"
+        aria-label="Имя"
+        autoComplete="name"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
       />
       <input
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="Телефон"
-        className="field-luxury px-3 py-2.5 text-sm"
+        aria-label="Телефон"
+        autoComplete="tel"
+        inputMode="tel"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75"
       />
       <input
-        value={companyName}
-        onChange={(e) => setCompanyName(e.target.value)}
-        placeholder="Компания"
-        className="field-luxury px-3 py-2.5 text-sm"
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="E-mail"
+        aria-label="E-mail"
+        autoComplete="email"
+        inputMode="email"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75"
       />
       <input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         placeholder="Сайт"
-        className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
+        aria-label="Сайт"
+        inputMode="url"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
       />
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        placeholder="Комментарий"
+        placeholder="Сообщение"
+        aria-label="Сообщение"
         rows={3}
-        className="field-luxury px-3 py-2.5 text-sm sm:col-span-2"
+        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
       />
-      <label className="flex items-start gap-2 text-xs leading-relaxed text-white/65 sm:col-span-2">
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-          className="mt-0.5 accent-amber-400"
-          required
+      <div className="sm:col-span-2">
+        <ReportConsentFields
+          consent={consent}
+          onConsent={(checked) => {
+            setConsent(checked);
+            if (checked) setError(null);
+          }}
+          marketing={marketingOptIn}
+          onMarketing={setMarketingOptIn}
+          showMarketing={marketingConsent}
+          consentHref="/consent-lead"
+          consentTail={formCopy.leadConsentTail}
         />
-        <span>
-          Даю согласие на обработку персональных данных в соответствии с{" "}
-          <Link href="/privacy" className="text-amber-300 hover:underline">
-            Политикой обработки ПДн
-          </Link>
-          . *
-        </span>
-      </label>
+      </div>
       {error && <p className="text-sm text-rose-300 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={status === "loading"} pulse>
+        <Button type="submit" disabled={!consent || status === "loading"} pulse>
           {status === "loading" ? "Отправляем…" : cta}
         </Button>
       </div>
+      <PolicyLine className="text-xs text-white/80 sm:col-span-2" />
     </form>
   );
 }

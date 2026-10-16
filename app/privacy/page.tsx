@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { company } from "@/lib/company";
+import { flags } from "@/content/flags";
+import { privacySurface, siteLegalPrivacy, subjectsAgeClause } from "@/content/site-legal";
+import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
+import { company, privacyContactLabel } from "@/lib/company";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -8,12 +11,29 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
+  if (privacySurface(flags.show_site_legal, siteLegalPrivacy) === "site-legal" && siteLegalPrivacy) {
+    return (
+      <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
+        <h1 className="text-3xl font-semibold text-white md:text-4xl">{siteLegalPrivacy.title}</h1>
+        {siteLegalPrivacy.blocks.map((block) => (
+          <p key={block} className="mt-4 text-sm leading-relaxed text-white/80">
+            {block}
+          </p>
+        ))}
+      </article>
+    );
+  }
+  return <LegacyPrivacyPolicy />;
+}
+
+/** Прежняя политика. Новые тексты site-legal сюда не добавляем. */
+function LegacyPrivacyPolicy() {
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 prose-legal md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">
         Политика обработки персональных данных
       </h1>
-      <p className="mt-2 text-sm text-white/45">
+      <p className="mt-2 text-sm text-white/80">
         Редакция от 21.09.2026 · оператор: {company.legalName}
       </p>
 
@@ -52,6 +72,7 @@ export default function PrivacyPage() {
           <li>лица, оставившие заявку (лид-форму) или запросившие отчёт;</li>
           <li>представители клиентов и контрагентов при деловой переписке.</li>
         </ul>
+        {subjectsAgeClause() ? <p>{subjectsAgeClause()}</p> : null}
         <p>Состав обрабатываемых данных (в зависимости от сценария):</p>
         <ul>
           <li>фамилия, имя, отчество (при указании);</li>
@@ -128,16 +149,16 @@ export default function PrivacyPage() {
           действия Оператора в Роскомнадзор или суд — в порядке ст. 14–17 152-ФЗ.
         </p>
         <p>
-          Для реализации прав направьте запрос на {company.email} или ответственному
-          за организацию обработки ПДн (ДПО): {company.dpoEmail}. Срок ответа —
-          согласно ст. 14 152-ФЗ.
+          Для реализации прав направьте запрос ответственному за организацию обработки
+          ПДн (ДПО){privacyContactLabel() ? <>: <PrivacyContactLink /></> : null}. Срок
+          ответа — согласно ст. 14 152-ФЗ.
         </p>
       </Section>
 
       <Section title="10. Cookie и метрики">
         <p>
           Использование файлов cookie регулируется отдельной{" "}
-          <Link href="/cookies" className="text-amber-300 hover:underline">
+          <Link href="/cookies" className="text-amber-300 underline underline-offset-2">
             Политикой cookie
           </Link>
           . Аналитические и маркетинговые cookie не активируются до получения
@@ -157,8 +178,11 @@ export default function PrivacyPage() {
         <p>{company.legalName}</p>
         <p>ИНН {company.inn}, ОГРН {company.ogrn}</p>
         <p>{company.address}</p>
-        <p>Email: {company.email}</p>
-        <p>ДПО: {company.dpoEmail}</p>
+        {privacyContactLabel() ? (
+          <p>
+            ДПО: <PrivacyContactLink />
+          </p>
+        ) : null}
         <p>Тел.: {company.phone}</p>
         <p>{company.supportHours}</p>
       </Section>

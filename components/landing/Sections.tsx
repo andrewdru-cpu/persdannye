@@ -7,86 +7,42 @@ import { HeroBackdrop } from "@/components/motion/HeroBackdrop";
 import { TrustMarquee } from "@/components/motion/Marquee";
 import { UrlChecker } from "@/components/check/UrlChecker";
 import { LeadForm } from "@/components/landing/LeadForm";
-import { Button } from "@/components/ui/Button";
 import { GlassCard } from "@/components/ui/GlassCard";
-
-const trustItems = [
-  {
-    k: "1000+",
-    t: "компаний",
-    d: "Уже обратились за проверкой и сопровождением по 152-ФЗ.",
-  },
-  {
-    k: "24/7",
-    t: "актуальность РКН",
-    d: "Базу требований Роскомнадзора обновляем каждый день.",
-  },
-  {
-    k: "минуты",
-    t: "до списка рисков",
-    d: "Экспресс-скан без установки кода — URL достаточно.",
-  },
-];
-
-const howSteps = [
-  {
-    n: "01",
-    t: "Вводите URL",
-    d: "Укажите сайт — запускаем экспресс-сканирование без установки кода.",
-  },
-  {
-    n: "02",
-    t: "Сканируем по 152-ФЗ",
-    d: "Проверяем политики, cookie, формы, согласия и сведения об операторе.",
-  },
-  {
-    n: "03",
-    t: "Получаете список рисков",
-    d: "Видите статус соответствия и конкретные находки с пояснениями.",
-  },
-  {
-    n: "04",
-    t: "Устраняем вместе",
-    d: "Юристы и инженеры помогают закрыть нарушения и подготовить документы.",
-  },
-];
-
-const checkItems = [
-  "Политика обработки персональных данных и обязательные сведения",
-  "Cookie-баннер: раздельные категории и отказ до согласия",
-  "Формы заявок: явное согласие и ссылка на политику",
-  "Идентификация оператора ПДн (наименование, контакты, ДПО)",
-  "Локализация и трансграничная передача — маркеры риска",
-  "Согласие отдельно от принятия оферты / правил сервиса",
-];
-
-const audiences = [
-  { t: "Интернет-магазины", d: "Корзина, личный кабинет, рассылки и платёжные формы." },
-  { t: "Сайты услуг", d: "Заявки на Tilda, WordPress, Bitrix и кастомных CMS." },
-  { t: "SaaS и кабинеты", d: "Регистрация, cookies аналитики, интеграции CRM." },
-  { t: "Агентства", d: "Быстрый чек-лист перед сдачей проекта клиенту." },
-];
-
-const faqs = [
-  {
-    q: "Это юридическое заключение?",
-    a: "Экспресс-проверка — технический скрининг по правилам 152-ФЗ и практике РКН. Полное юридическое заключение готовит юрист после разбора отчёта.",
-  },
-  {
-    q: "Как часто обновляются правила?",
-    a: "Базу требований Роскомнадзора и контрольных точек актуализируем ежедневно.",
-  },
-  {
-    q: "Нужен ли доступ в админку сайта?",
-    a: "Для экспресс-проверки достаточно публичного URL. Для устранения можем работать с вашей командой или подрядчиком.",
-  },
-  {
-    q: "Что с персональными данными в заявке?",
-    a: "Обрабатываем только для связи по запросу, по Политике обработки ПДн, с вашим явным согласием.",
-  },
-];
+import { CheckLink } from "@/components/landing/CheckLink";
+import {
+  checkGroups,
+  checkGroupsTitle,
+  checkWorkPoints,
+  dataCallouts,
+  faqItems,
+  howSteps,
+} from "@/content/blocks";
+import { flags } from "@/content/flags";
+import { sampleFinesNote, sampleReport, sampleRulesLine } from "@/content/extra-blocks";
+import { safeHref } from "@/lib/safe-href";
+import { cta, fixWithUs, heroChrome, trustItems, whoFor } from "@/content/landing";
 
 const heroEase = [0.22, 1, 0.36, 1] as const;
+
+function HeroHeadline({
+  headline,
+  highlight,
+  sheen,
+}: {
+  headline: string;
+  highlight: string | null;
+  sheen: boolean;
+}) {
+  if (!highlight || !headline.includes(highlight)) return headline;
+  const start = headline.indexOf(highlight);
+  return (
+    <>
+      {headline.slice(0, start)}
+      <span className={sheen ? "gold-text-sheen" : "text-amber-100"}>{highlight}</span>
+      {headline.slice(start + highlight.length)}
+    </>
+  );
+}
 
 const heroLine = {
   hidden: { opacity: 0, y: 32, filter: "blur(8px)" },
@@ -98,11 +54,25 @@ const heroLine = {
   }),
 };
 
-export function Hero() {
+export function Hero({
+  headline,
+  highlight,
+  subline,
+  sublineNarrow,
+  ctaLabel = cta.primary,
+  marketingConsent = false,
+}: {
+  headline: string;
+  highlight: string | null;
+  subline: string;
+  sublineNarrow: string;
+  ctaLabel?: string;
+  marketingConsent?: boolean;
+}) {
   const reduce = useReducedMotion();
 
   return (
-    <section className="relative overflow-hidden pb-20 pt-14 md:pb-32 md:pt-24">
+    <section id="hero" className="relative overflow-hidden pb-20 pt-14 md:pb-32 md:pt-24">
       <HeroBackdrop />
       <div className="relative mx-auto grid max-w-6xl items-start gap-12 px-4 md:px-6 lg:grid-cols-12 lg:gap-16">
         <motion.div
@@ -118,28 +88,16 @@ export function Hero() {
             className="inline-flex items-center gap-2 rounded-full border border-amber-200/35 bg-amber-100/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-50"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_12px_rgba(231,211,161,0.9)]" />
-            Закрытый контур · 152-ФЗ / РКН
+            {heroChrome.badge}
           </motion.div>
-          <motion.p
-            custom={1}
-            variants={reduce ? undefined : heroLine}
-            initial={reduce ? false : "hidden"}
-            animate="show"
-            className="mt-6 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-200/80"
-          >
-            До штрафа — не после
-          </motion.p>
           <motion.h1
             custom={2}
             variants={reduce ? undefined : heroLine}
             initial={reduce ? false : "hidden"}
             animate="show"
-            className="mt-3 max-w-xl font-display text-[2.7rem] font-semibold leading-[0.98] text-white sm:text-6xl md:text-7xl"
+            className="mt-6 max-w-2xl text-balance font-display text-[2.15rem] font-semibold leading-[1.05] text-white sm:text-5xl md:text-6xl"
           >
-            Найдите несоответствие{" "}
-            <span className={reduce ? "text-amber-100" : "gold-text-sheen"}>
-              Роскомнадзора
-            </span>
+            <HeroHeadline headline={headline} highlight={highlight} sheen={!reduce} />
           </motion.h1>
           <motion.div
             custom={3}
@@ -155,9 +113,8 @@ export function Hero() {
             animate="show"
             className="mt-6 max-w-xl text-base leading-relaxed text-white/72 md:text-lg"
           >
-            «ПерсДанные» проводит экспресс-аудит сайта для собственника и юриста:
-            политики, cookie, формы и согласия. Факты — сразу, план устранения — с
-            нашей командой. Базу требований РКН обновляем каждый день.
+            <span className="md:hidden">{sublineNarrow}</span>
+            <span className="hidden md:inline">{subline}</span>
           </motion.p>
           <motion.div
             custom={5}
@@ -166,16 +123,12 @@ export function Hero() {
             animate="show"
             className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap"
           >
-            <Link href="/check" className="w-full sm:w-auto">
-              <Button size="lg" pulse className="w-full sm:w-auto">
-                Проверить свой сайт
-              </Button>
-            </Link>
-            <Link href="/#lead" className="w-full sm:w-auto">
-              <Button size="lg" variant="secondary" className="w-full sm:w-auto">
-                Получить полный отчёт
-              </Button>
-            </Link>
+            <CheckLink
+              pulse
+              className="btn-gold min-h-12 w-full rounded-2xl px-7 py-3.5 text-base sm:w-auto"
+            >
+              {ctaLabel}
+            </CheckLink>
           </motion.div>
           <motion.dl
             custom={6}
@@ -184,14 +137,10 @@ export function Hero() {
             animate="show"
             className="mt-8 grid grid-cols-3 gap-3 border-t border-amber-200/15 pt-5"
           >
-            {[
-              ["1000+", "компаний"],
-              ["минуты", "до рисков"],
-              ["24/7", "база РКН"],
-            ].map(([k, v]) => (
+            {heroChrome.facts.map(({ k, v }) => (
               <div key={v}>
                 <dt className="font-display text-2xl text-amber-100 sm:text-3xl">{k}</dt>
-                <dd className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/50 sm:text-xs">
+                <dd className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/80 sm:text-xs">
                   {v}
                 </dd>
               </div>
@@ -200,7 +149,8 @@ export function Hero() {
         </motion.div>
 
         <motion.div
-          className="min-w-0 lg:col-span-5"
+          id="url-check"
+          className="min-w-0 scroll-mt-28 lg:col-span-5"
           initial={reduce ? false : { opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={reduce ? { duration: 0 } : { delay: 0.35, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
@@ -209,17 +159,17 @@ export function Hero() {
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
                 <div className="font-display text-3xl font-semibold text-white">
-                  Экспресс-проверка
+                  {heroChrome.checkerTitle}
                 </div>
-                <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/55">
-                  URL достаточно. Статус и находки обновляются по ходу проверки.
+                <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/80">
+                  {heroChrome.checkerText}
                 </p>
               </div>
               <span className="shrink-0 rounded-full border border-amber-200/35 bg-amber-100/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-50">
-                Быстро
+                {heroChrome.checkerBadge}
               </span>
             </div>
-            <UrlChecker compact pulseCta />
+            <UrlChecker compact pulseCta ctaLabel={ctaLabel} heroSurface marketingConsent={marketingConsent} />
           </GlassCard>
         </motion.div>
       </div>
@@ -246,7 +196,7 @@ export function Trust() {
               <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80">
                 {item.t}
               </div>
-              <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/55">{item.d}</p>
+              <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/80">{item.d}</p>
             </div>
           ))}
         </div>
@@ -262,19 +212,19 @@ export function HowItWorks() {
     <section id="how" className="scroll-mt-24 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             Процесс
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             Как это работает
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">
-            От URL до списка рисков — прозрачный процесс без сюрпризов.
+          <p className="mt-3 max-w-2xl text-white/80">
+            Адрес, проверка, отчёт и план исправлений.
           </p>
         </Reveal>
 
         <div className="relative mt-10">
-          <div className="pointer-events-none absolute left-0 right-0 top-8 hidden h-px lg:block">
+          <div className="pointer-events-none absolute left-[2.625rem] right-[calc((100%-3rem)/4-2.625rem)] top-[1.375rem] hidden h-px lg:block">
             <motion.div
               className="h-full origin-left bg-gradient-to-r from-amber-400/0 via-amber-400/60 to-amber-400/0"
               initial={reduce ? { scaleX: 1 } : { scaleX: 0 }}
@@ -302,7 +252,7 @@ export function HowItWorks() {
                     {s.n}
                   </motion.div>
                   <div className="mt-4 font-display text-2xl font-semibold text-white">{s.t}</div>
-                  <p className="mt-2 text-sm text-white/60">{s.d}</p>
+                  <p className="mt-2 text-sm text-white/80">{s.d}</p>
                 </motion.div>
               </StaggerItem>
             ))}
@@ -318,23 +268,19 @@ export function WhatWeCheck() {
     <section id="checks" className="scroll-mt-24 border-y border-amber-200/10 bg-ink-975/80 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             Контроль
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            Что мы проверяем
+            {checkGroupsTitle}
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">
-            Контрольные точки по 152-ФЗ и практике Роскомнадзора — с акцентом на то,
-            за что реально штрафуют.
-          </p>
         </Reveal>
         <Stagger className="mt-8 grid gap-3 md:grid-cols-2">
-          {checkItems.map((item) => (
-            <StaggerItem key={item}>
-              <div className="glass-card flex gap-3 px-4 py-3.5 text-sm text-white/75 transition hover:border-amber-300/30">
-                <span className="text-amber-300">✓</span>
-                <span>{item}</span>
+          {checkGroups.map((item) => (
+            <StaggerItem key={item.t}>
+              <div className="glass-card px-4 py-4 text-sm text-white/75">
+                <div className="font-display text-2xl text-white">{item.t}</div>
+                <p className="mt-2 text-white/80">{item.d}</p>
               </div>
             </StaggerItem>
           ))}
@@ -349,48 +295,80 @@ export function ExampleResult() {
     <section className="py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
-            Отчёт
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
+            {sampleReport.eyebrow}
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            Пример результата
+            {sampleReport.title}
           </h2>
-          <p className="mt-3 max-w-2xl text-white/60">
-            Так выглядит экспресс-отчёт: статус, балл и список находок с фактами.
-          </p>
+          <p className="mt-3 max-w-2xl text-white/80">{sampleReport.lead}</p>
         </Reveal>
-        <Reveal delay={0.08} className="mt-8">
-          <GlassCard className="border-rose-400/25 bg-rose-500/[0.06] p-6 md:p-8">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <div className="text-sm uppercase tracking-[0.14em] text-rose-200">
-                  example-shop.ru — не соответствует
-                </div>
-                <div className="mt-2 font-display text-3xl font-semibold text-white">
-                  Найдено 4 риска
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-display text-5xl font-semibold text-white">42</div>
-                <div className="text-xs uppercase tracking-wider text-white/50">балл</div>
-              </div>
-            </div>
-            <ul className="mt-6 space-y-2 text-sm text-white/70">
-              <li className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                P01 · Нет политики обработки ПДн
-              </li>
-              <li className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                C02 · Cookie без раздельного согласия
-              </li>
-              <li className="rounded-xl border border-white/10 bg-black/25 px-3 py-2.5">
-                F03 · Форма без явного согласия
-              </li>
+        <p className="mt-6 rounded-2xl border border-amber-200/30 bg-amber-200/10 px-4 py-3 text-sm font-medium text-amber-50">
+          {sampleReport.banner}
+        </p>
+        <Reveal delay={0.08} className="mt-4">
+          <GlassCard className="p-6 md:p-8">
+            <p className="text-sm text-white/80">
+              {sampleReport.domainLabel}:{" "}
+              <span className="font-medium text-white">{sampleReport.domain}</span>
+            </p>
+            <p className="mt-1 text-sm text-white/80">{sampleReport.checkedAt}</p>
+            {sampleRulesLine ? <p className="mt-1 text-sm text-white/80">{sampleRulesLine}</p> : null}
+            <p className="mt-4 text-white/85">{sampleReport.summary}</p>
+            <ul className="mt-6 space-y-3">
+              {sampleReport.observations.map((item) => (
+                <li key={item.text} className="rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm">
+                  <p className={item.tone === "important" ? "font-medium text-amber-200" : "font-medium text-white/80"}>
+                    {item.level}
+                  </p>
+                  <p className="mt-1 text-white/85">{item.text}</p>
+                  <p className="mt-2 text-white/80">Где: {item.where}</p>
+                  <p className="text-white/80">Насколько уверены: {item.confidence}</p>
+                  <p className="mt-2 text-white/75">Что исправить: {item.fix}</p>
+                  <p className="mt-2 text-white/80">
+                    Норма:{" "}
+                    {item.norms.map((norm, index) => {
+                      const href = "href" in norm ? safeHref(norm.href) : null;
+                      return (
+                        <span key={`${norm.label}-${index}`}>
+                          {index > 0 ? "; " : null}
+                          {href ? (
+                            <a
+                              href={href}
+                              className="text-amber-200 hover:underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {norm.label}
+                            </a>
+                          ) : (
+                            norm.label
+                          )}
+                          {"note" in norm && norm.note ? ` (${norm.note})` : null}
+                        </span>
+                      );
+                    })}
+                  </p>
+                </li>
+              ))}
             </ul>
-            <Link href="/check" className="mt-6 inline-block">
-              <Button size="lg" pulse>
-                Проверить свой сайт
-              </Button>
-            </Link>
+            <h3 className="mt-6 font-medium text-white">{sampleReport.okTitle}</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-white/70">
+              {sampleReport.ok.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <h3 className="mt-6 font-medium text-white">{sampleReport.moreTitle}</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-white/70">
+              {sampleReport.more.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+              {sampleFinesNote ? <li>{sampleFinesNote}</li> : null}
+            </ul>
+            <p className="mt-6 text-xs leading-relaxed text-white/80">{sampleReport.caption}</p>
+            <CheckLink pulse className="btn-gold mt-6 min-h-12 rounded-2xl px-7 py-3.5 text-base">
+              {sampleReport.cta}
+            </CheckLink>
           </GlassCard>
         </Reveal>
       </div>
@@ -403,23 +381,28 @@ export function WhoFor() {
     <section className="border-y border-amber-200/10 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
-            Аудитория
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
+            {whoFor.eyebrow}
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            Для кого
+            {whoFor.title}
           </h2>
+          <p className="mt-3 max-w-2xl text-white/80">{whoFor.lead}</p>
         </Reveal>
-        <Stagger className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {audiences.map((a) => (
+        <Stagger className="mt-8 grid gap-4 sm:grid-cols-2">
+          {whoFor.items.map((a) => (
             <StaggerItem key={a.t}>
               <GlassCard className="h-full p-5 transition hover:border-amber-300/35">
                 <div className="font-display text-2xl font-semibold text-white">{a.t}</div>
-                <p className="mt-2 text-sm text-white/60">{a.d}</p>
+                <p className="mt-2 text-sm text-white/80">{a.d}</p>
               </GlassCard>
             </StaggerItem>
           ))}
         </Stagger>
+        <p className="mt-8 max-w-3xl text-sm leading-relaxed text-white/70">{whoFor.lawyer}</p>
+        <CheckLink pulse className="btn-gold mt-6 inline-flex min-h-12 items-center rounded-2xl px-7 py-3.5 text-base">
+          {whoFor.cta}
+        </CheckLink>
       </div>
     </section>
   );
@@ -432,26 +415,39 @@ export function FixWithUs() {
         <Reveal>
           <GlassCard gold className="p-8 md:p-12">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/90">
-              Сопровождение
+              {fixWithUs.eyebrow}
             </p>
             <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-              Устраним вместе
+              {fixWithUs.title}
             </h2>
-            <p className="mt-4 max-w-2xl text-white/70">
-              Не оставляем вас с красным списком. Готовим документы, правим формы и
-              cookie-баннер, сопровождаем до устойчивого соответствия.
-            </p>
+            <p className="mt-4 max-w-2xl text-white/70">{fixWithUs.lead}</p>
+            <ul className="mt-8 grid gap-3">
+              {fixWithUs.services.map((service) => (
+                <li key={service.t} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                  <div className="font-medium text-white">{service.t}</div>
+                  <p className="mt-1 text-sm text-white/80">{service.d}</p>
+                </li>
+              ))}
+            </ul>
+            <h3 className="mt-8 font-medium text-white">{fixWithUs.dutiesTitle}</h3>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed text-white/70">
+              {fixWithUs.duties.map((duty) => (
+                <li key={duty}>{duty}</li>
+              ))}
+            </ul>
+            <p className="mt-6 text-sm leading-relaxed text-white/80">{fixWithUs.disclaimer}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/#lead">
-                <Button size="lg" pulse>
-                  Получить полный отчёт
-                </Button>
-              </Link>
-              <Link href="/check">
-                <Button size="lg" variant="secondary">
-                  Сначала проверить сайт
-                </Button>
-              </Link>
+              <CheckLink className="btn-gold inline-flex min-h-12 items-center rounded-2xl px-7 py-3.5 text-base">
+                {fixWithUs.cta}
+              </CheckLink>
+              {flags.show_lead_form ? (
+                <Link
+                  href="/#lead"
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/40 bg-[#14110c]/80 px-7 py-3.5 text-base text-[#f7f1e6] hover:border-amber-100/70 hover:bg-amber-200/10"
+                >
+                  {fixWithUs.discuss}
+                </Link>
+              ) : null}
             </div>
           </GlassCard>
         </Reveal>
@@ -460,12 +456,65 @@ export function FixWithUs() {
   );
 }
 
-export function FAQ() {
+export function HowCheckWorks() {
+  return (
+    <section id="method" className="scroll-mt-24 py-20 md:py-28">
+      <div className="mx-auto max-w-6xl px-4 md:px-6">
+        <Reveal>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">Проверка</p>
+          <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">Как устроена проверка</h2>
+        </Reveal>
+        <Stagger className="mt-8 grid gap-3">
+          {checkWorkPoints.map((point) => (
+            <StaggerItem key={point}>
+              <div className="glass-card px-4 py-4 text-sm leading-relaxed text-white/75">{point}</div>
+            </StaggerItem>
+          ))}
+        </Stagger>
+      </div>
+    </section>
+  );
+}
+
+export function DataOnSite() {
+  return (
+    <section id="personal-data" className="scroll-mt-24 py-20 md:py-28">
+      <div className="mx-auto max-w-6xl px-4 md:px-6">
+        <Reveal>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">На сайте</p>
+          <h2 className="mt-2 max-w-3xl font-display text-4xl font-semibold text-white md:text-5xl">
+            Что на сайте считается персональными данными
+          </h2>
+        </Reveal>
+        <Stagger className="mt-8 grid gap-3 md:grid-cols-2">
+          {dataCallouts.map((item) => (
+            <StaggerItem key={item.k}>
+              <div className="glass-card h-full p-5">
+                <div className="text-xs uppercase tracking-[0.16em] text-amber-200">{item.k}</div>
+                <p className="mt-2 text-white/85">{item.t}</p>
+                <p className="mt-3 text-xs leading-relaxed text-white/80">{item.s}</p>
+              </div>
+            </StaggerItem>
+          ))}
+        </Stagger>
+      </div>
+    </section>
+  );
+}
+
+export function FAQ({
+  todos = false,
+  showFinesTable = false,
+}: {
+  todos?: boolean;
+  showFinesTable?: boolean;
+}) {
+  const items = faqItems(todos, showFinesTable);
   return (
     <section id="faq" className="scroll-mt-24 border-t border-amber-200/10 py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
             Вопросы
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
@@ -473,13 +522,13 @@ export function FAQ() {
           </h2>
         </Reveal>
         <Stagger className="mt-8 space-y-3">
-          {faqs.map((f) => (
+          {items.map((f) => (
             <StaggerItem key={f.q}>
               <details className="glass-card group p-5 open:border-amber-300/30">
                 <summary className="cursor-pointer list-none font-medium text-white marker:content-none">
                   {f.q}
                 </summary>
-                <p className="mt-3 text-sm leading-relaxed text-white/65">{f.a}</p>
+                <p className="mt-3 text-sm leading-relaxed text-white/80">{f.a}</p>
               </details>
             </StaggerItem>
           ))}
@@ -489,25 +538,24 @@ export function FAQ() {
   );
 }
 
-export function LeadSection() {
+export function LeadSection({ marketingConsent = false }: { marketingConsent?: boolean }) {
   return (
     <section id="lead" className="scroll-mt-24 bg-ink-975 py-20 md:py-28">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 md:grid-cols-2 md:px-6">
         <Reveal>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
-            Консьерж
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
+            Заявка
           </p>
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
-            Оставить заявку
+            Обсудить исправления
           </h2>
-          <p className="mt-4 text-white/65">
-            Расскажите о сайте — пришлём полный отчёт и предложим план устранения.
-            Заявка сразу уходит менеджеру.
+          <p className="mt-4 text-white/80">
+            Имя и телефон или e-mail. Ответим по заявке.
           </p>
         </Reveal>
         <Reveal delay={0.08}>
           <GlassCard gold>
-            <LeadForm source="landing-lead" />
+            <LeadForm source="landing-lead" marketingConsent={marketingConsent} />
           </GlassCard>
         </Reveal>
       </div>
