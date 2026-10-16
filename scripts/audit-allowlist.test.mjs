@@ -123,9 +123,9 @@ describe("audit allowlist", () => {
   });
 
   it("fails after review_by", () => {
-    const result = run(devTree(), { today: "2026-10-31" });
+    const result = run(devTree(), { today: "2026-11-17" });
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /expired on 2026-10-30/);
+    assert.match(result.stderr, /expired on 2026-11-16/);
     assert.equal(result.stdout.includes("::warning::"), false);
   });
 });
