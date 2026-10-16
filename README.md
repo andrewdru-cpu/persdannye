@@ -58,6 +58,17 @@ Edit `lib/company.ts` (INN, OGRN, address, emails, phone).
 
 Routes: `/privacy`, `/cookies`, `/terms`, cookie banner (necessary / analytics / marketing), consent checkbox on the lead form and on URL-check contacts. Leads are accepted only via `POST /api/leads` and are not listed by any page or API route.
 
+## CI / npm audit
+
+CI блокирует два аудита.
+
+1. `npm audit --omit=dev --audit-level=high` — зависимости прод-сборки, без исключений.
+2. Полный `npm audit --json` разбирает `scripts/audit-allowlist.mjs`. Любой high или critical роняет job.
+
+Единственное исключение — [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) (`braces`). Оно действует только если все пути к пакету идут через `eslint-config-next`: это dev-дерево ESLint, опубликованного исправления нет. `eslint-config-next` не понижаем.
+
+Владелец исключения: Сайт 152. Пересмотр 30.10.2026 или раньше, как только выйдет фикс. После `review_by` job падает. Запись: `.github/audit-allowlist.json`.
+
 ## Russian README
 
 See `README_RU.md`.

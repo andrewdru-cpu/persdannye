@@ -27,8 +27,19 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Audit
-        run: npm audit --audit-level=high
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Audit full tree
+        run: |
+          set +e
+          npm audit --json > "$RUNNER_TEMP/npm-audit.json"
+          status=$?
+          set -e
+          if [ "$status" -gt 1 ]; then
+            exit "$status"
+          fi
+          node scripts/audit-allowlist.mjs < "$RUNNER_TEMP/npm-audit.json"
 
       - name: Lint
         run: npm run lint
