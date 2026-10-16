@@ -1,6 +1,13 @@
+import { DBIP_SOURCES_LABEL, DBIP_SOURCES_PATH } from "../lib/dbip-attribution";
 import { flags } from "./flags";
 
-type FlagName = "show_cookie_policy" | "show_terms" | "show_offer" | "show_refund" | "show_data_deletion";
+type FlagName =
+  | "show_cookie_policy"
+  | "show_terms"
+  | "show_offer"
+  | "show_refund"
+  | "show_data_deletion"
+  | "show_dbip_attribution";
 
 export const footerDocuments: Array<{ href: string; label: string; flag: FlagName | null }> = [
   { href: "/privacy", label: "Политика обработки ПДн", flag: null },
@@ -10,6 +17,7 @@ export const footerDocuments: Array<{ href: string; label: string; flag: FlagNam
   { href: "/refund", label: "Возврат", flag: "show_refund" },
   { href: "/data-deletion", label: "Порядок удаления данных", flag: "show_data_deletion" },
   { href: "/applicability", label: "Что к сайту не относится", flag: null },
+  { href: DBIP_SOURCES_PATH, label: DBIP_SOURCES_LABEL, flag: "show_dbip_attribution" },
 ];
 
 export function visibleFooterDocuments(source: typeof flags = flags) {

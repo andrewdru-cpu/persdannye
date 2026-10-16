@@ -41,4 +41,6 @@ export const flags = {
    * Выключено, пока Андрей не дал ОК. При выключенном флаге остаётся прежняя политика.
    */
   show_site_legal: false as boolean,
+  /** Атрибуция DB-IP: строка в футере, ссылка и страница /sources. Выключено, в том числе на превью. */
+  show_dbip_attribution: false as boolean,
 };

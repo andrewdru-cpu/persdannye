@@ -4,7 +4,7 @@ import { flags } from "@/content/flags";
 import { footerBlurb } from "@/content/landing";
 import { visibleFooterDocuments } from "@/content/legal-nav";
 import { fillPlaceholders } from "@/content/placeholders";
-import { DbipAttribution } from "@/components/layout/DbipAttribution";
+import { DbipAttribution } from "@/components/layout/dbip-view";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";

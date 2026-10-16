@@ -1,8 +1,12 @@
+import { flags } from "../content/flags";
 import { safeHref } from "./safe-href";
 
-/** Включается только явным NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION=true. На превью тоже выключен. */
+export const DBIP_SOURCES_PATH = "/sources";
+export const DBIP_SOURCES_LABEL = "Источники данных";
+
+/** Включается флагом show_dbip_attribution. По умолчанию выключен, в том числе на превью. */
 export function dbipAttributionEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_SHOW_DBIP_ATTRIBUTION === "true";
+  return flags.show_dbip_attribution;
 }
 
 export const DBIP_HOME_HREF = "https://db-ip.com";
@@ -23,17 +27,16 @@ export type DbipFooterAttribution = {
 /** Дословная строка футера. null — флаг выключен или ссылка не http(s). */
 export function dbipFooterAttribution(): DbipFooterAttribution | null {
   if (!dbipAttributionEnabled()) return null;
-  const homeHref = safeHref(DBIP_HOME_HREF);
-  const licenseHref = safeHref(DBIP_LICENSE_HREF);
-  if (!homeHref || !licenseHref) return null;
+  // safeHref канонизирует хост в https://db-ip.com/ — в href оставляем утверждённый URL без слэша.
+  if (!safeHref(DBIP_HOME_HREF) || safeHref(DBIP_LICENSE_HREF) !== DBIP_LICENSE_HREF) return null;
   return {
     before: "Данные о стране и сети IP-адресов: ",
     homeLabel: "IP Geolocation by DB-IP",
-    homeHref,
+    homeHref: DBIP_HOME_HREF,
     between: ", лицензия ",
     licenseLabel: "CC BY 4.0",
-    licenseHref,
-    after: ".",
+    licenseHref: DBIP_LICENSE_HREF,
+    after: "",
     rel: DBIP_LINK_REL,
   };
 }
