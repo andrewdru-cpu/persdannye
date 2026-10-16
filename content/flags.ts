@@ -36,4 +36,9 @@ export const flags = {
   show_terms: false as boolean,
   /** Порядок удаления данных и ссылка в футере. Текст не выдумываем. */
   show_data_deletion: false as boolean,
+  /**
+   * Новые тексты site-legal на /privacy.
+   * Выключено, пока Андрей не дал ОК. При выключенном флаге остаётся прежняя политика.
+   */
+  show_site_legal: false as boolean,
 };

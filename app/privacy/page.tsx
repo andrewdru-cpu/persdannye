@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { flags } from "@/content/flags";
+import { privacySurface, siteLegalPrivacy } from "@/content/site-legal";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 import Link from "next/link";
@@ -9,6 +11,23 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
+  if (privacySurface(flags.show_site_legal, siteLegalPrivacy) === "site-legal" && siteLegalPrivacy) {
+    return (
+      <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
+        <h1 className="text-3xl font-semibold text-white md:text-4xl">{siteLegalPrivacy.title}</h1>
+        {siteLegalPrivacy.blocks.map((block) => (
+          <p key={block} className="mt-4 text-sm leading-relaxed text-white/80">
+            {block}
+          </p>
+        ))}
+      </article>
+    );
+  }
+  return <LegacyPrivacyPolicy />;
+}
+
+/** Прежняя политика. Новые тексты site-legal сюда не добавляем. */
+function LegacyPrivacyPolicy() {
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 prose-legal md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">
@@ -138,7 +157,7 @@ export default function PrivacyPage() {
       <Section title="10. Cookie и метрики">
         <p>
           Использование файлов cookie регулируется отдельной{" "}
-          <Link href="/cookies" className="text-amber-300 hover:underline">
+          <Link href="/cookies" className="text-amber-300 underline underline-offset-2">
             Политикой cookie
           </Link>
           . Аналитические и маркетинговые cookie не активируются до получения

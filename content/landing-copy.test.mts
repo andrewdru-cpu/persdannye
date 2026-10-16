@@ -381,6 +381,7 @@ const section0Flags = [
   "show_cookie_policy",
   "show_terms",
   "show_data_deletion",
+  "show_site_legal",
 ] as const;
 
 describe("publication flags", () => {
