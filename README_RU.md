@@ -46,7 +46,7 @@ npm run dev
 
 В Production env Vercel (`VERCEL_ENV=production`):
 
-- Не задавайте `E2E`, `SUPPRESSION_MOCK`, `OUTBOUND_MOCK`. Непустое значение останавливает прод-сборку. Проверка смотрит на `VERCEL_ENV`, поэтому локальная сборка и CI без `VERCEL_ENV=production` не падают из-за `NODE_ENV=production`.
+- Не задавайте `E2E`, `SUPPRESSION_MOCK`, `OUTBOUND_MOCK`, если `VERCEL_ENV=production` или `PD_DEPLOY_ENV=prod`. Непустое значение останавливает такую сборку. `NODE_ENV` не проверяется: локальная сборка и CI без этих флагов проходят, в том числе при `E2E=1`.
 - `ALLOWED_ORIGINS` и `PD_BFF_SIGNING_SECRET` обязательны.
 
 На превью эти три переменные можно оставить. В Production их переносить нельзя.

@@ -42,4 +42,26 @@ describe("production mock env", () => {
     });
     assert.equal(blank.status, 0, blank.stderr);
   });
+
+  it("fails when PD_DEPLOY_ENV=prod and a mock is set", () => {
+    for (const key of ["E2E", "SUPPRESSION_MOCK", "OUTBOUND_MOCK"]) {
+      const result = run({ PD_DEPLOY_ENV: "prod", NODE_ENV: "test", [key]: "1" });
+      assert.equal(result.status, 1, key);
+      assert.match(result.stderr, /PD_DEPLOY_ENV=prod/);
+      assert.match(result.stderr, new RegExp(key));
+      assert.match(result.stderr, /не NODE_ENV/);
+    }
+  });
+
+  it("passes when PD_DEPLOY_ENV=prod and no mock is set", () => {
+    const result = run({ PD_DEPLOY_ENV: "prod", NODE_ENV: "production" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+  });
+
+  it("passes e2e with E2E=1 when production flags are unset", () => {
+    const result = run({ E2E: "1", NODE_ENV: "test" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+  });
 });

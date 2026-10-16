@@ -70,7 +70,7 @@ When `PD_BFF_SIGNING_SECRET` is unset, those three headers are omitted. A parser
 
 Vercel Production (`VERCEL_ENV=production`):
 
-- Do not set `E2E`, `SUPPRESSION_MOCK`, or `OUTBOUND_MOCK`. Any non-empty value stops the production build. The check reads `VERCEL_ENV`, so a local build and CI (no `VERCEL_ENV=production`) still succeed when `NODE_ENV=production`.
+- Do not set `E2E`, `SUPPRESSION_MOCK`, or `OUTBOUND_MOCK` when `VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`. Any non-empty value stops that build. The check does not read `NODE_ENV`, so a local build and CI still succeed when `NODE_ENV=production` and neither flag is set. `E2E=1` alone is allowed.
 - `ALLOWED_ORIGINS` and `PD_BFF_SIGNING_SECRET` are required.
 
 Preview may keep the mock variables. They are not copied into Production.
