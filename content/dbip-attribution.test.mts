@@ -11,7 +11,9 @@ import { runAxe } from "./run-axe.mjs";
 import { DBIP_SOURCES_LABEL, DBIP_SOURCES_PATH } from "../lib/dbip-attribution.ts";
 
 const verbatim =
-  "Данные о стране и сети IP-адресов: IP Geolocation by DB-IP, лицензия CC BY 4.0.";
+  "Данные о стране и сети IP-адресов: IP Geolocation by DB-IP, лицензия CC BY 4.0";
+
+const attributionHrefs = ["https://db-ip.com", "https://creativecommons.org/licenses/by/4.0/"];
 
 function withFlag<T>(value: boolean, run: () => T): T {
   const previous = flags.show_dbip_attribution;
@@ -25,6 +27,10 @@ function withFlag<T>(value: boolean, run: () => T): T {
 
 function textOf(html: string): string {
   return html.replace(/<[^>]+>/g, "");
+}
+
+function hrefsOf(html: string): string[] {
+  return [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
 }
 
 function markup(node: ReactNode): string {
@@ -70,18 +76,17 @@ describe("DB-IP attribution flag", () => {
       const line = markup(createElement(DbipAttribution));
       const documents = documentsMarkup();
       const page = markup(renderSourcesPage(notFound));
-      assert.equal(textOf(line).includes(verbatim), true);
-      assert.equal(line.includes('href="https://db-ip.com/"'), true);
-      assert.equal(line.includes('href="https://creativecommons.org/licenses/by/4.0/"'), true);
-      assert.equal(line.includes('target="_blank"'), true);
+      assert.equal(textOf(line), verbatim);
+      assert.equal(textOf(line).endsWith("."), false);
+      assert.deepEqual(hrefsOf(line), attributionHrefs);
       assert.equal(line.includes('rel="noopener noreferrer"'), true);
       assert.equal(documents.includes(`href="${DBIP_SOURCES_PATH}"`), true);
       assert.equal(documents.includes(DBIP_SOURCES_LABEL), true);
-      assert.equal(textOf(page).includes(verbatim), true);
+      assert.equal(page.includes(line), true);
+      assert.equal(textOf(line), verbatim);
       assert.equal(page.includes("<h1"), true);
       assert.equal(page.includes(DBIP_SOURCES_LABEL), true);
-      assert.equal(page.includes('href="https://db-ip.com/"'), true);
-      assert.equal(page.includes('href="https://creativecommons.org/licenses/by/4.0/"'), true);
+      assert.deepEqual(hrefsOf(page), attributionHrefs);
     });
   });
 

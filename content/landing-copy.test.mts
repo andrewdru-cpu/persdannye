@@ -17,6 +17,9 @@ import {
   resetChecksCountCache,
   resolveVisibleChecksCount,
 } from "../lib/checks-count.ts";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DbipAttribution } from "../components/layout/dbip-view.ts";
 import { dbipFooterAttribution } from "../lib/dbip-attribution.ts";
 import { safeHref } from "../lib/safe-href.ts";
 import { company, privacyContactLabel, PRIVACY_CONTACT_TODO } from "../lib/company.ts";
@@ -470,7 +473,7 @@ describe("publication flags", () => {
 
 describe("DB-IP attribution", () => {
   const verbatim =
-    "Данные о стране и сети IP-адресов: IP Geolocation by DB-IP, лицензия CC BY 4.0.";
+    "Данные о стране и сети IP-адресов: IP Geolocation by DB-IP, лицензия CC BY 4.0";
 
   function withFlag(value: boolean, run: () => void) {
     const previous = flags.show_dbip_attribution;
@@ -501,10 +504,14 @@ describe("DB-IP attribution", () => {
     withFlag(true, () => {
       const item = dbipFooterAttribution();
       if (!item) throw new Error("expected attribution");
-      const text = `${item.before}${item.homeLabel}${item.between}${item.licenseLabel}${item.after}`;
+      const html = renderToStaticMarkup(createElement(DbipAttribution));
+      const text = html.replace(/<[^>]+>/g, "");
+      const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
       assert.equal(text, verbatim);
-      assert.equal(item.homeHref, safeHref("https://db-ip.com"));
-      assert.equal(item.licenseHref, safeHref("https://creativecommons.org/licenses/by/4.0/"));
+      assert.equal(text.endsWith("."), false);
+      assert.deepEqual(hrefs, ["https://db-ip.com", "https://creativecommons.org/licenses/by/4.0/"]);
+      assert.equal(item.homeHref, "https://db-ip.com");
+      assert.equal(item.licenseHref, "https://creativecommons.org/licenses/by/4.0/");
       assert.equal(item.homeLabel, "IP Geolocation by DB-IP");
       assert.equal(item.licenseLabel, "CC BY 4.0");
       assert.equal(item.rel, "noopener noreferrer");
