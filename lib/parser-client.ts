@@ -17,7 +17,7 @@ import {
   saveScanContact,
 } from "./scan-contacts";
 import { randomUUID } from "crypto";
-import { CONSENT_TEXT_VERSION, ScanConsentRequiredError } from "./consent";
+import { CONSENT_TEXT_VERSION, marketingConsentForParser, ScanConsentRequiredError } from "./consent";
 
 export { isParserConfigured, getParserBase };
 
@@ -151,8 +151,9 @@ function mapUpstream(
 }
 
 /**
- * Лид для парсера. Согласие на рассылку — явное поле.
- * Свой стоп-лист не пишем: отписка только через flow /u/ парсера.
+ * Лид для парсера. Согласие на рассылку — явное поле со своей версией текста.
+ * marketing_consent_at не шлём: время проставляет парсер.
+ * Свой стоп-лист не пишем: отписка — flow /u/ парсера и тот же стоп-лист.
  */
 export function leadForParser(contact: ScanContact): Record<string, unknown> {
   return {
@@ -162,13 +163,7 @@ export function leadForParser(contact: ScanContact): Record<string, unknown> {
     consent: true,
     consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
     source: "landing",
-    marketing_consent: contact.marketing_consent === true,
-    ...(contact.marketing_consent === true
-      ? {
-          marketing_consent_text_version:
-            contact.marketing_consent_text_version || CONSENT_TEXT_VERSION,
-        }
-      : {}),
+    ...marketingConsentForParser(contact.marketing_consent === true),
   };
 }
 

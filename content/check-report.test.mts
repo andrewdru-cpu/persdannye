@@ -21,6 +21,11 @@ import {
   presentCheckReport,
   scanHasRisks,
 } from "../lib/check-report.ts";
+import {
+  CONSENT_TEXT_VERSION,
+  MARKETING_CONSENT_TEXT_VERSION,
+  marketingConsentForParser,
+} from "../lib/consent.ts";
 import { leadForParser, publicCheckJob } from "../lib/parser-client.ts";
 import { marketingConsentEnabled } from "../lib/runtime-flags.ts";
 import type { CheckJob, Finding, Recommendation } from "../lib/types.ts";
@@ -283,8 +288,8 @@ describe("checklist flags", () => {
   it("marks checklist items 9, 16, and 17 with the lawyer phrases", () => {
     const expected = {
       "9": "неприменимо до запуска тарифов",
-      "16": "неприменимо, оговорка 18+ в документах",
-      "17": "данные детей неприменимы; отписка через единый flow /u/",
+      "16": "неприменимо; оговорка 18+ появляется в документах вместе с show_site_legal",
+      "17": "данные детей неприменимы; единый flow /u/ плюс тот же стоп-лист — и для согласия на рассылку с чекбокса формы (цель 7), и для отзыва согласия по e-mail (п. 6.2)",
     } as const;
     assert.deepEqual(
       notApplicableItems.map((item) => item.id),
@@ -297,21 +302,42 @@ describe("checklist flags", () => {
   });
 
   it("forwards mailing consent as an explicit parser field", () => {
+    assert.ok(MARKETING_CONSENT_TEXT_VERSION.length <= 32);
+    assert.notEqual(MARKETING_CONSENT_TEXT_VERSION, CONSENT_TEXT_VERSION);
     const on = leadForParser({
       email: "a@b.c",
       consent: true,
+      consent_text_version: CONSENT_TEXT_VERSION,
       marketing_consent: true,
       marketing_consent_text_version: "m-1",
     });
     assert.equal(on.marketing_consent, true);
-    assert.equal(on.marketing_consent_text_version, "m-1");
+    assert.equal(on.marketing_consent_text_version, MARKETING_CONSENT_TEXT_VERSION);
+    assert.equal(on.consent_text_version, CONSENT_TEXT_VERSION);
+    assert.equal("marketing_consent_at" in on, false);
+    const missingVersion = leadForParser({
+      email: "a@b.c",
+      consent: true,
+      marketing_consent: true,
+    });
+    assert.deepEqual(
+      marketingConsentForParser(true),
+      {
+        marketing_consent: true,
+        marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
+      },
+    );
+    assert.equal(missingVersion.marketing_consent_text_version, MARKETING_CONSENT_TEXT_VERSION);
+    assert.equal(missingVersion.consent_text_version, CONSENT_TEXT_VERSION);
     const off = leadForParser({ email: "a@b.c", consent: true, marketing_consent: false });
     assert.equal(off.marketing_consent, false);
     assert.equal("marketing_consent_text_version" in off, false);
+    assert.equal("marketing_consent_at" in off, false);
     const omitted = leadForParser({ email: "a@b.c", consent: true });
     assert.equal(omitted.marketing_consent, false);
-    for (const lead of [on, off, omitted]) {
+    for (const lead of [on, off, omitted, missingVersion]) {
       const keys = Object.keys(lead);
+      assert.equal(keys.includes("marketing_consent_at"), false);
       assert.equal(keys.some((key) => /stop|suppression|unsubscrib/i.test(key)), false);
     }
   });

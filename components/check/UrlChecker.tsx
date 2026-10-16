@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
-import { CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import type { CheckJob } from "@/lib/types";
 import { CheckReport } from "@/components/check/CheckReport";
@@ -154,7 +154,10 @@ export function UrlChecker({
           consent: true,
           consent_text_version: CONSENT_TEXT_VERSION,
           ...(marketingConsent && marketingOptIn
-            ? { marketing_consent: true, marketing_consent_text_version: CONSENT_TEXT_VERSION }
+            ? {
+                marketing_consent: true,
+                marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
+              }
             : {}),
         }
       : undefined;

@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
-import { CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { LEAD_CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
 
 export function LeadForm({
   defaultUrl = "",
@@ -54,8 +54,9 @@ export function LeadForm({
           consent: true,
           consent_text_version: LEAD_CONSENT_TEXT_VERSION,
           source,
+          marketing_consent: marketingConsent && marketingOptIn ? true : false,
           ...(marketingConsent && marketingOptIn
-            ? { marketing_consent: true, marketing_consent_text_version: CONSENT_TEXT_VERSION }
+            ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
             : {}),
         }),
       });

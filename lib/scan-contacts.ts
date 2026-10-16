@@ -8,7 +8,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { ScanContact } from "./types";
 import { dataFilePath } from "./data-dir";
-import { CONSENT_TEXT_VERSION } from "./consent";
+import { CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "./consent";
 
 const DATA_PATH = dataFilePath("scan-contacts.json");
 
@@ -48,7 +48,7 @@ export function normalizeScanContact(
   if (input.marketing_consent === true) {
     contact.marketing_consent = true;
     contact.marketing_consent_text_version =
-      input.marketing_consent_text_version?.trim() || CONSENT_TEXT_VERSION;
+      input.marketing_consent_text_version?.trim() || MARKETING_CONSENT_TEXT_VERSION;
   }
   return contact;
 }
@@ -78,7 +78,7 @@ export function mergeScanContact(
           marketing_consent_text_version:
             primary?.marketing_consent_text_version ||
             fallback?.marketing_consent_text_version ||
-            CONSENT_TEXT_VERSION,
+            MARKETING_CONSENT_TEXT_VERSION,
         }
       : {}),
   };
@@ -115,7 +115,8 @@ export async function saveScanContact(
     ...(contact.marketing_consent === true
       ? {
           marketing_consent: true as const,
-          marketing_consent_text_version: contact.marketing_consent_text_version || CONSENT_TEXT_VERSION,
+          marketing_consent_text_version:
+            contact.marketing_consent_text_version || MARKETING_CONSENT_TEXT_VERSION,
         }
       : {}),
     url,
