@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { flags } from "./flags.ts";
-import { privacySurface, siteLegalPrivacy, siteLegalPrivacyMarkers } from "./site-legal.ts";
+import {
+  SITE_LEGAL_SUBJECTS_CLAUSE,
+  privacySurface,
+  siteLegalPrivacy,
+  siteLegalPrivacyMarkers,
+  subjectsAgeClause,
+} from "./site-legal.ts";
 import { visibleFooterDocuments } from "./legal-nav.ts";
 import { notApplicableItems } from "./not-applicable.ts";
 import {
@@ -15,7 +21,7 @@ import {
   presentCheckReport,
   scanHasRisks,
 } from "../lib/check-report.ts";
-import { publicCheckJob } from "../lib/parser-client.ts";
+import { leadForParser, publicCheckJob } from "../lib/parser-client.ts";
 import { marketingConsentEnabled } from "../lib/runtime-flags.ts";
 import type { CheckJob, Finding, Recommendation } from "../lib/types.ts";
 
@@ -247,6 +253,11 @@ describe("checklist flags", () => {
     const privacyPage = readFileSync(new URL("../app/privacy/page.tsx", import.meta.url), "utf8");
     assert.equal(privacyPage.includes("Редакция от 21.09.2026"), true);
     assert.equal(privacyPage.includes("Настоящая Политика обработки персональных данных"), true);
+    assert.equal(privacyPage.includes("subjectsAgeClause()"), true);
+    assert.equal(privacyPage.includes(SITE_LEGAL_SUBJECTS_CLAUSE), false);
+    assert.equal(subjectsAgeClause(false), null);
+    assert.equal(subjectsAgeClause(), null);
+    assert.equal(subjectsAgeClause(true), SITE_LEGAL_SUBJECTS_CLAUSE);
     for (const marker of siteLegalPrivacyMarkers) {
       assert.equal(privacyPage.includes(marker), false, marker);
     }
@@ -269,21 +280,39 @@ describe("checklist flags", () => {
     }
   });
 
-  it("marks checklist items 9, 16, and 17 as not applicable", () => {
+  it("marks checklist items 9, 16, and 17 with the lawyer phrases", () => {
+    const expected = {
+      "9": "неприменимо до запуска тарифов",
+      "16": "неприменимо, оговорка 18+ в документах",
+      "17": "данные детей неприменимы; отписка через единый flow /u/",
+    } as const;
     assert.deepEqual(
       notApplicableItems.map((item) => item.id),
       ["9", "16", "17"],
     );
     for (const item of notApplicableItems) {
-      assert.equal(item.mark, "неприменимо");
-      assert.equal(item.reason.length > 20, true);
+      assert.equal(item.mark, expected[item.id]);
+      assert.equal(item.reason, expected[item.id]);
     }
-    const unsubscribe = notApplicableItems.find((item) => item.id === "17");
-    assert.equal(unsubscribe?.reason.includes("/u/"), true);
-    assert.equal(unsubscribe?.reason.includes("детей"), true);
-    const commissions = notApplicableItems.find((item) => item.id === "9");
-    assert.equal(commissions?.reason.includes("комисс"), true);
-    const age = notApplicableItems.find((item) => item.id === "16");
-    assert.equal(age?.reason.includes("детей"), true);
+  });
+
+  it("forwards mailing consent as an explicit parser field", () => {
+    const on = leadForParser({
+      email: "a@b.c",
+      consent: true,
+      marketing_consent: true,
+      marketing_consent_text_version: "m-1",
+    });
+    assert.equal(on.marketing_consent, true);
+    assert.equal(on.marketing_consent_text_version, "m-1");
+    const off = leadForParser({ email: "a@b.c", consent: true, marketing_consent: false });
+    assert.equal(off.marketing_consent, false);
+    assert.equal("marketing_consent_text_version" in off, false);
+    const omitted = leadForParser({ email: "a@b.c", consent: true });
+    assert.equal(omitted.marketing_consent, false);
+    for (const lead of [on, off, omitted]) {
+      const keys = Object.keys(lead);
+      assert.equal(keys.some((key) => /stop|suppression|unsubscrib/i.test(key)), false);
+    }
   });
 });

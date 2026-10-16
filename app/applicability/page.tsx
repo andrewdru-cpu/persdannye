@@ -16,7 +16,9 @@ export default function ApplicabilityPage() {
             <p className="text-sm text-white/80">Пункт {item.id}</p>
             <h2 className="mt-1 text-xl font-semibold text-white">{item.title}</h2>
             <p className="mt-2 text-sm font-medium text-amber-100">{item.mark}</p>
-            <p className="mt-2 text-sm leading-relaxed text-white/80">{item.reason}</p>
+            {item.reason !== item.mark ? (
+              <p className="mt-2 text-sm leading-relaxed text-white/80">{item.reason}</p>
+            ) : null}
           </li>
         ))}
       </ul>

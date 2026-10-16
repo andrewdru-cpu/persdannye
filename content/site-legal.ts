@@ -1,9 +1,8 @@
 import { flags } from "./flags";
 
 /**
- * Новая редакция политики (site-legal). Текста в репозитории нет.
- * Публиковать только после ОК Андрея: флаг show_site_legal и непустой документ.
- * Пока документа нет, /privacy остаётся прежней политикой.
+ * Добавки site-legal к прежней политике. На /privacy попадают только при show_site_legal.
+ * Флаг выключен, пока Андрей не дал ОК.
  */
 export type SiteLegalPrivacyDocument = {
   title: string;
@@ -11,6 +10,14 @@ export type SiteLegalPrivacyDocument = {
 };
 
 export const siteLegalPrivacy: SiteLegalPrivacyDocument | null = null;
+
+/** Дословно, раздел о субъектах. Показываем только при включённом флаге. */
+export const SITE_LEGAL_SUBJECTS_CLAUSE =
+  "Сервис предназначен для организаций и ИП и их представителей старше 18 лет. Оператор не собирает данные несовершеннолетних намеренно. Если такие данные получены, они удаляются после обнаружения";
+
+export function subjectsAgeClause(showSiteLegal: boolean = flags.show_site_legal): string | null {
+  return showSiteLegal ? SITE_LEGAL_SUBJECTS_CLAUSE : null;
+}
 
 /** Маркеры новой редакции. В прежней политике и в выдаче /privacy их быть не должно. */
 export const siteLegalPrivacyMarkers = [

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { flags } from "@/content/flags";
-import { privacySurface, siteLegalPrivacy } from "@/content/site-legal";
+import { privacySurface, siteLegalPrivacy, subjectsAgeClause } from "@/content/site-legal";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 import Link from "next/link";
@@ -72,6 +72,7 @@ function LegacyPrivacyPolicy() {
           <li>лица, оставившие заявку (лид-форму) или запросившие отчёт;</li>
           <li>представители клиентов и контрагентов при деловой переписке.</li>
         </ul>
+        {subjectsAgeClause() ? <p>{subjectsAgeClause()}</p> : null}
         <p>Состав обрабатываемых данных (в зависимости от сценария):</p>
         <ul>
           <li>фамилия, имя, отчество (при указании);</li>

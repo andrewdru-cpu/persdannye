@@ -150,6 +150,28 @@ function mapUpstream(
   };
 }
 
+/**
+ * Лид для парсера. Согласие на рассылку — явное поле.
+ * Свой стоп-лист не пишем: отписка только через flow /u/ парсера.
+ */
+export function leadForParser(contact: ScanContact): Record<string, unknown> {
+  return {
+    ...(contact.name ? { name: contact.name } : {}),
+    ...(contact.email ? { email: contact.email } : {}),
+    ...(contact.phone ? { phone: contact.phone } : {}),
+    consent: true,
+    consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
+    source: "landing",
+    marketing_consent: contact.marketing_consent === true,
+    ...(contact.marketing_consent === true
+      ? {
+          marketing_consent_text_version:
+            contact.marketing_consent_text_version || CONSENT_TEXT_VERSION,
+        }
+      : {}),
+  };
+}
+
 function scanCreateBody(
   url: string,
   contact: ScanContact | null,
@@ -157,16 +179,7 @@ function scanCreateBody(
 ): Record<string, unknown> {
   const body: Record<string, unknown> = { url };
   if (opts.mode) body.mode = "quick";
-  if (opts.lead && contact) {
-    body.lead = {
-      ...(contact.name ? { name: contact.name } : {}),
-      ...(contact.email ? { email: contact.email } : {}),
-      ...(contact.phone ? { phone: contact.phone } : {}),
-      consent: true,
-      consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
-      source: "landing",
-    };
-  }
+  if (opts.lead && contact) body.lead = leadForParser(contact);
   return body;
 }
 
