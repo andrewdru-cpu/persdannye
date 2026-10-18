@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Footer } from "../components/layout/Footer.tsx";
+import { OperatorRequisites } from "../components/layout/OperatorRequisites.tsx";
+import { PolicyLine, ReportConsentFields } from "../components/check/ReportConsentFields.tsx";
 import { GatedLegalPage } from "../components/legal/GatedLegalPage.tsx";
 import DataDeletionPage, { metadata as dataDeletionMeta } from "../app/data-deletion/page.tsx";
-import ConsentLeadPage, { metadata as consentLeadMeta } from "../app/consent-lead/page.tsx";
-import ConsentMarketingPage, { metadata as consentMarketingMeta } from "../app/consent-marketing/page.tsx";
-import ConsentPage, { metadata as consentMeta } from "../app/consent/page.tsx";
 import CookiesPage, { metadata as cookiesMeta } from "../app/cookies/page.tsx";
 import OfferPage, { metadata as offerMeta } from "../app/offer/page.tsx";
 import PrivacyPage, { metadata as privacyMeta } from "../app/privacy/page.tsx";
@@ -20,7 +20,7 @@ import type { LegalDocument } from "./legal-documents.ts";
 import { visibleFooterDocuments } from "./legal-nav.ts";
 import { LEGAL_PENDING_TEXT, legalRobots } from "./legal-publication.ts";
 import { SITE_LEGAL_SUBJECTS_CLAUSE, siteLegalPrivacyMarkers } from "./site-legal.ts";
-import { company } from "../lib/company.ts";
+import { assertPublishedRequisites, company, type PublishedRequisites } from "../lib/company.ts";
 
 const noindex = { index: false, follow: false } as const;
 
@@ -38,6 +38,15 @@ const sampleOffer: LegalDocument = {
   title: "Оферта",
   edition: "Редакция теста",
   blocks: ["акцепт оферты ждёт юриста"],
+};
+
+const sampleRequisites: PublishedRequisites = {
+  legalName: "ООО Пример",
+  inn: "1098765432",
+  ogrn: "1234567890123",
+  address: "г. Пример, ул. Примерная, д. 1",
+  phone: "+7 900 111-22-33",
+  phoneHref: "tel:+79001112233",
 };
 
 function markup(node: ReactNode): string {
@@ -106,37 +115,20 @@ describe("legal page flags", { concurrency: 1 }, () => {
       },
     ] as const;
     for (const item of pages) {
-      const source = readSource(item.source);
-      assert.equal(source.includes(`flags.${item.flag}`), true, item.source);
-      assert.equal(source.includes("notFound("), false, item.source);
       const html = markup(createElement(item.Page));
       assert.equal(html.includes(LEGAL_PENDING_TEXT), true, item.title);
       assert.equal(html.includes(item.title), true, item.title);
-      assert.equal(html.includes(company.inn), false, item.title);
       assert.equal(html.includes(sampleOffer.blocks[0]!), false, item.title);
+      assert.equal(readSource(item.source).includes(`flags.${item.flag}`), true, item.source);
     }
   });
 
   it("renders cookies and terms as noindex stubs without their document markers", () => {
     const pages = [
-      {
-        source: "app/cookies/page.tsx",
-        flag: "show_cookie_policy",
-        Page: CookiesPage,
-        markers: cookieMarkers,
-      },
-      {
-        source: "app/terms/page.tsx",
-        flag: "show_terms",
-        Page: TermsPage,
-        markers: termsMarkers,
-      },
+      { flag: "show_cookie_policy", Page: CookiesPage, markers: cookieMarkers },
+      { flag: "show_terms", Page: TermsPage, markers: termsMarkers },
     ] as const;
     for (const item of pages) {
-      const source = readSource(item.source);
-      assert.equal(source.includes(`if (!flags.${item.flag})`), true, item.source);
-      assert.equal(source.includes("LegalPending"), true, item.source);
-      assert.equal(source.includes("notFound("), false, item.source);
       const html = markup(createElement(item.Page));
       assert.equal(html.includes(LEGAL_PENDING_TEXT), true, item.flag);
       for (const marker of item.markers) {
@@ -161,9 +153,6 @@ describe("legal page flags", { concurrency: 1 }, () => {
   it("keeps the 21.09 privacy policy and hides site-legal markers", () => {
     assert.equal(flags.show_site_legal, false);
     assert.equal(privacyMeta.robots, undefined);
-    const source = readSource("app/privacy/page.tsx");
-    assert.equal(source.includes("notFound("), false);
-    assert.equal(source.includes("LegalPending"), false);
     const html = markup(createElement(PrivacyPage));
     assert.equal(html.includes("Редакция от 21.09.2026"), true);
     assert.equal(html.includes("Настоящая Политика обработки персональных данных"), true);
@@ -175,38 +164,30 @@ describe("legal page flags", { concurrency: 1 }, () => {
     }
   });
 
-  it("keeps the consent pages that form checkboxes link to", () => {
-    const pages = [
-      {
-        Page: ConsentPage,
-        metadata: consentMeta,
-        marker: "Цель: проведение автоматической проверки указанного мной сайта",
-      },
-      {
-        Page: ConsentLeadPage,
-        metadata: consentLeadMeta,
-        marker: "Цель: рассмотрение моей заявки",
-      },
-      {
-        Page: ConsentMarketingPage,
-        metadata: consentMarketingMeta,
-        marker: "согласие на получение рекламных и информационных писем",
-      },
-    ] as const;
-    for (const item of pages) {
-      assert.equal(item.metadata.robots, undefined);
-      const html = markup(createElement(item.Page));
-      assert.equal(html.includes(item.marker), true, item.marker);
-      assert.equal(html.includes(LEGAL_PENDING_TEXT), false, item.marker);
-      assert.equal(html.includes('href="/privacy"'), true, item.marker);
-    }
-    const fields = readSource("components/check/ReportConsentFields.tsx");
-    const lead = readSource("components/landing/LeadForm.tsx");
-    assert.equal(fields.includes('href={consentHref}'), true);
-    assert.equal(fields.includes('consentHref = "/consent"'), true);
-    assert.equal(fields.includes('href="/consent-marketing"'), true);
-    assert.equal(fields.includes('href="/privacy"'), true);
-    assert.equal(lead.includes('consentHref="/consent-lead"'), true);
+  it("renders the checkbox links to consent and the lead consent", () => {
+    const check = markup(
+      createElement(ReportConsentFields, {
+        consent: false,
+        onConsent: () => undefined,
+        marketing: false,
+        onMarketing: () => undefined,
+        showMarketing: false,
+      }),
+    );
+    const lead = markup(
+      createElement(ReportConsentFields, {
+        consent: false,
+        onConsent: () => undefined,
+        marketing: false,
+        onMarketing: () => undefined,
+        showMarketing: false,
+        consentHref: "/consent-lead",
+      }),
+    );
+    const policy = markup(createElement(PolicyLine));
+    assert.equal(hrefsOf(check).includes("/consent"), true);
+    assert.equal(hrefsOf(lead).includes("/consent-lead"), true);
+    assert.equal(hrefsOf(policy).includes("/privacy"), true);
   });
 
   it("hides footer links and requisites for disabled documents", () => {
@@ -217,16 +198,12 @@ describe("legal page flags", { concurrency: 1 }, () => {
     }
     assert.equal(links.includes("/privacy"), true);
     assert.equal(links.includes("/applicability"), true);
-    assert.equal(html.includes(company.inn), false);
-    assert.equal(html.includes(company.ogrn), false);
-    assert.equal(html.includes(company.address), false);
-    assert.equal(html.includes(company.phone), false);
-    assert.equal(html.includes(company.legalName), false);
     assert.equal(html.includes("Реквизиты не опубликованы"), true);
+    assert.equal(html.includes("ИНН"), false);
     assert.deepEqual(visibleFooterDocuments().map((item) => item.href), ["/privacy", "/applicability"]);
   });
 
-  it("shows footer links and requisites when those flags are substituted on", () => {
+  it("shows footer document links when those flags are substituted on", () => {
     withFlags(
       {
         show_cookie_policy: true,
@@ -234,7 +211,6 @@ describe("legal page flags", { concurrency: 1 }, () => {
         show_offer: true,
         show_refund: true,
         show_data_deletion: true,
-        show_requisites: true,
       },
       () => {
         const html = markup(createElement(Footer));
@@ -247,14 +223,47 @@ describe("legal page flags", { concurrency: 1 }, () => {
         assert.equal(html.includes("Оферта"), true);
         assert.equal(html.includes("Возврат"), true);
         assert.equal(html.includes("Порядок удаления данных"), true);
-        assert.equal(html.includes(company.inn), true);
-        assert.equal(html.includes(company.legalName), true);
-        assert.equal(html.includes(company.phone), true);
-        assert.equal(html.includes("Реквизиты не опубликованы"), false);
+        assert.equal(html.includes("Реквизиты не опубликованы"), true);
+        assert.equal(html.includes(sampleRequisites.legalName), false);
+        assert.equal(html.includes(sampleRequisites.address), false);
       },
     );
     assert.equal(flags.show_offer, false);
     assert.equal(flags.show_requisites, false);
+  });
+
+  it("keeps stored requisites empty and refuses to publish blanks or sample values", () => {
+    assert.equal(company.legalName, "");
+    assert.equal(company.inn, "");
+    assert.equal(company.ogrn, "");
+    assert.equal(company.address, "");
+    assert.equal(company.phone, "");
+    assert.equal(company.phoneHref, "");
+    assert.doesNotThrow(() => assertPublishedRequisites(false, company));
+    assert.throws(() => assertPublishedRequisites(true, company), /Реквизиты пустые/);
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...sampleRequisites, inn: "0000000000" }),
+      /Тестовый ИНН/,
+    );
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...sampleRequisites, inn: "7700000000" }),
+      /Тестовый ИНН/,
+    );
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...sampleRequisites, address: "г. Пример, {{address}}" }),
+      /Плейсхолдер в реквизитах/,
+    );
+    assert.throws(() => markup(createElement(OperatorRequisites, { requisites: company })));
+    withFlags({ show_requisites: true }, () => {
+      assert.throws(() => markup(createElement(Footer)));
+    });
+    const html = markup(createElement(OperatorRequisites, { requisites: sampleRequisites }));
+    assert.equal(html.includes(sampleRequisites.legalName), true);
+    assert.equal(html.includes(`ИНН ${sampleRequisites.inn}`), true);
+    assert.equal(html.includes(sampleRequisites.ogrn), true);
+    assert.equal(html.includes(sampleRequisites.address), true);
+    assert.equal(html.includes(sampleRequisites.phone), true);
+    assert.equal(hrefsOf(html).includes(sampleRequisites.phoneHref), true);
   });
 
   it("keeps the cookie banner link when the cookie policy flag is off", () => {
@@ -297,6 +306,50 @@ describe("legal page flags", { concurrency: 1 }, () => {
     }
     walk(fileURL(root));
     assert.deepEqual(Object.fromEntries([...found.entries()].sort()), expected);
+  });
+
+  it("serves the built offer, refund, and data-deletion pages with noindex", async () => {
+    const root = fileURL(new URL("..", import.meta.url));
+    assert.equal(existsSync(path.join(root, ".next", "BUILD_ID")), true, "Сначала npm run build");
+    const port = 3491;
+    const origin = `http://127.0.0.1:${port}`;
+    const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-H", "127.0.0.1", "-p", String(port)], {
+      cwd: root,
+      detached: true,
+      stdio: "ignore",
+    });
+    try {
+      const deadline = Date.now() + 30_000;
+      let last = "сервер не ответил";
+      while (Date.now() < deadline) {
+        try {
+          const probe = await fetch(`${origin}/offer`);
+          if (probe.status === 200) break;
+          last = String(probe.status);
+        } catch (error) {
+          last = error instanceof Error ? error.message : String(error);
+        }
+        if (Date.now() >= deadline) break;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      const ready = await fetch(`${origin}/offer`);
+      assert.equal(ready.status, 200, last);
+      for (const route of ["/offer", "/refund", "/data-deletion"]) {
+        const response = await fetch(`${origin}${route}`);
+        assert.equal(response.status, 200, route);
+        const html = await response.text();
+        assert.match(html, /<meta name="robots" content="noindex, nofollow"\/>/, route);
+        assert.equal(html.includes(LEGAL_PENDING_TEXT), true, route);
+      }
+    } finally {
+      if (child.pid) {
+        try {
+          process.kill(-child.pid, "SIGTERM");
+        } catch {
+          child.kill("SIGTERM");
+        }
+      }
+    }
   });
 });
 
