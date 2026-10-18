@@ -18,6 +18,7 @@ import { flags } from "@/content/flags";
 import { loadVisibleChecksCount } from "@/lib/checks-count";
 import { renderHero } from "@/lib/hero-copy";
 import { finesMode } from "@/lib/fines-gate";
+import { collectionEnabled } from "@/lib/collection-gate";
 import { marketingConsentEnabled, showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export default async function HomePage() {
@@ -25,6 +26,7 @@ export default async function HomePage() {
   const checksCount = flags.hero_checks_count ? await loadVisibleChecksCount() : null;
   const hero = renderHero({ checksCount });
   const showFines = flags.show_fines && mode !== "hidden";
+  const collect = collectionEnabled();
 
   return (
     <>
@@ -35,6 +37,7 @@ export default async function HomePage() {
         sublineNarrow={hero.sublineNarrow}
         ctaLabel={hero.cta}
         marketingConsent={marketingConsentEnabled()}
+        collectionEnabled={collect}
       />
       <Trust />
       <HowItWorks />
@@ -45,9 +48,11 @@ export default async function HomePage() {
       {showFines && mode === "amounts" ? <FinesAmounts /> : showFines && mode === "neutral" ? <FinesNeutral /> : null}
       {flags.show_sample_report ? <ExampleResult /> : null}
       {flags.show_who_for ? <WhoFor /> : null}
-      {flags.show_fix_with_us ? <FixWithUs /> : null}
+      {flags.show_fix_with_us ? <FixWithUs collectionEnabled={collect} /> : null}
       <FAQ todos={showPlaceholderTodos()} showFinesTable={showFines} />
-      {flags.show_lead_form ? <LeadSection marketingConsent={marketingConsentEnabled()} /> : null}
+      {flags.show_lead_form ? (
+        <LeadSection marketingConsent={marketingConsentEnabled()} collectionEnabled={collect} />
+      ) : null}
     </>
   );
 }
