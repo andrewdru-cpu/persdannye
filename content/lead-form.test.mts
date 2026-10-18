@@ -116,6 +116,11 @@ describe("lead form submit", () => {
   it("keeps typed values and does not retry from the form", () => {
     const form = readFileSync(new URL("../components/landing/LeadForm.tsx", import.meta.url), "utf8");
     assert.match(form, /const \[idempotencyKey\] = useState\(\(\) => crypto\.randomUUID\(\)\)/);
+    assert.equal(form.split("randomUUID").length - 1, 1);
+    const submit = form.slice(form.indexOf("async function onSubmit"));
+    assert.equal(submit.includes("randomUUID"), false);
+    assert.match(submit, /submitLeadOnce\(/);
+    assert.match(submit, /idempotencyKey/);
     assert.match(form, /submitLeadOnce\(/);
     assert.equal(form.includes("fetch("), false);
     assert.equal(form.includes('setName("")'), false);

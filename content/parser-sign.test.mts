@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { bffSignatureMaterial, ParserUnavailableError } from "../lib/lead-guard.ts";
+import { previousSigningSecret } from "../lib/deploy-env.ts";
+import { bffSignatureMaterial, ParserUnavailableError, trustedClientIp } from "../lib/lead-guard.ts";
+import { postLeadToParser } from "../lib/leads-upstream.ts";
 import { clearParserToken, parserFetch } from "../lib/parser-auth.ts";
 
 const SECRET = "0123456789abcdef0123456789abcdef";
 const IP = "203.0.113.7";
+const PUBLISHED_KEY = "test-key-0123456789abcdef0123456789abcdef";
+const PUBLISHED_EMPTY = "7e6b604153f10ada26d35f39a4b91cf2b16a5ceb55a0c9745f214e8f7b69e98a";
+const PUBLISHED_BODY = "1810e470f8492479571d2a4b9d324cf2e6a821bf2767390680925d048a40f0c9";
+const LOGIN_BODY = JSON.stringify({ email: "svc@example.com", password: "parser-password" });
+const EMPTY_SHA = createHash("sha256").update("").digest("hex");
 
 const ENV_KEYS = [
   "PARSER_API_BASE",
@@ -15,6 +22,7 @@ const ENV_KEYS = [
   "PARSER_API_EMAIL",
   "PARSER_API_PASSWORD",
   "PD_BFF_SIGNING_SECRET",
+  "PD_BFF_SIGNING_SECRET_PREV",
   "VERCEL_ENV",
   "PD_DEPLOY_ENV",
 ] as const;
@@ -30,14 +38,25 @@ function snapshotEnv() {
   };
 }
 
-function expectSig(headers: Headers, method: string, path: string) {
+function bodySha(body?: BodyInit | null): string {
+  if (body == null) return EMPTY_SHA;
+  if (typeof body === "string") return createHash("sha256").update(body, "utf8").digest("hex");
+  if (body instanceof ArrayBuffer) return createHash("sha256").update(new Uint8Array(body)).digest("hex");
+  if (ArrayBuffer.isView(body)) {
+    return createHash("sha256").update(Buffer.from(body.buffer, body.byteOffset, body.byteLength)).digest("hex");
+  }
+  throw new TypeError("unsupported test body");
+}
+
+function expectSig(headers: Headers, method: string, path: string, body?: BodyInit | null) {
   const ts = headers.get("x-pd-ts") ?? "";
   const ip = headers.get("x-pd-client-ip");
   assert.equal(ip, IP);
-  const material = `${ts}.${method}.${path}.${ip}`;
-  assert.equal(bffSignatureMaterial(ts, method.toLowerCase(), path, ip!), material);
+  const material = `${ts}\n${method.toUpperCase()}\n${path}\n${ip}\n${bodySha(body)}`;
+  assert.equal(bffSignatureMaterial(ts, method.toLowerCase(), path, ip!, body), material);
   const expected = createHmac("sha256", SECRET).update(material).digest("hex");
   assert.equal(headers.get("x-pd-sig"), expected);
+  assert.equal(material.includes(`${ts}.${method}`), false);
 }
 
 describe("parser request signatures", { concurrency: 1 }, () => {
@@ -54,6 +73,7 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     delete process.env.PARSER_API_EMAIL;
     delete process.env.PARSER_API_PASSWORD;
     process.env.PD_BFF_SIGNING_SECRET = SECRET;
+    delete process.env.PD_BFF_SIGNING_SECRET_PREV;
     delete process.env.VERCEL_ENV;
     delete process.env.PD_DEPLOY_ENV;
     const prev = globalThis.fetch;
@@ -119,14 +139,14 @@ describe("parser request signatures", { concurrency: 1 }, () => {
 
     await parserFetch("/api/scans", { method: "get" }, true, new Headers({ "x-real-ip": IP }));
     const ts = calls[0].headers.get("x-pd-ts") ?? "";
-    const material = `${ts}.GET./api/scans.${IP}`;
+    const material = `${ts}\nGET\n/api/scans\n${IP}\n${EMPTY_SHA}`;
     const expected = createHmac("sha256", SECRET).update(material).digest("hex");
     assert.equal(calls[0].headers.get("x-pd-sig"), expected);
     assert.equal(bffSignatureMaterial(ts, "get", "/api/scans", IP), material);
   });
 
   it("signs /public/lead/ and /public/lead?x=1 as /public/lead", async () => {
-    const canonical = "1760817600.POST./public/lead.203.0.113.7";
+    const canonical = `1760817600\nPOST\n/public/lead\n203.0.113.7\n${EMPTY_SHA}`;
     assert.equal(bffSignatureMaterial("1760817600", "POST", "/public/lead/", "203.0.113.7"), canonical);
     assert.equal(bffSignatureMaterial("1760817600", "post", "/public/lead?x=1", "203.0.113.7"), canonical);
     assert.notEqual(bffSignatureMaterial("1760817600", "POST", "/api/leads", "203.0.113.7"), canonical);
@@ -151,10 +171,10 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     );
     for (const call of calls) {
       const ts = call.headers.get("x-pd-ts") ?? "";
-      const material = `${ts}.POST./public/lead.${IP}`;
+      const material = `${ts}\nPOST\n/public/lead\n${IP}\n${EMPTY_SHA}`;
       const sig = createHmac("sha256", SECRET).update(material).digest("hex");
       assert.equal(call.headers.get("x-pd-sig"), sig);
-      const vercel = createHmac("sha256", SECRET).update(`${ts}.POST./api/leads.${IP}`).digest("hex");
+      const vercel = createHmac("sha256", SECRET).update(`${ts}\nPOST\n/api/leads\n${IP}\n${EMPTY_SHA}`).digest("hex");
       assert.notEqual(call.headers.get("x-pd-sig"), vercel);
     }
   });
@@ -171,18 +191,18 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, "https://parser.example/public/lead?a=1");
     const ts = calls[0].headers.get("x-pd-ts") ?? "";
-    const material = `${ts}.POST./public/lead.${IP}`;
+    const material = `${ts}\nPOST\n/public/lead\n${IP}\n${EMPTY_SHA}`;
     const expected = createHmac("sha256", SECRET).update(material).digest("hex");
     assert.equal(calls[0].headers.get("x-pd-sig"), expected);
     assert.equal(material.includes("?"), false);
     assert.equal(material.includes("a=1"), false);
     assert.equal(
       bffSignatureMaterial("1760817600", "post", "https://parser.example/public/lead?a=1#section", "203.0.113.7"),
-      "1760817600.POST./public/lead.203.0.113.7"
+      `1760817600\nPOST\n/public/lead\n203.0.113.7\n${EMPTY_SHA}`
     );
   });
 
-  it("signs a scan with HMAC of ts.method.path.ip", async () => {
+  it("signs a scan with HMAC of ts, method, path, ip, and the body hash", async () => {
     process.env.PARSER_API_TOKEN = "parser-token";
     const calls: Array<{ url: string; headers: Headers }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -199,7 +219,11 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, "https://parser.example/api/scans");
     assert.equal(calls[0].headers.get("x-pd-client-ip"), IP);
-    expectSig(calls[0].headers, "POST", "/api/scans");
+    expectSig(calls[0].headers, "POST", "/api/scans", "{}");
+    const emptyBodySig = createHmac("sha256", SECRET)
+      .update(`${calls[0].headers.get("x-pd-ts")}\nPOST\n/api/scans\n${IP}\n${EMPTY_SHA}`)
+      .digest("hex");
+    assert.notEqual(calls[0].headers.get("x-pd-sig"), emptyBodySig);
     assert.equal(calls[0].headers.get("x-pd-client-ip")?.includes("198.51.100.99"), false);
   });
 
@@ -227,8 +251,12 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     assert.equal(calls.length, 2);
     assert.equal(calls[0].url, "https://parser.example/api/auth/login");
     assert.equal(calls[1].url, "https://parser.example/api/scans/scan-1");
-    expectSig(calls[0].headers, "POST", "/api/auth/login");
+    expectSig(calls[0].headers, "POST", "/api/auth/login", LOGIN_BODY);
     expectSig(calls[1].headers, "GET", "/api/scans/scan-1");
+    const loginEmpty = createHmac("sha256", SECRET)
+      .update(`${calls[0].headers.get("x-pd-ts")}\nPOST\n/api/auth/login\n${IP}\n${EMPTY_SHA}`)
+      .digest("hex");
+    assert.notEqual(calls[0].headers.get("x-pd-sig"), loginEmpty);
   });
 
   it("does not call the parser in production without a usable secret", async () => {
@@ -245,5 +273,117 @@ describe("parser request signatures", { concurrency: 1 }, () => {
       (err: unknown) => err instanceof ParserUnavailableError && err.message === "unavailable"
     );
     assert.equal(calls, 0);
+  });
+
+  it("sends the published v2 signatures in X-PD-Sig on the intercepted fetch", async () => {
+    process.env.PARSER_API_TOKEN = "parser-token";
+    process.env.PD_BFF_SIGNING_SECRET = PUBLISHED_KEY;
+    process.env.PD_BFF_SIGNING_SECRET_PREV = "prev-key-0123456789abcdef0123456789abcdef";
+    assert.equal(previousSigningSecret(), "prev-key-0123456789abcdef0123456789abcdef");
+    const realNow = Date.now;
+    Date.now = () => 1_700_000_000_000;
+    const seen: Array<{
+      url: string;
+      body: string | null;
+      sig: string | null;
+      ts: string | null;
+      ip: string | null;
+      idempotency: string | null;
+    }> = [];
+    const client = new Headers({
+      "x-real-ip": "203.0.113.10",
+      "x-forwarded-for": "198.51.100.8, 203.0.113.99",
+      "x-pd-client-ip": "198.51.100.99",
+    });
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+        let body: string | null = null;
+        if (typeof init?.body === "string") body = init.body;
+        else if (init?.body instanceof Uint8Array) body = Buffer.from(init.body).toString("utf8");
+        seen.push({
+          url: String(input),
+          body,
+          sig: headers.get("x-pd-sig"),
+          ts: headers.get("x-pd-ts"),
+          ip: headers.get("x-pd-client-ip"),
+          idempotency: headers.get("idempotency-key"),
+        });
+        return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+      }) as typeof fetch;
+
+      await parserFetch("/public/lead", { method: "POST" }, true, client);
+      await parserFetch("/public/lead", { method: "POST", body: '{"name":"Test"}' }, true, client);
+      const raw = Buffer.from('{"name":"Test"}');
+      assert.equal(raw.length, 15);
+      await parserFetch("/public/lead", { method: "POST", body: raw }, true, client);
+      await postLeadToParser({ name: "Test" }, client, "22222222-2222-4222-8222-222222222222");
+    } finally {
+      Date.now = realNow;
+    }
+
+    assert.equal(seen.length, 4);
+    for (const call of seen) {
+      assert.equal(call.url, "https://parser.example/public/lead");
+      assert.equal(call.ts, "1700000000");
+      assert.equal(call.ip, "203.0.113.10");
+      assert.equal(call.ip === "198.51.100.8", false);
+      assert.equal(call.ip === "198.51.100.99", false);
+    }
+    assert.equal(seen[0].body, null);
+    assert.equal(seen[0].sig, PUBLISHED_EMPTY);
+    assert.equal(seen[1].body, '{"name":"Test"}');
+    assert.equal(Buffer.byteLength(seen[1].body ?? "", "utf8"), 15);
+    assert.equal(seen[1].sig, PUBLISHED_BODY);
+    assert.equal(seen[2].body, '{"name":"Test"}');
+    assert.equal(seen[2].sig, PUBLISHED_BODY);
+    assert.equal(seen[3].body, '{"name":"Test"}');
+    assert.equal(seen[3].sig, PUBLISHED_BODY);
+    assert.equal(seen[3].idempotency, "22222222-2222-4222-8222-222222222222");
+    assert.equal(seen[3].sig === PUBLISHED_EMPTY, false);
+    const signedWithPrev = createHmac("sha256", "prev-key-0123456789abcdef0123456789abcdef")
+      .update(bffSignatureMaterial("1700000000", "POST", "/public/lead", "203.0.113.10", '{"name":"Test"}'))
+      .digest("hex");
+    assert.notEqual(seen[1].sig, signedWithPrev);
+    assert.notEqual(seen[0].sig, seen[1].sig);
+  });
+
+  it("reads the client IP only from x-real-ip or the forwarded-for value Vercel sets", () => {
+    assert.equal(
+      trustedClientIp(
+        new Headers({
+          "x-real-ip": "203.0.113.10",
+          "x-vercel-forwarded-for": "192.0.2.5",
+          "x-forwarded-for": "198.51.100.8, 203.0.113.99",
+          "x-pd-client-ip": "198.51.100.99",
+          forwarded: "for=198.51.100.3",
+          "cf-connecting-ip": "198.51.100.1",
+          "true-client-ip": "198.51.100.2",
+        })
+      ),
+      "203.0.113.10"
+    );
+    assert.equal(
+      trustedClientIp(
+        new Headers({
+          "x-vercel-forwarded-for": "203.0.113.50, 192.0.2.5",
+          "x-forwarded-for": "198.51.100.8, 203.0.113.77",
+          "x-pd-client-ip": "198.51.100.99",
+        })
+      ),
+      "203.0.113.50"
+    );
+    assert.equal(
+      trustedClientIp(
+        new Headers({
+          "x-forwarded-for": "198.51.100.8, 203.0.113.10",
+          "x-pd-client-ip": "203.0.113.10",
+          forwarded: "for=203.0.113.10",
+        })
+      ),
+      null
+    );
+    assert.equal(previousSigningSecret({ PD_BFF_SIGNING_SECRET_PREV: "a".repeat(31) } as NodeJS.ProcessEnv), null);
+    assert.equal(previousSigningSecret({ PD_BFF_SIGNING_SECRET_PREV: `  ${"b".repeat(32)}  ` } as NodeJS.ProcessEnv), "b".repeat(32));
   });
 });

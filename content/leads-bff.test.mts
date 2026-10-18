@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { POST } from "../app/api/leads/route.ts";
 import { dataFilePath } from "../lib/data-dir.ts";
+import { previousSigningSecret } from "../lib/deploy-env.ts";
 import {
   allowedOriginsFromEnv,
   bffSignatureMaterial,
@@ -11,7 +12,9 @@ import {
   maskIp,
   signClientPayload,
   stripClientPdHeaders,
+  trustedClientIp,
 } from "../lib/lead-guard.ts";
+import { buildPublicLeadBody } from "../lib/public-lead.ts";
 
 const PROD = "https://persdannye.ru";
 const PREVIEW = "https://persdannye.vercel.app";
@@ -42,6 +45,7 @@ const lead = {
 const ENV_KEYS = [
   "ALLOWED_ORIGINS",
   "PD_BFF_SIGNING_SECRET",
+  "PD_BFF_SIGNING_SECRET_PREV",
   "LEADS_IP_HMAC_SECRET",
   "PARSER_API_BASE",
   "PARSER_API_URL",
@@ -134,8 +138,24 @@ function outgoingHeaders(init: RequestInit | undefined): Headers {
   return new Headers(init?.headers);
 }
 
-function signature(ts: string, ip: string, secret = SECRET) {
-  const material = `${ts}.POST./public/lead.${ip}`;
+function forwardedLeadBody(): string {
+  return JSON.stringify(
+    buildPublicLeadBody({
+      name: NAME,
+      email: EMAIL,
+      phone: PHONE,
+      url: "https://example.com",
+      checkId: lead.checkId,
+      message: MESSAGE,
+      source: "landing",
+      marketingConsent: false,
+    })
+  );
+}
+
+function signature(ts: string, ip: string, body: string, secret = SECRET) {
+  const hash = createHash("sha256").update(body, "utf8").digest("hex");
+  const material = `${ts}\nPOST\n/public/lead\n${ip}\n${hash}`;
   return createHmac("sha256", secret).update(material).digest("hex");
 }
 
@@ -144,6 +164,7 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     restoreEnv = snapshotEnv();
     process.env.ALLOWED_ORIGINS = `${PROD},${PREVIEW}`;
     process.env.PD_BFF_SIGNING_SECRET = SECRET;
+    delete process.env.PD_BFF_SIGNING_SECRET_PREV;
     delete process.env.LEADS_IP_HMAC_SECRET;
     process.env.PARSER_API_BASE = "https://parser.example";
     delete process.env.PARSER_API_URL;
@@ -266,9 +287,12 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(ts, String(Math.floor(frozen / 1000)));
     assert.equal(ts, "1760817600");
     assert.equal(headers.get("x-pd-client-ip"), RAW_IP);
-    assert.equal(headers.get("x-pd-sig"), signature(ts, RAW_IP));
+    const sentBody = String(calls[0].init.body);
+    assert.equal(sentBody, forwardedLeadBody());
+    assert.equal(headers.get("x-pd-sig"), signature(ts, RAW_IP, sentBody));
+    assert.equal(headers.get("x-pd-sig"), signClientPayload(ts, "POST", "/public/lead", RAW_IP, SECRET, sentBody));
     const vercelPath = createHmac("sha256", SECRET)
-      .update(`${ts}.POST./api/leads.${RAW_IP}`)
+      .update(`${ts}\nPOST\n/api/leads\n${RAW_IP}\n${createHash("sha256").update(sentBody, "utf8").digest("hex")}`)
       .digest("hex");
     assert.notEqual(headers.get("x-pd-sig"), vercelPath);
     assert.equal(headers.get("x-pd-client-ts"), null);
@@ -345,7 +369,7 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(calls[2].get("x-pd-client-ip"), RAW_IP);
     assert.equal(
       calls[2].get("x-pd-sig"),
-      signature(String(Math.floor(nowMs / 1000)), RAW_IP)
+      signature(String(Math.floor(nowMs / 1000)), RAW_IP, forwardedLeadBody())
     );
     assertLogsMasked();
   });
@@ -404,22 +428,26 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     );
     assert.equal(fromVercelChain.status, 201);
     assert.equal(calls[0].get("x-pd-client-ip"), "203.0.113.50");
-    assert.equal(calls[0].get("x-pd-sig"), signature(calls[0].get("x-pd-ts") || "", "203.0.113.50"));
+    assert.equal(calls[0].get("x-pd-sig"), signature(calls[0].get("x-pd-ts") || "", "203.0.113.50", forwardedLeadBody()));
     assert.equal(logs.join("\n").includes("203.0.113.50"), false);
 
     calls.length = 0;
+    const spoofedChain = "198.51.100.8, 203.0.113.77";
     const forwardedOnly = await POST(
       leadRequest(PROD, {
         "x-real-ip": null,
         "x-vercel-forwarded-for": null,
-        "x-forwarded-for": FORWARDED_FOR,
+        "x-forwarded-for": spoofedChain,
         "x-pd-client-ip": FORGED_IP,
+        forwarded: "for=203.0.113.77",
       })
     );
     assert.equal(forwardedOnly.status, 201);
+    assert.equal(trustedClientIp(new Headers({ "x-forwarded-for": spoofedChain, "x-pd-client-ip": FORGED_IP })), null);
     for (const [key, value] of calls[0].entries()) {
       assert.equal(key.toLowerCase().startsWith("x-pd-"), false, key);
       assert.equal(value.includes(FORWARDED_FOR), false);
+      assert.equal(value.includes("203.0.113.77"), false);
       assert.equal(value.includes(FORGED_IP), false);
     }
 
@@ -444,26 +472,41 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
   });
 
   it("matches the parser example with an independent HMAC", () => {
+    const empty = createHash("sha256").update("").digest("hex");
     const material = bffSignatureMaterial("1760817600", "post", "/public/lead", "203.0.113.7");
-    assert.equal(material, "1760817600.POST./public/lead.203.0.113.7");
-    const expected = createHmac("sha256", SECRET).update("1760817600.POST./public/lead.203.0.113.7").digest("hex");
+    assert.equal(material, `1760817600\nPOST\n/public/lead\n203.0.113.7\n${empty}`);
+    const expected = createHmac("sha256", SECRET).update(`1760817600\nPOST\n/public/lead\n203.0.113.7\n${empty}`).digest("hex");
     assert.equal(signClientPayload("1760817600", "POST", "/public/lead", "203.0.113.7", SECRET), expected);
   });
 
-  it("matches the published signature vector with a fixed timestamp", () => {
+  it("matches the published v2 signature vectors", () => {
     const key = "test-key-0123456789abcdef0123456789abcdef";
     const ts = "1700000000";
-    const message = "1700000000.POST./public/lead.203.0.113.10";
-    const expected = "83228275db043cb69f487006351f672bf3b33d131672a33a9ecd8e865e9e102f";
-    assert.equal(bffSignatureMaterial(ts, "POST", "/public/lead", RAW_IP), message);
-    assert.equal(signClientPayload(ts, "POST", "/public/lead", RAW_IP, key), expected);
+    const emptyMessage = bffSignatureMaterial(ts, "POST", "/public/lead", RAW_IP);
+    assert.equal(
+      emptyMessage,
+      `1700000000\nPOST\n/public/lead\n203.0.113.10\n${createHash("sha256").update("").digest("hex")}`
+    );
+    assert.equal(signClientPayload(ts, "POST", "/public/lead", RAW_IP, key), "7e6b604153f10ada26d35f39a4b91cf2b16a5ceb55a0c9745f214e8f7b69e98a");
+    const named = '{"name":"Test"}';
+    assert.equal(Buffer.byteLength(named, "utf8"), 15);
+    assert.equal(
+      signClientPayload(ts, "POST", "/public/lead", RAW_IP, key, named),
+      "1810e470f8492479571d2a4b9d324cf2e6a821bf2767390680925d048a40f0c9"
+    );
+    assert.notEqual(
+      signClientPayload(ts, "POST", "/public/lead", RAW_IP, key),
+      signClientPayload(ts, "POST", "/public/lead", RAW_IP, key, named)
+    );
+    assert.equal(previousSigningSecret(), null);
   });
 
-  it("sends the published vector in X-PD-Ts, X-PD-Client-IP, and X-PD-Sig", async () => {
+  it("sends v2 X-PD-Ts, X-PD-Client-IP, and X-PD-Sig for the forwarded lead body", async () => {
     const key = "test-key-0123456789abcdef0123456789abcdef";
-    const expected = "83228275db043cb69f487006351f672bf3b33d131672a33a9ecd8e865e9e102f";
     Date.now = () => 1_700_000_000_000;
     process.env.PD_BFF_SIGNING_SECRET = key;
+    process.env.PD_BFF_SIGNING_SECRET_PREV = "prev-key-0123456789abcdef0123456789abcdef";
+    assert.equal(previousSigningSecret(), "prev-key-0123456789abcdef0123456789abcdef");
     const calls: Array<{ url: string; init: RequestInit }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({ url: String(input), init: init ?? {} });
@@ -478,8 +521,29 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     const headers = outgoingHeaders(calls[0].init);
     assert.equal(headers.get("x-pd-ts"), "1700000000");
     assert.equal(headers.get("x-pd-client-ip"), RAW_IP);
-    assert.equal(headers.get("x-pd-sig"), expected);
+    const sentBody = String(calls[0].init.body);
+    assert.equal(headers.get("x-pd-sig"), signature(headers.get("x-pd-ts") || "", RAW_IP, sentBody, key));
+    const prevSig = createHmac("sha256", "prev-key-0123456789abcdef0123456789abcdef")
+      .update(bffSignatureMaterial("1700000000", "POST", "/public/lead", RAW_IP, sentBody))
+      .digest("hex");
+    assert.notEqual(headers.get("x-pd-sig"), prevSig);
     assert.equal(headers.get("idempotency-key"), IDEMPOTENCY);
+  });
+
+  it("forwards one Idempotency-Key on a manual retry of the same lead", async () => {
+    const keys: string[] = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      keys.push(new Headers(init?.headers).get("idempotency-key") || "");
+      return new Response(JSON.stringify({ error: "rate_limit_unavailable" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json", "Retry-After": "30" },
+      });
+    }) as typeof fetch;
+    const first = await POST(leadRequest(PROD));
+    const second = await POST(leadRequest(PROD));
+    assert.equal(first.status, 503);
+    assert.equal(second.status, 503);
+    assert.deepEqual(keys, [IDEMPOTENCY, IDEMPOTENCY]);
   });
 
   it("rejects a missing or invalid Idempotency-Key before calling the parser", async () => {
@@ -662,7 +726,7 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     const prod = await POST(leadRequest(PROD));
     assert.equal(prod.status, 201);
     assert.equal(calls, 1);
-    assert.equal(signed[0].get("x-pd-sig"), signature(signed[0].get("x-pd-ts") || "", RAW_IP));
+    assert.equal(signed[0].get("x-pd-sig"), signature(signed[0].get("x-pd-ts") || "", RAW_IP, forwardedLeadBody()));
   });
 
   it("masks addresses before they are logged", () => {

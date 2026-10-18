@@ -94,7 +94,8 @@ async function parserRequest(
   }
   const method = (init.method || "GET").toUpperCase();
   // Fresh ts and signature for this attempt. Retries call parserRequest again.
-  if (client) applySignedClientHeaders(headers, client, method, path);
+  // Hash init.body: that same value is the fetch body below.
+  if (client) applySignedClientHeaders(headers, client, method, path, init.body);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
@@ -131,12 +132,13 @@ async function loginWithPassword(base: string, client?: Headers): Promise<string
     Accept: "application/json",
   });
   applyParserHeaders(headers);
-  if (client) applySignedClientHeaders(headers, client, "POST", "/api/auth/login");
+  const body = JSON.stringify({ email, password });
+  if (client) applySignedClientHeaders(headers, client, "POST", "/api/auth/login", body);
 
   const res = await fetch(`${base}/api/auth/login`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ email, password }),
+    body,
     cache: "no-store",
   });
   if (!res.ok) {

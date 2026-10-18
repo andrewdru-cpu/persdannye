@@ -25,12 +25,13 @@ export async function postLeadToParser(
   headers.set("Accept", "application/json");
   headers.set("Content-Type", "application/json");
   headers.set("Idempotency-Key", idempotencyKey);
-  applySignedClientHeaders(headers, incoming, "POST", PUBLIC_LEAD_PATH);
+  const raw = JSON.stringify(body);
+  applySignedClientHeaders(headers, incoming, "POST", PUBLIC_LEAD_PATH, raw);
 
   return fetch(`${base}${PUBLIC_LEAD_PATH}`, {
     method: "POST",
     headers,
-    body: JSON.stringify(body),
+    body: raw,
     cache: "no-store",
     signal: AbortSignal.timeout(30_000),
   });

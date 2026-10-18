@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { isProductionDeploy, signingSecret } from "./deploy-env";
 
 const IPV4 =
@@ -36,8 +36,11 @@ function firstAddress(value: string | null): string | null {
 }
 
 /**
- * Client address set by Vercel. x-real-ip wins. Otherwise the first address in
- * x-vercel-forwarded-for. The client X-Forwarded-For header is never read.
+ * Client address from a header Vercel sets, never from a header the browser can forge.
+ * x-real-ip wins. Otherwise the first address in x-vercel-forwarded-for, which is
+ * the X-Forwarded-For value Vercel writes. Client X-Forwarded-For, Forwarded,
+ * and X-PD-Client-IP are not read: on a chain the left side, and sometimes the
+ * right side, is attacker-controlled.
  */
 export function trustedClientIp(headers: Headers): string | null {
   return firstAddress(headers.get("x-real-ip")) ?? firstAddress(headers.get("x-vercel-forwarded-for"));
@@ -88,18 +91,48 @@ function signaturePathname(path: string): string {
 }
 
 /**
- * The only signature string the BFF sends to the parser.
- * `<unix seconds>.<METHOD>.<pathname>.<ip>`. METHOD is uppercased.
- * The path is the parser pathname, for example `/public/lead`, never `/api/leads`.
- * Example: `1760817600.POST./public/lead.203.0.113.7`.
+ * SHA-256 hex of the bytes that fetch will send.
+ * A missing body and an empty string both hash as the empty byte string.
+ * Strings are UTF-8, which is how fetch encodes a string body.
  */
-export function bffSignatureMaterial(ts: string, method: string, path: string, ip: string): string {
-  return `${ts}.${method.toUpperCase()}.${signaturePathname(path)}.${ip}`;
+export function bodySha256Hex(body: BodyInit | null | undefined): string {
+  const hash = createHash("sha256");
+  if (body == null) {
+    hash.update("");
+  } else if (typeof body === "string") {
+    hash.update(body, "utf8");
+  } else if (body instanceof URLSearchParams) {
+    hash.update(body.toString(), "utf8");
+  } else if (body instanceof ArrayBuffer) {
+    hash.update(new Uint8Array(body));
+  } else if (ArrayBuffer.isView(body)) {
+    hash.update(new Uint8Array(body.buffer, body.byteOffset, body.byteLength));
+  } else {
+    throw new TypeError("unsupported parser body");
+  }
+  return hash.digest("hex");
+}
+
+/**
+ * The only signature string the BFF sends to the parser.
+ * `ts\nMETHOD\npathname\nip\nsha256hex(body)`. METHOD is uppercased.
+ * The path is the parser pathname, for example `/public/lead`, never `/api/leads`.
+ * The last field is the hash of the exact fetch body. No body hashes the empty string.
+ */
+export function bffSignatureMaterial(
+  ts: string,
+  method: string,
+  path: string,
+  ip: string,
+  body?: BodyInit | null
+): string {
+  return [ts, method.toUpperCase(), signaturePathname(path), ip, bodySha256Hex(body)].join("\n");
 }
 
 /**
  * Encoding of X-PD-Sig. This is the only place it is chosen.
- * Hex is final: hex(HMAC-SHA256(key, `<ts>.<METHOD>.<path>.<ip>`)).
+ * Hex is final: hex(HMAC-SHA256(key, `ts\nMETHOD\npath\nip\nsha256hex(body)`)).
+ * The key is PD_BFF_SIGNING_SECRET. PD_BFF_SIGNING_SECRET_PREV is not an HMAC key here.
  */
 const SIGNATURE_ENCODING = "hex" as const;
 
@@ -109,9 +142,10 @@ export function signClientPayload(
   method: string,
   path: string,
   ip: string,
-  secret: string
+  secret: string,
+  body?: BodyInit | null
 ): string {
-  const material = bffSignatureMaterial(ts, method, path, ip);
+  const material = bffSignatureMaterial(ts, method, path, ip, body);
   return createHmac("sha256", secret).update(material).digest(SIGNATURE_ENCODING);
 }
 
@@ -147,7 +181,8 @@ export function applySignedClientHeaders(
   headers: Headers,
   incoming: Headers,
   method: string,
-  path: string
+  path: string,
+  body?: BodyInit | null
 ): void {
   stripClientPdHeaders(headers);
   const secret = signingSecret();
@@ -157,5 +192,5 @@ export function applySignedClientHeaders(
   const ts = unixSeconds(Date.now());
   headers.set("X-PD-Client-IP", ip);
   headers.set("X-PD-Ts", ts);
-  headers.set("X-PD-Sig", signClientPayload(ts, method, path, ip, secret));
+  headers.set("X-PD-Sig", signClientPayload(ts, method, path, ip, secret, body));
 }
