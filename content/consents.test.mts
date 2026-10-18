@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { MARKETING_CONSENT_TEXT_VERSION } from "../lib/consent.ts";
 import { reportConsent } from "./consents.ts";
@@ -46,6 +47,16 @@ function templateBytes(): Buffer {
   return readFileSync(new URL(`./consents/${MARKETING_CONSENT_TEXT_VERSION}.md`, import.meta.url));
 }
 
+function filesUnder(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...filesUnder(path));
+    else if (entry.isFile()) found.push(path);
+  }
+  return found;
+}
+
 describe("marketing consent canon", () => {
   it("matches the approved file hash", () => {
     const bytes = templateBytes();
@@ -65,6 +76,18 @@ describe("marketing consent canon", () => {
       assert.equal(source.includes("marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION"), true, form);
       assert.equal(source.includes(`"${MARKETING_CONSENT_TEXT_VERSION}"`), false, form);
     }
+  });
+
+  it("has no retired marketing version in content, lib, or app", () => {
+    const retired = ["2026-10-11", "marketing"].join("-");
+    for (const root of ["content", "lib", "app"]) {
+      for (const file of filesUnder(join(process.cwd(), root))) {
+        assert.equal(file.includes(retired), false, file);
+        assert.equal(readFileSync(file).includes(retired), false, file);
+      }
+    }
+    const names = readdirSync(join(process.cwd(), "content/consents"));
+    assert.equal(names.includes(`${retired}.md`), false);
   });
 
   it("hashes filled text separately and does not pin a production digest", () => {
