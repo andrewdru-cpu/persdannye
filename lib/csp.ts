@@ -38,6 +38,7 @@ export function contentSecurityPolicy(
     .join(" ");
   const script = [
     "'self'",
+    // TODO: убрать 'unsafe-inline', когда появится nonce без отказа от статического рендера.
     "'unsafe-inline'",
     ...(isDev ? ["'unsafe-eval'"] : []),
     captcha,

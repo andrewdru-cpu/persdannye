@@ -274,6 +274,9 @@ export function publicErrorMessage(status: number, body: unknown): string {
   if (code === "idempotency_in_progress") return "Заявка ещё отправляется. Повторите через несколько секунд.";
   if (code === "origin_forbidden") return "Отправка с этого адреса недоступна";
   if (code === "captcha_unavailable") return "Проверка временно недоступна. Попробуйте ещё раз.";
+  if (code === "rate_limit_unavailable") {
+    return "Не удалось отправить заявку, попробуйте через несколько минут";
+  }
   if (status === 429 || code === "rate_limited" || code === "too_many_requests") {
     return "Слишком много запросов. Попробуйте чуть позже.";
   }
@@ -418,7 +421,8 @@ export function mergeReportUrl(previous: CheckJob | null | undefined, next: Chec
   return next;
 }
 
-function retryAfterSeconds(header: string | null): number | undefined {
+/** Full Retry-After in seconds. HTTP-date and delta-seconds are not capped. */
+export function readRetryAfter(header: string | null): number | undefined {
   if (!header) return undefined;
   const seconds = Number(header);
   if (Number.isFinite(seconds) && seconds >= 0) return seconds;
@@ -427,8 +431,35 @@ function retryAfterSeconds(header: string | null): number | undefined {
   return Math.max(0, Math.ceil((date - Date.now()) / 1000));
 }
 
+export function retryAfterLabel(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  if (seconds >= 60) return `${Math.ceil(seconds / 60)} мин`;
+  return `${seconds} с`;
+}
+
+export function withRetryHint(message: string, retryAfter?: number): string {
+  if (retryAfter === undefined) return message;
+  const label = retryAfterLabel(retryAfter);
+  if (!label) return message;
+  const base = message.endsWith(".") ? message : `${message}.`;
+  return `${base} Повторите через ${label}.`;
+}
+
+export function leadFailurePresentation(err: {
+  message: string;
+  code?: string;
+  retryAfter?: number;
+}): { message: string; resetCaptcha: boolean; keepFields: true } {
+  return {
+    message: withRetryHint(err.message, err.retryAfter),
+    resetCaptcha:
+      err.code === "captcha_failed" || err.code === "captcha_required" || err.code === "captcha_unavailable",
+    keepFields: true,
+  };
+}
+
 function retryDelayMs(header: string | null, attempt: number): number {
-  const seconds = retryAfterSeconds(header);
+  const seconds = readRetryAfter(header);
   if (seconds !== undefined) return Math.min(seconds * 1000, 1500);
   return Math.min(200 * 2 ** attempt, 800);
 }
@@ -532,7 +563,7 @@ export async function createPublicLead(
     }
     const code = publicErrorCode(json);
     const fields = publicErrorFields(json);
-    const retry = (status === 409 && code === "idempotency_in_progress") || (status === 503 && code === "captcha_unavailable");
+    const retry = status === 409 && code === "idempotency_in_progress";
     if (retry && attempt < maxAttempts - 1) {
       await sleep(retryDelayMs(retryAfter, attempt));
       continue;
@@ -542,7 +573,7 @@ export async function createPublicLead(
       status,
       code,
       fields,
-      retryAfterSeconds(retryAfter)
+      readRetryAfter(retryAfter)
     );
   }
   throw new PublicApiError("Сервис проверки временно недоступен", 0);

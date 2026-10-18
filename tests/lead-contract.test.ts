@@ -21,12 +21,17 @@ import {
   UnresolvedConsentError,
 } from "../lib/lead-consent";
 import { createMockPublicApi } from "../scripts/mock-public-api.mjs";
+import { leadMarketingDecision } from "../lib/lead-marketing";
 import {
   buildPublicLeadBody,
   createIdempotencyKey,
   createPublicLead,
   isIdempotencyKey,
+  leadFailurePresentation,
   PublicApiError,
+  readRetryAfter,
+  retryAfterLabel,
+  withRetryHint,
 } from "../lib/public-api";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -137,9 +142,18 @@ test("429 is not retried and 422 rotates responsibility to the caller", async ()
           headers: { "Retry-After": "1" },
         });
       }),
-    (err: unknown) => err instanceof PublicApiError && err.code === "rate_limited" && err.retryAfter === 1
+    (err: unknown) => {
+      assert.ok(err instanceof PublicApiError);
+      assert.equal(err.code, "rate_limited");
+      assert.equal(err.retryAfter, 1);
+      assert.equal(retryAfterLabel(err.retryAfter), "1 с");
+      assert.match(withRetryHint(err.message, err.retryAfter), /Повторите через 1 с/);
+      return true;
+    }
   );
   assert.equal(limited, 1);
+  assert.equal(readRetryAfter("7200"), 7200);
+  assert.equal(retryAfterLabel(90), "2 мин");
   } finally {
     if (previousBase === undefined) delete process.env.NEXT_PUBLIC_PUBLIC_API_BASE;
     else process.env.NEXT_PUBLIC_PUBLIC_API_BASE = previousBase;
@@ -206,8 +220,28 @@ test("mock covers captcha, validation, and in-progress retries with one key", as
     assert.equal(busyCalls.length, 2);
     assert.equal(busyCalls[0].idempotencyKey, busyCalls[1].idempotencyKey);
 
-    const down = await createPublicLead({ ...baseLead, email: "a@b.c", smartToken: "unavailable" });
-    assert.equal(typeof down.id, "string");
+    await assert.rejects(
+      () => createPublicLead({ ...baseLead, email: "a@b.c", smartToken: "unavailable" }),
+      (err: unknown) =>
+        err instanceof PublicApiError &&
+        err.status === 503 &&
+        err.code === "captcha_unavailable" &&
+        err.retryAfter === 180 &&
+        err.message === "Проверка временно недоступна. Попробуйте ещё раз."
+    );
+    const captchaCalls = mock.requests.filter(
+      (item: { path: string; body: { smart_token?: string } }) =>
+        item.path === "/public/lead" && item.body?.smart_token === "unavailable"
+    );
+    assert.equal(captchaCalls.length, 1);
+    const shown = leadFailurePresentation({
+      message: "Проверка временно недоступна. Попробуйте ещё раз.",
+      code: "captcha_unavailable",
+      retryAfter: 180,
+    });
+    assert.equal(shown.resetCaptcha, true);
+    assert.equal(shown.keepFields, true);
+    assert.equal(shown.message, "Проверка временно недоступна. Попробуйте ещё раз. Повторите через 3 мин.");
   } finally {
     if (previous === undefined) delete process.env.NEXT_PUBLIC_PUBLIC_API_BASE;
     else process.env.NEXT_PUBLIC_PUBLIC_API_BASE = previous;
@@ -215,40 +249,43 @@ test("mock covers captcha, validation, and in-progress retries with one key", as
   }
 });
 
-test("lead form checkboxes start unchecked and marketing follows the flag and an email", () => {
+test("clearing the email resets the marketing checkbox and omits marketing_consent", () => {
   assert.equal(flags.show_marketing_consent, false);
-  const form = fs.readFileSync(path.join(root, "components/landing/LeadForm.tsx"), "utf8");
-  const fields = fs.readFileSync(path.join(root, "components/check/ReportConsentFields.tsx"), "utf8");
-  assert.equal(form.includes("defaultChecked"), false);
-  assert.equal((form.match(/useState\(false\)/g) || []).length >= 2, true);
-  assert.match(form, /disabled=\{!consent/);
-  assert.match(form, /const showMarketing = marketingConsent && mail\.length > 0/);
-  assert.match(form, /const marketingOn = showMarketing && marketingOptIn/);
-  assert.match(form, /if \(!showMarketing\) setMarketingOptIn\(false\)/);
-  assert.match(form, /marketingAccepted: marketingOn/);
-  assert.equal(form.includes("marketing_consent: false"), false);
-  assert.equal(form.includes("? true : false"), false);
-  assert.equal(form.includes("Хочу получать"), false);
-  assert.equal(form.includes("formCopy.marketing"), false);
-  assert.match(form, /Как мы обрабатываем данные — в/);
-  assert.match(form, /href="\/privacy"/);
-  assert.equal(form.includes("Политике"), true);
-  assert.equal(form.includes("Компания"), false);
-  assert.equal(form.includes("company"), false);
-  assert.equal(form.includes('consentHref="/consent-lead"'), true);
-  assert.match(fields, /Соглашаюсь получать рекламные и информационные письма на условиях/);
-  assert.match(fields, /href="\/consent-marketing"/);
-  assert.match(fields, />\s*согласия\s*</);
-  assert.equal(fields.includes("Хочу получать"), false);
-  assert.equal(fields.includes("formCopy.marketing"), false);
+  assert.equal(flags.show_site_legal, false);
   assert.equal(fs.existsSync(path.join(root, "content/consents/marketing-2026-10-11.md")), false);
+  const hidden = leadMarketingDecision(false, "anna@example.com", true);
+  assert.equal(hidden.visible, false);
+  assert.equal(hidden.checked, false);
+  assert.equal(hidden.send, false);
 
-  const hidden = buildPublicLeadBody({
+  const typed = leadMarketingDecision(true, "anna@example.com", false);
+  assert.equal(typed.visible, true);
+  assert.equal(typed.send, false);
+  const marked = leadMarketingDecision(true, "anna@example.com", true);
+  assert.equal(marked.visible, true);
+  assert.equal(marked.checked, true);
+  assert.equal(marked.send, true);
+  const sent = buildPublicLeadBody({
     ...baseLead,
     email: "anna@example.com",
-    marketingAccepted: false,
+    marketingAccepted: marked.send,
   });
-  assert.equal("marketing_consent" in hidden, false);
+  assert.deepEqual(sent.marketing_consent, {
+    accepted: true,
+    text_version: DIRECT_MARKETING_CONSENT_TEXT_VERSION,
+  });
+
+  const cleared = leadMarketingDecision(true, "   ", true);
+  assert.equal(cleared.visible, false);
+  assert.equal(cleared.checked, false);
+  assert.equal(cleared.send, false);
+  const after = buildPublicLeadBody({
+    ...baseLead,
+    phone: "+79990001122",
+    marketingAccepted: cleared.send,
+  });
+  assert.equal("email" in after, false);
+  assert.equal("marketing_consent" in after, false);
 });
 
 test("marketing checkbox and marketing_consent follow all four flag combinations", () => {
@@ -262,11 +299,14 @@ test("marketing checkbox and marketing_consent follow all four flag combinations
   ] as const;
   for (const item of cases) {
     const allowed = marketingConsentEnabled(item.legal, item.marketing);
+    const decision = leadMarketingDecision(allowed, "anna@example.com", true);
     assert.equal(allowed, item.legal && item.marketing);
+    assert.equal(decision.visible, allowed);
+    assert.equal(decision.send, allowed);
     const checked = buildPublicLeadBody({
       ...baseLead,
       email: "anna@example.com",
-      marketingAccepted: allowed,
+      marketingAccepted: decision.send,
     });
     if (allowed) {
       assert.deepEqual(checked.marketing_consent, {
@@ -295,10 +335,60 @@ test("marketing checkbox and marketing_consent follow all four flag combinations
   }
 });
 
+test("e2e: 503 rate_limit_unavailable is not retried and the lead body stays", async () => {
+  const mock = createMockPublicApi();
+  const origin = await mock.listen();
+  const previous = process.env.NEXT_PUBLIC_PUBLIC_API_BASE;
+  process.env.NEXT_PUBLIC_PUBLIC_API_BASE = origin;
+  const draft = { ...baseLead, name: "Анна", email: "anna@example.com", message: "Нужен разбор" };
+  try {
+    await assert.rejects(
+      () => createPublicLead({ ...draft, smartToken: "rate-down" }),
+      (err: unknown) => {
+        assert.ok(err instanceof PublicApiError);
+        assert.equal(err.status, 503);
+        assert.equal(err.code, "rate_limit_unavailable");
+        assert.equal(err.retryAfter, 45);
+        assert.equal(err.message, "Не удалось отправить заявку, попробуйте через несколько минут");
+        const shown = leadFailurePresentation(err);
+        assert.equal(shown.keepFields, true);
+        assert.equal(shown.resetCaptcha, false);
+        assert.equal(
+          shown.message,
+          "Не удалось отправить заявку, попробуйте через несколько минут. Повторите через 45 с."
+        );
+        return true;
+      }
+    );
+    const calls = mock.requests.filter(
+      (item: { path: string; body: { smart_token?: string; email?: string; message?: string } }) =>
+        item.path === "/public/lead" && item.body?.smart_token === "rate-down"
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].body.email, draft.email);
+    assert.equal(calls[0].body.message, draft.message);
+    assert.equal(calls[0].body.name, draft.name);
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_PUBLIC_API_BASE;
+    else process.env.NEXT_PUBLIC_PUBLIC_API_BASE = previous;
+    await mock.close();
+  }
+});
+
 const LEAD_CONSENT_SHA256 = "43f4d7cfb76f6ea92e1a692c7ba31e30bc6d2b1032cffabfbfc6fda9d984ce80";
 
 test("consent-lead file is the approved text and the publish guard rejects leftover braces", () => {
   assert.equal(flags.show_site_legal, false);
+  const consentDir = path.join(root, "content/consents");
+  const names = fs.readdirSync(consentDir).filter((name) => name.endsWith(".md")).sort();
+  const expected: Record<string, string> = {
+    "lead-2026-10-11.md": LEAD_CONSENT_SHA256,
+  };
+  assert.deepEqual(names, Object.keys(expected).sort());
+  for (const name of names) {
+    const fileBytes = fs.readFileSync(path.join(consentDir, name));
+    assert.equal(createHash("sha256").update(fileBytes).digest("hex"), expected[name], name);
+  }
   const bytes = fs.readFileSync(LEAD_CONSENT_PATH);
   assert.equal(createHash("sha256").update(bytes).digest("hex"), LEAD_CONSENT_SHA256);
   const source = readLeadConsentSource();

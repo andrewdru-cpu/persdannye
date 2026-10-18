@@ -301,9 +301,12 @@ export function createMockPublicApi() {
         send(res, 409, { error: "idempotency_in_progress" });
         return;
       }
-      if (token === "unavailable" && tries < 1) {
-        leadKeys.set(idempotencyKey, { hash, id: "", tries: tries + 1 });
-        send(res, 503, { error: "captcha_unavailable" }, "application/json; charset=utf-8", { "Retry-After": "0" });
+      if (token === "unavailable") {
+        send(res, 503, { error: "captcha_unavailable" }, "application/json; charset=utf-8", { "Retry-After": "180" });
+        return;
+      }
+      if (token === "rate-down") {
+        send(res, 503, { error: "rate_limit_unavailable" }, "application/json; charset=utf-8", { "Retry-After": "45" });
         return;
       }
       if (token === "limit") {

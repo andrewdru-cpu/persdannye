@@ -9,7 +9,8 @@ import { formCopy } from "@/content/blocks";
 import { LEAD_CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { runLead } from "@/lib/forms-client";
 import { isDirectForms } from "@/lib/forms-mode";
-import { createIdempotencyKey, PublicApiError } from "@/lib/public-api";
+import { leadMarketingDecision } from "@/lib/lead-marketing";
+import { createIdempotencyKey, leadFailurePresentation, PublicApiError } from "@/lib/public-api";
 
 export function LeadForm({
   defaultUrl = "",
@@ -39,8 +40,9 @@ export function LeadForm({
   const idempotencyKey = useRef<string | null>(null);
   const payloadSig = useRef("");
   const mail = email.trim();
-  const showMarketing = marketingConsent && mail.length > 0;
-  const marketingOn = showMarketing && marketingOptIn;
+  const decision = leadMarketingDecision(marketingConsent, mail, marketingOptIn);
+  const showMarketing = decision.visible;
+  const marketingOn = decision.send;
 
   useEffect(() => {
     if (!showMarketing) setMarketingOptIn(false);
@@ -145,10 +147,11 @@ export function LeadForm({
     } catch (err) {
       setStatus("error");
       if (err instanceof PublicApiError) {
-        if (err.code === "captcha_failed" || err.code === "captcha_required") captchaRef.current?.reset();
+        const failure = leadFailurePresentation(err);
+        if (failure.resetCaptcha) captchaRef.current?.reset();
         if (err.code === "idempotency_key_reused") idempotencyKey.current = createIdempotencyKey();
         if (err.code === "validation_failed" && err.fields?.length) setFieldErrors(err.fields);
-        setError(err.message);
+        setError(failure.message);
         return;
       }
       setError(err instanceof Error ? err.message : "Ошибка");
