@@ -49,3 +49,11 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Build
+        env:
+          # Сборка без секретов. test не подставляет прод-переменные.
+          # VERCEL_ENV и PD_COLLECTION_ENABLED намеренно не задаются.
+          PD_DEPLOY_ENV: test
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
