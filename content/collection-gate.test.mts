@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, it, mock } from "node:test";
 import { createElement, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -13,7 +15,6 @@ import { POST as postLead } from "../app/api/leads/route.ts";
 import { UrlChecker } from "../components/check/UrlChecker.tsx";
 import { COLLECTION_CLOSED_NOTICE } from "../components/collection/CollectionClosed.tsx";
 import { collectionEnabled } from "../lib/collection-gate.ts";
-import { dataFilePath } from "../lib/data-dir.ts";
 import { flags } from "./flags.ts";
 
 const PROBE_EMAIL = "probe-secret@example.test";
@@ -144,6 +145,11 @@ describe("personal data collection gate", { concurrency: false }, () => {
   it("keeps the lead form, report email, Metrika, and optional cookies off while the policy is unpublished", async () => {
     flags.show_site_legal = false;
     flags.show_cookie_policy = false;
+    const savedBot = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChat = process.env.TELEGRAM_CHAT_ID;
+    process.env.TELEGRAM_BOT_TOKEN = "123456:collection-gate-off";
+    process.env.TELEGRAM_CHAT_ID = "515151";
+    try {
     for (const value of [undefined, "", "false", "TRUE", "1", "yes", "true"]) {
       postEnv(value);
       assert.equal(collectionEnabled(), false, String(value));
@@ -208,6 +214,12 @@ describe("personal data collection gate", { concurrency: false }, () => {
       assert.equal(checker.includes("<form"), false);
       assert.equal(checker.includes(COLLECTION_CLOSED_NOTICE), true);
     }
+    } finally {
+      if (savedBot === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+      else process.env.TELEGRAM_BOT_TOKEN = savedBot;
+      if (savedChat === undefined) delete process.env.TELEGRAM_CHAT_ID;
+      else process.env.TELEGRAM_CHAT_ID = savedChat;
+    }
   });
 
   it("returns 503 for a lead and a scan lead and does not store consent_text_version", async () => {
@@ -268,14 +280,20 @@ describe("personal data collection gate", { concurrency: false }, () => {
         assert.equal(writeMock.mock.calls.length, 0, String(value));
         assert.equal(appendMock.mock.calls.length, 0, String(value));
         for (const file of ["leads.json", "scan-contacts.json"]) {
-          let raw = "";
-          try {
-            raw = await fs.readFile(dataFilePath(file), "utf8");
-          } catch (err) {
-            if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+          const candidates = [
+            path.join(process.cwd(), "data", file),
+            path.join(os.tmpdir(), "persdannye-data", file),
+          ];
+          for (const candidate of candidates) {
+            let raw = "";
+            try {
+              raw = await fs.readFile(candidate, "utf8");
+            } catch (err) {
+              if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+            }
+            assert.equal(raw.includes(CONSENT_SENTINEL), false, candidate);
+            assert.equal(raw.includes(PROBE_EMAIL), false, candidate);
           }
-          assert.equal(raw.includes(CONSENT_SENTINEL), false, file);
-          assert.equal(raw.includes(PROBE_EMAIL), false, file);
         }
       } finally {
         for (const restore of restoreConsole) restore();

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { collectionGateResponse } from "@/lib/collection-gate";
-import { getCheck, publicCheckJob } from "@/lib/parser-client";
+import { getCheck, isPublicScanId, publicCheckJob } from "@/lib/parser-client";
 import { notifyScanIfNeeded } from "@/lib/notify";
+import { logServerError } from "@/lib/safe-log";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,8 @@ export async function GET(
   if (closed) return closed;
   try {
     const { id } = await ctx.params;
-    if (!id) {
-      return NextResponse.json({ error: "id обязателен" }, { status: 400 });
+    if (!isPublicScanId(id)) {
+      return NextResponse.json({ error: "invalid_id" }, { status: 400 });
     }
     const job = await getCheck(id);
     if (!job) {
@@ -25,8 +26,8 @@ export async function GET(
     await notifyScanIfNeeded(job);
 
     return NextResponse.json(publicCheckJob(job));
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Ошибка сервера";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err) {
+    const code = logServerError("[checks] status failed", err);
+    return NextResponse.json({ error: code }, { status: 500 });
   }
 }
