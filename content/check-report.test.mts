@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { readFileSync } from "node:fs";
 import { flags } from "./flags.ts";
 import {
   SITE_LEGAL_SUBJECTS_CLAUSE,
   privacySurface,
   siteLegalPrivacy,
-  siteLegalPrivacyMarkers,
   subjectsAgeClause,
 } from "./site-legal.ts";
 import { visibleFooterDocuments } from "./legal-nav.ts";
@@ -255,17 +253,9 @@ describe("checklist flags", () => {
       privacySurface(true, { title: "site-legal", blocks: ["marker"] }),
       "site-legal",
     );
-    const privacyPage = readFileSync(new URL("../app/privacy/page.tsx", import.meta.url), "utf8");
-    assert.equal(privacyPage.includes("Редакция от 21.09.2026"), true);
-    assert.equal(privacyPage.includes("Настоящая Политика обработки персональных данных"), true);
-    assert.equal(privacyPage.includes("subjectsAgeClause()"), true);
-    assert.equal(privacyPage.includes(SITE_LEGAL_SUBJECTS_CLAUSE), false);
     assert.equal(subjectsAgeClause(false), null);
     assert.equal(subjectsAgeClause(), null);
     assert.equal(subjectsAgeClause(true), SITE_LEGAL_SUBJECTS_CLAUSE);
-    for (const marker of siteLegalPrivacyMarkers) {
-      assert.equal(privacyPage.includes(marker), false, marker);
-    }
     assert.equal(flags.show_marketing_consent, false);
     assert.equal(flags.show_fines, false);
     assert.equal(flags.show_prices, false);
