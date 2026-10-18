@@ -25,7 +25,7 @@ export const placeholders: Record<string, string> = {
 
 const token = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;
 
-export function fillPlaceholders(input: string, todos: boolean): string {
+export function fillPlaceholders(input: string, todos: boolean, keepUnknown = false): string {
   return input.replace(token, (match, key: string) => {
     // В текстах остаётся только {{privacy_contact_email}}. Старый ключ, если всплывёт, читает то же поле.
     if (key === "privacy_contact_email" || key === "operator_email_pd") {
@@ -34,6 +34,7 @@ export function fillPlaceholders(input: string, todos: boolean): string {
     const value = placeholders[key];
     if (value) return value;
     if (todos) return `TODO: ${key}`;
+    if (keepUnknown) return match;
     return "";
   });
 }

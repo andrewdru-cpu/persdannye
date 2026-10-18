@@ -53,6 +53,14 @@ export const PHASE_STEPS: {
 
 export const TERMINAL_PHASES: ParserPhase[] = ["done", "error", "blocked"];
 
+/** Scan stopped because the site refused an automatic visit. Not an error. */
+export const LIMITED_SCAN_MESSAGE = "Сайт ограничил автоматическую проверку";
+
+export function isLimitedScan(phase: string | null | undefined): boolean {
+  const key = String(phase || "").trim().toLowerCase();
+  return key === "blocked_by_robots" || key === "blocked_by_site";
+}
+
 const PHASE_ALIASES: Record<string, ParserPhase> = {
   queued: "queued",
   pending: "queued",
@@ -97,10 +105,11 @@ const PHASE_ALIASES: Record<string, ParserPhase> = {
 export function normalizePhase(raw: string | null | undefined): ParserPhase | string {
   if (!raw) return "queued";
   const key = String(raw).trim().toLowerCase();
-  return PHASE_ALIASES[key] || raw;
+  return PHASE_ALIASES[key] || key;
 }
 
 export function isTerminal(phase: string): boolean {
+  if (isLimitedScan(phase)) return true;
   return TERMINAL_PHASES.includes(normalizePhase(phase) as ParserPhase);
 }
 
@@ -116,6 +125,7 @@ export function friendlyPhaseMessage(
   domain: string,
   backendMessage?: string | null
 ): string {
+  if (isLimitedScan(phase)) return LIMITED_SCAN_MESSAGE;
   if (backendMessage) return backendMessage;
   switch (phase) {
     case "queued":

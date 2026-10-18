@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rejectDirectModeBff } from "@/lib/bff-guard";
 import { LEAD_CONSENT_TEXT_VERSION, marketingConsentForParser } from "@/lib/consent";
 import { leadBodySchema } from "@/lib/lead-schema";
 import { addLead } from "@/lib/leads-store";
@@ -7,6 +8,8 @@ import { notifyNewLead } from "@/lib/notify";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const blocked = rejectDirectModeBff();
+  if (blocked) return blocked;
   try {
     const json = await req.json();
     const parsed = leadBodySchema.safeParse(json);

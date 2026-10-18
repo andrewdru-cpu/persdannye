@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { formCopy } from "@/content/blocks";
-import { fillPlaceholders } from "@/content/placeholders";
 
 export function ReportConsentFields({
   consent,
@@ -49,11 +48,10 @@ export function ReportConsentFields({
             className="mt-0.5 accent-amber-400"
           />
           <span>
-            {fillPlaceholders(formCopy.marketing, false)}{" "}
+            Соглашаюсь получать рекламные и информационные письма на условиях{" "}
             <Link href="/consent-marketing" className="text-amber-300 hover:underline">
-              Условия
+              согласия
             </Link>
-            .
           </span>
         </label>
       ) : null}

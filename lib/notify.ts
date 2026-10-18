@@ -3,6 +3,7 @@
  * Every finished landing scan (phase === done) is a new client to pick up.
  */
 
+import { findingStatusLabel } from "./finding-status";
 import { getCheckPdf } from "./parser-client";
 import { findScanContact, hasScanContact } from "./scan-contacts";
 import { isTelegramConfigured, sendTelegramDocument, sendTelegramMessage } from "./telegram";
@@ -17,7 +18,7 @@ function formatTs(iso?: string): string {
 }
 
 function scanHasRisks(job: CheckJob): boolean {
-  return job.push === true || (Array.isArray(job.findings) && job.findings.length > 0);
+  return job.hasRisks === true;
 }
 
 export function shouldNotifyScan(job: CheckJob): boolean {
@@ -71,7 +72,8 @@ function formatScanMessage(job: CheckJob, contact?: ContactBits | null): string 
   if (job.findings.length > 0) {
     lines.push("", "Находки:");
     job.findings.slice(0, 18).forEach((f, i) => {
-      lines.push(`${i + 1}. ${f.rule_id} / ${f.title}`);
+      const label = findingStatusLabel(f.status);
+      lines.push(`${i + 1}. ${f.rule_id} / ${f.title}${label ? ` (${label})` : ""}`);
       if (f.fact) lines.push(`   ${f.fact}`);
     });
     if (job.findings.length > 18) {

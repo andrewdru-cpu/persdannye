@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { rejectDirectModeBff } from "@/lib/bff-guard";
 import { getCheck, publicCheckJob } from "@/lib/parser-client";
 import { notifyScanIfNeeded } from "@/lib/notify";
 
@@ -8,6 +9,8 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const blocked = rejectDirectModeBff();
+  if (blocked) return blocked;
   try {
     const { id } = await ctx.params;
     if (!id) {

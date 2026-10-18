@@ -67,7 +67,7 @@ describe("lead request limits", () => {
     );
   });
 
-  it("sends explicit marketing_consent false and a generic server error", () => {
+  it("omits marketing_consent unless the box is on and keeps a generic server error", () => {
     const route = readFileSync(new URL("../app/api/leads/route.ts", import.meta.url), "utf8");
     const form = readFileSync(new URL("../components/landing/LeadForm.tsx", import.meta.url), "utf8");
     const routeWithoutNamedVersions = route.replaceAll("LEAD_CONSENT_TEXT_VERSION", "");
@@ -82,7 +82,10 @@ describe("lead request limits", () => {
       .replaceAll("LEAD_CONSENT_TEXT_VERSION", "");
     assert.equal(form.includes("MARKETING_CONSENT_TEXT_VERSION"), true);
     assert.equal(formWithoutNamedVersions.includes("CONSENT_TEXT_VERSION"), false);
-    assert.match(form, /marketing_consent: marketingConsent && marketingOptIn \? true : false/);
+    assert.match(form, /marketing_consent: true/);
+    assert.match(form, /marketingOn\s*\?\s*\{/);
+    assert.equal(form.includes("marketing_consent: false"), false);
+    assert.equal(form.includes("? true : false"), false);
     assert.equal(form.includes("marketing_consent_at"), false);
   });
 });

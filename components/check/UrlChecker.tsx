@@ -1,18 +1,45 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { SmartCaptcha, type SmartCaptchaHandle } from "@/components/captcha/SmartCaptcha";
+import { CheckReport } from "@/components/check/CheckReport";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
-import { CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
-import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
-import type { CheckJob } from "@/lib/types";
-import { CheckReport } from "@/components/check/CheckReport";
+import {
+  findingStatusLabel,
+  INVENTORY_HEADING,
+  isRobotsPartial,
+  isViolation,
+  FINE_INTERPRETATION_LABEL,
+  LIKELY_BASIS_TEXT,
+  ROBOTS_PARTIAL_EXPLANATION,
+} from "@/lib/finding-status";
+import { pollCheck, runCheck } from "@/lib/forms-client";
+import { isDirectForms } from "@/lib/forms-mode";
+import { ACTIVE_POLL_MS, isLimitedScan, LIMITED_SCAN_MESSAGE, PHASE_STEPS, phaseIndex } from "@/lib/phases";
+import { publicCheckPdfUrl } from "@/lib/public-api";
+import type { CheckJob, Finding, InventoryItem } from "@/lib/types";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { LeadForm } from "@/components/landing/LeadForm";
 
-type Status = "idle" | "running" | "done" | "error";
+type Status = "idle" | "running" | "done" | "error" | "limited";
+
+function finishedStatus(phase: string): Status | null {
+  if (isLimitedScan(phase)) return "limited";
+  if (phase === "done") return "done";
+  if (phase === "error" || phase === "blocked") return "error";
+  return null;
+}
+
+const severityRu: Record<string, string> = {
+  critical: "Критично",
+  high: "Высокий",
+  medium: "Средний",
+  low: "Низкий",
+  info: "Инфо",
+};
 
 const fieldClass =
   "field-luxury w-full px-4 py-3 text-sm text-white placeholder:text-white/75";
@@ -46,6 +73,76 @@ function Burst({ tone }: { tone: "success" | "error" | "risk" }) {
   );
 }
 
+function InventoryBlock({ items }: { items?: InventoryItem[] }) {
+  if (!items?.length) return null;
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
+      <h4 className="text-sm font-medium text-white/80">{INVENTORY_HEADING}</h4>
+      <ul className="mt-3 space-y-3">
+        {items.map((item, index) => (
+          <li key={`${item.checklist_item_id || "item"}-${index}`} className="text-sm">
+            <p className="font-medium text-white/85">{item.title || item.checklist_item_id}</p>
+            {item.detail ? <p className="mt-1 leading-relaxed text-white/60">{item.detail}</p> : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function FindingCard({ f }: { f: Finding }) {
+  const reduce = useReducedMotion();
+  const violation = isViolation(f);
+  const statusLabel = findingStatusLabel(f.status);
+  return (
+    <motion.li
+      initial={reduce ? false : { opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="glass-card p-4"
+    >
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <span className="rounded-md bg-white/10 px-2 py-0.5 font-mono text-xs text-amber-100">
+          {f.rule_id}
+        </span>
+        <span
+          className={cn(
+            "rounded-md px-2 py-0.5 text-xs font-medium",
+            !violation
+              ? "bg-white/10 text-white/70"
+              : f.severity === "critical" || f.severity === "high"
+                ? "bg-rose-500/20 text-rose-200"
+                : f.severity === "medium"
+                  ? "bg-amber-500/20 text-amber-50"
+                  : "bg-white/10 text-white/70"
+          )}
+        >
+          {severityRu[f.severity] || f.severity}
+        </span>
+        {statusLabel && (
+          <span className="rounded-md bg-white/10 px-2 py-0.5 text-xs text-white/75">
+            {statusLabel}
+          </span>
+        )}
+      </div>
+      <div className="font-medium text-white">{f.title}</div>
+      <p className="mt-1 text-sm text-white/65">{f.fact}</p>
+      {violation && f.statusBasis === "likely" ? (
+        <p className="mt-2 text-sm text-amber-50/90">{LIKELY_BASIS_TEXT}</p>
+      ) : null}
+      {f.fineNorm ? (
+        <p className="mt-2 flex flex-wrap items-baseline gap-2 text-xs text-white/55">
+          <span>{f.fineNorm}</span>
+          {f.fineInterpretation ? (
+            <span className="text-[11px] text-white/40">{FINE_INTERPRETATION_LABEL}</span>
+          ) : null}
+        </p>
+      ) : null}
+      {f.fineAmount ? <p className="mt-1 text-sm text-white/80">{f.fineAmount}</p> : null}
+      {f.disclaimer ? <p className="mt-2 text-xs leading-relaxed text-white/45">{f.disclaimer}</p> : null}
+    </motion.li>
+  );
+}
+
 export function UrlChecker({
   compact = false,
   initialUrl = "",
@@ -63,12 +160,16 @@ export function UrlChecker({
   marketingConsent?: boolean;
 }) {
   const reduce = useReducedMotion();
+  const direct = isDirectForms();
+  const captchaRef = useRef<SmartCaptchaHandle>(null);
+  const jobRef = useRef<CheckJob | null>(null);
   const [url, setUrl] = useState(initialUrl);
   const [leadEmail, setLeadEmail] = useState("");
   const [leadConsent, setLeadConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [job, setJob] = useState<CheckJob | null>(null);
+  jobRef.current = job;
   const [error, setError] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -104,15 +205,11 @@ export function UrlChecker({
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/checks/${jobId}`, { cache: "no-store" });
-        const data = await res.json();
+        const next = await pollCheck(jobId, jobRef.current);
         if (cancelled) return;
-        if (!res.ok) throw new Error(data.error || "Ошибка опроса");
-        const next = data as CheckJob;
         setJob(next);
-        if (["done", "error", "blocked"].includes(String(next.phase))) {
-          setStatus(next.phase === "done" ? "done" : "error");
-        }
+        const finished = finishedStatus(String(next.phase));
+        if (finished) setStatus(finished);
       } catch (e) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "Ошибка опроса");
@@ -142,39 +239,28 @@ export function UrlChecker({
       setError(formCopy.emailWithoutConsent);
       return;
     }
+    if (direct && !captchaRef.current?.getToken()) {
+      setError("Подтвердите, что вы не робот");
+      return;
+    }
     setError(null);
     setJob(null);
     setStartedAt(Date.now());
     setElapsedSec(0);
     setStatus("running");
 
-    const lead = email
-      ? {
-          email,
-          consent: true,
-          consent_text_version: CONSENT_TEXT_VERSION,
-          ...(marketingConsent && marketingOptIn
-            ? {
-                marketing_consent: true,
-                marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
-              }
-            : {}),
-        }
-      : undefined;
-
     try {
-      const res = await fetch("/api/checks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(lead ? { url, lead } : { url }),
+      const next = await runCheck({
+        url,
+        email: email || undefined,
+        consentAccepted: email ? true : undefined,
+        marketingConsent: email && marketingConsent && marketingOptIn ? true : undefined,
+        smartToken: direct ? captchaRef.current?.getToken() || "" : undefined,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Не удалось запустить проверку");
-      const next = data as CheckJob;
+      if (direct) captchaRef.current?.reset();
       setJob(next);
-      if (["done", "error", "blocked"].includes(String(next.phase))) {
-        setStatus(next.phase === "done" ? "done" : "error");
-      }
+      const finished = finishedStatus(String(next.phase));
+      if (finished) setStatus(finished);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
       setStatus("error");
@@ -183,7 +269,7 @@ export function UrlChecker({
 
   const shownPhase = job?.phase || "queued";
   const step = phaseIndex(String(shownPhase));
-  const terminal = ["done", "error", "blocked"].includes(String(job?.phase));
+  const terminal = Boolean(finishedStatus(String(job?.phase || "")));
   const phaseProgress = terminal
     ? 100
     : Math.max(8, Math.round(((Math.max(step, 0) + 1) / (PHASE_STEPS.length + 1)) * 100));
@@ -191,6 +277,16 @@ export function UrlChecker({
   const progress = terminal ? 100 : Math.max(phaseProgress, creep);
   const activeStep = PHASE_STEPS[Math.min(Math.max(step, 0), PHASE_STEPS.length - 1)];
   const stepLabel = job?.phase === "done" ? PHASE_STEPS.length : Math.max(step, 0) + 1;
+  let pdfHref = "";
+  if (job && direct) {
+    try {
+      pdfHref = publicCheckPdfUrl(job.id);
+    } catch {
+      pdfHref = "";
+    }
+  } else if (job) {
+    pdfHref = `/api/checks/${job.id}/pdf`;
+  }
 
   return (
     <div className={cn("w-full", compact ? "" : "mx-auto max-w-2xl")}>
@@ -245,6 +341,11 @@ export function UrlChecker({
             showMarketing={marketingConsent}
           />
         ) : null}
+        {direct && (
+          <div className="sm:max-w-md">
+            <SmartCaptcha ref={captchaRef} />
+          </div>
+        )}
         <PolicyLine className="text-xs text-white/80" />
         {error && status !== "running" && status !== "error" && (
           <p className="text-sm text-rose-300" role="alert">
@@ -354,13 +455,15 @@ export function UrlChecker({
             </ol>
             {job?.warning && <p className="mt-3 text-xs text-amber-100/80">{job.warning}</p>}
             <p className="mt-3 text-xs text-white/80">
-              {job?.mock
-                ? "Демо-режим (PARSER_API_BASE не задан). Подключите парсер через env."
-                : job
-                  ? heroSurface
-                    ? "Живой парсер"
-                    : "Живой парсер · обновление каждые 1,5 с"
-                  : "Отправляем URL. Интерфейс не блокируется."}
+              {direct
+                ? "Публичный API · обновление каждые 1,5 с"
+                : job?.mock
+                  ? "Демо-режим (PARSER_API_BASE не задан). Подключите парсер через env."
+                  : job
+                    ? heroSurface
+                      ? "Живой парсер"
+                      : "Живой парсер · обновление каждые 1,5 с"
+                    : "Отправляем URL. Интерфейс не блокируется."}
             </p>
           </motion.div>
         )}
@@ -374,6 +477,7 @@ export function UrlChecker({
             className="relative mt-6 space-y-5"
           >
             <div className="glass-card relative overflow-hidden p-5 md:p-6">
+              <Burst tone={job.hasRisks ? "risk" : "success"} />
               <div className="relative">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/80">
                   {heroSurface ? "Готово" : `Готово за ${elapsedSec} с`}
@@ -382,18 +486,46 @@ export function UrlChecker({
                   {domain || "Проверка завершена"}
                 </h3>
                 <p className="mt-1 text-sm text-white/70">{job.phaseMessage}</p>
+                {job.rulesVersion ? (
+                  <p className="mt-1 text-xs text-white/45">Версия правил: {job.rulesVersion}</p>
+                ) : null}
               </div>
             </div>
 
+            {job.staticFallback || isRobotsPartial(job.findings) ? (
+              <div className="rounded-2xl border border-amber-200/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+                <p>Сайт проверен частично</p>
+                {isRobotsPartial(job.findings) ? (
+                  <p className="mt-1 text-amber-50/80">{ROBOTS_PARTIAL_EXPLANATION}</p>
+                ) : null}
+              </div>
+            ) : null}
+
             <CheckReport job={job} />
 
-            {job.pdfReady && !job.mock && (
-              <a
-                href={`/api/checks/${job.id}/pdf`}
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/35 bg-amber-400/10 px-5 py-3 text-sm font-semibold text-amber-50 transition hover:border-amber-100/60 hover:bg-amber-400/20"
-              >
-                Скачать PDF-отчёт
-              </a>
+            <InventoryBlock items={job.inventory} />
+
+            {(direct ? job.phase === "done" || job.pdfReady : job.pdfReady && !job.mock) && (
+              <div className="flex flex-wrap gap-3">
+                {pdfHref && (
+                  <a
+                    href={pdfHref}
+                    className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/35 bg-amber-400/10 px-5 py-3 text-sm font-semibold text-amber-50 transition hover:border-amber-100/60 hover:bg-amber-400/20"
+                  >
+                    Скачать PDF-отчёт
+                  </a>
+                )}
+                {job.reportUrl && (
+                  <a
+                    href={job.reportUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white/85 transition hover:border-white/30 hover:bg-white/10"
+                  >
+                    Публичная страница отчёта
+                  </a>
+                )}
+              </div>
             )}
 
             <div className="glass-card glass-card-gold p-5 md:p-6">
@@ -407,7 +539,7 @@ export function UrlChecker({
                 <LeadForm
                   defaultUrl={job.url}
                   checkId={job.id}
-                  source="check-result"
+                  source={isRobotsPartial(job.findings) ? "check-manual" : "check-result"}
                   marketingConsent={marketingConsent}
                 />
               </div>
@@ -415,7 +547,65 @@ export function UrlChecker({
           </motion.div>
         )}
 
-        {(status === "error" || job?.phase === "blocked") && (
+        {status === "limited" && job && (
+          <motion.div
+            key="limited"
+            initial={reduce ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={reduce ? { duration: 0 } : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="relative mt-6 space-y-5"
+          >
+            <div className="glass-card border-amber-200/35 bg-amber-400/10 p-5 md:p-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+                Готово за {elapsedSec} с
+              </p>
+              <h3 className="mt-1 font-display text-2xl font-semibold text-white md:text-3xl">
+                {LIMITED_SCAN_MESSAGE}
+              </h3>
+              <p className="mt-2 text-sm text-white/70">
+                Автоматический обход {domain || "сайта"} остановился. Это не ошибка и не нарушение.
+              </p>
+              {job.rulesVersion ? (
+                <p className="mt-2 text-xs text-white/45">Версия правил: {job.rulesVersion}</p>
+              ) : null}
+            </div>
+
+            {job.staticFallback ? (
+              <p className="rounded-2xl border border-amber-200/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50">
+                Сайт проверен частично
+              </p>
+            ) : null}
+
+            {job.findings.length > 0 ? (
+              <ul className="space-y-3">
+                {job.findings.map((f) => (
+                  <FindingCard key={f.rule_id + f.title} f={f} />
+                ))}
+              </ul>
+            ) : null}
+
+            <InventoryBlock items={job.inventory} />
+
+            <div className="glass-card glass-card-gold p-5 md:p-6">
+              <h4 className="font-display text-2xl font-semibold text-white md:text-3xl">
+                Заявка на ручную проверку
+              </h4>
+              <p className="mt-1 text-sm leading-relaxed text-white/65">
+                Оставьте контакты — проверим {domain || "сайт"} вручную.
+              </p>
+              <div className="mt-4">
+                <LeadForm
+                  defaultUrl={job.url}
+                  checkId={job.id}
+                  source="check-manual"
+                  cta="Оставить заявку на ручную проверку"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {(status === "error" || job?.phase === "blocked") && status !== "limited" && (
           <motion.div
             key="err"
             initial={reduce ? false : { opacity: 0, y: 8 }}

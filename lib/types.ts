@@ -2,6 +2,9 @@ import type { ParserPhase } from "./phases";
 
 export type FindingSeverity = "critical" | "high" | "medium" | "low" | "info";
 
+/** How firmly the parser states a violation. */
+export type StatusBasis = "proven" | "likely";
+
 export interface FindingEvidence {
   url?: string;
   selector?: string;
@@ -10,18 +13,54 @@ export interface FindingEvidence {
 
 export interface Finding {
   rule_id: string;
+  /**
+   * Plain text. The parser may include the literal `[контактные данные скрыты]`.
+   * Render it as text; do not treat the brackets as markup.
+   */
   title: string;
+  /** Same plain-text rule as `title`, including `[контактные данные скрыты]`. */
   fact: string;
   severity: FindingSeverity;
-  /** not_applicable скрываем, not_checked показываем нейтрально. */
+  /**
+   * Upcoming parser status. Absent on current scans — those still count
+   * as violations. `needs_check` and `not_checked` do not.
+   */
   status?: string;
+  /**
+   * Why a rule was not applied. `robots_disallow` with `not_checked`
+   * means the site blocked the crawler; it is not a violation.
+   */
+  reason?: string;
+  /** `proven` or `likely`. Only `likely` gets the lawyer sentence. */
+  statusBasis?: StatusBasis;
   /** confirmed | likely | interpretation. Чужое значение на экране нейтральное. */
   status_basis?: string;
+  /** `meta.disclaimer`, shown under the finding when the parser sent one. */
+  disclaimer?: string;
+  /** Norm reference, for example «ч. 3 ст. 13.11 КоАП». Shown whenever present. */
+  fineNorm?: string;
+  /** True only when the parser sent `fine_interpretation: true`. Absence is false. */
+  fineInterpretation?: boolean;
+  /**
+   * Amount text. Set only when NEXT_PUBLIC_SHOW_FINES=true, the scan
+   * has show_amounts true, and fine_amount_text is a non-empty string.
+   */
+  fineAmount?: string;
   /** null — сумму не показываем. Число — только при включённом флаге штрафов. */
   fine?: number | null;
   remediation?: string | null;
   /** Хранится на сервере. В браузер и на экран не попадает. */
   collects_pd?: boolean;
+}
+
+/**
+ * Informational checklist row. No status, no fine, not a violation,
+ * and not part of the score. The parser already drops hidden rows.
+ */
+export interface InventoryItem {
+  checklist_item_id?: string;
+  title?: string;
+  detail?: string;
 }
 
 export interface Recommendation {
@@ -57,15 +96,37 @@ export interface CheckJob {
   phaseMessage: string;
   score?: number | null;
   findings: Finding[];
+  /**
+   * Informational rows from `inventory`. Empty or absent means the
+   * block is hidden. These never count as violations.
+   */
+  inventory?: InventoryItem[];
   recommendations?: Recommendation[];
-  /** true if risks for landing: push===true OR a finding that is not info / not_checked / not_applicable */
+  /**
+   * Done scan: at least one legacy finding (no status) or an explicit
+   * violation status. `needs_check`, `not_checked`, and unknown statuses
+   * do not set this. In progress, follows `push` only.
+   */
   hasRisks: boolean;
+  /** True when the scan payload set `mode` to `static_fallback`. */
+  staticFallback?: boolean;
+  /** `rules_version` when the parser sent a non-empty string. */
+  rulesVersion?: string | null;
   push?: boolean;
   /** True when parser has a PDF report ready to fetch server-side. */
   pdfReady?: boolean;
+  /**
+   * Public report URL from POST /public/check (202). The raw /r/{token}
+   * exists only inside this URL — keep the URL, do not split the token out.
+   */
+  reportUrl?: string | null;
   warning?: string | null;
   error?: string | null;
-  /** Lead fields supplied with the check, if any. */
+  /**
+   * Lead fields supplied with the check, if any.
+   * `inn` and `org_name` from GET /public/check/{id} are not stored here:
+   * approved copy does not show them, and null (sole proprietor) shows nothing.
+   */
   contact?: ScanContact | null;
   createdAt: string;
   updatedAt: string;
