@@ -6,7 +6,9 @@ import test from "node:test";
 import { flags } from "../content/flags";
 import { marketingConsentEnabled } from "../lib/runtime-flags";
 import {
+  DIRECT_LEAD_CONSENT_FILE,
   DIRECT_LEAD_CONSENT_TEXT_VERSION,
+  DIRECT_MARKETING_CONSENT_FILE,
   DIRECT_MARKETING_CONSENT_TEXT_VERSION,
   LEAD_CONSENT_TEXT_VERSION,
   MARKETING_CONSENT_TEXT_VERSION,
@@ -252,7 +254,7 @@ test("mock covers captcha, validation, and in-progress retries with one key", as
 test("clearing the email resets the marketing checkbox and omits marketing_consent", () => {
   assert.equal(flags.show_marketing_consent, false);
   assert.equal(flags.show_site_legal, false);
-  assert.equal(fs.existsSync(path.join(root, "content/consents/marketing-2026-10-11.md")), false);
+  assert.equal(fs.existsSync(path.join(root, "content/consents", DIRECT_MARKETING_CONSENT_FILE)), false);
   const hidden = leadMarketingDecision(false, "anna@example.com", true);
   assert.equal(hidden.visible, false);
   assert.equal(hidden.checked, false);
@@ -382,7 +384,7 @@ test("consent-lead file is the approved text and the publish guard rejects lefto
   const consentDir = path.join(root, "content/consents");
   const names = fs.readdirSync(consentDir).filter((name) => name.endsWith(".md")).sort();
   const expected: Record<string, string> = {
-    "lead-2026-10-11.md": LEAD_CONSENT_SHA256,
+    "2026-10-11-lead.md": LEAD_CONSENT_SHA256,
   };
   assert.deepEqual(names, Object.keys(expected).sort());
   for (const name of names) {
@@ -391,6 +393,24 @@ test("consent-lead file is the approved text and the publish guard rejects lefto
   }
   const bytes = fs.readFileSync(LEAD_CONSENT_PATH);
   assert.equal(createHash("sha256").update(bytes).digest("hex"), LEAD_CONSENT_SHA256);
+  assert.equal(path.basename(LEAD_CONSENT_PATH), DIRECT_LEAD_CONSENT_FILE);
+  const versioned = buildPublicLeadBody({
+    ...baseLead,
+    email: "anna@example.com",
+    marketingAccepted: true,
+  });
+  assert.equal(
+    (versioned.consent as { text_version: string }).text_version,
+    path.basename(LEAD_CONSENT_PATH, ".md")
+  );
+  assert.equal(
+    (versioned.consent as { text_version: string }).text_version,
+    DIRECT_LEAD_CONSENT_TEXT_VERSION
+  );
+  assert.equal(
+    (versioned.marketing_consent as { text_version: string }).text_version,
+    path.basename(DIRECT_MARKETING_CONSENT_FILE, ".md")
+  );
   const source = readLeadConsentSource();
   assert.equal(source, bytes.toString("utf8"));
   const blocks = leadConsentDocument(source);

@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { placeholders } from "../content/placeholders";
 import { company } from "./company";
+import { DIRECT_LEAD_CONSENT_FILE } from "./consent";
 
-export const LEAD_CONSENT_PATH = path.join(process.cwd(), "content/consents/lead-2026-10-11.md");
+export const LEAD_CONSENT_PATH = path.join(process.cwd(), "content/consents", DIRECT_LEAD_CONSENT_FILE);
 
 const token = /\{\{\s*([a-z0-9_]+)\s*\}\}/g;
 
