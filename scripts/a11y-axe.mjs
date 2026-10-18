@@ -19,7 +19,6 @@ const routes = [
 ];
 
 const pendingText = "Текст не опубликован";
-const hiddenHrefs = ["/terms", "/offer", "/refund", "/data-deletion"];
 const port = Number(process.env.A11Y_PORT || 3456);
 const base = `http://127.0.0.1:${port}`;
 
@@ -35,7 +34,10 @@ const routeFlag = {
 /** Опубликованы без флага. /privacy при show_site_legal=false остаётся редакцией 21.09, не заглушкой. */
 const publishedRoutes = new Set(["/", "/privacy", "/consent", "/consent-lead", "/consent-marketing"]);
 
-const axeTags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
+const axeRuns = [
+  { name: "wcag-2.0-2.1-a-aa", tags: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+  { name: "best-practice", tags: ["best-practice"] },
+];
 
 function flagEnabled(name) {
   if (!(name in flags) || typeof flags[name] !== "boolean") {
@@ -151,9 +153,13 @@ async function assertPage(page, route) {
   }
 
   const footer = await page.locator("footer").innerHTML();
-  for (const href of ["/cookies", ...hiddenHrefs]) {
-    if (footer.includes(`href="${href}"`)) {
-      throw new Error(`${route}: футер содержит ссылку ${href} при выключенном флаге`);
+  for (const [href, name] of Object.entries(routeFlag)) {
+    const present = footer.includes(`href="${href}"`);
+    if (flagEnabled(name) && !present) {
+      throw new Error(`${route}: футер должен содержать ссылку ${href}, флаг ${name} включён`);
+    }
+    if (!flagEnabled(name) && present) {
+      throw new Error(`${route}: футер содержит ссылку ${href} при выключенном флаге ${name}`);
     }
   }
   if (!footer.includes('href="/privacy"') || !footer.includes('href="/applicability"')) {
@@ -163,9 +169,10 @@ async function assertPage(page, route) {
     throw new Error(`${route}: футер не показывает, что реквизиты не опубликованы`);
   }
 
-  for (const href of hiddenHrefs) {
+  for (const [href, name] of Object.entries(routeFlag)) {
+    if (flagEnabled(name) || href === "/cookies") continue;
     const count = await page.locator(`a[href="${href}"]`).count();
-    if (count !== 0) throw new Error(`${route}: на странице есть ссылка ${href}`);
+    if (count !== 0) throw new Error(`${route}: на странице есть ссылка ${href} при выключенном флаге ${name}`);
   }
   const cookieLinks = await page.locator('a[href="/cookies"]').count();
   if (route === "/privacy" && cookieLinks < 2) {
@@ -255,14 +262,19 @@ try {
     const robots = await assertPage(page, route);
     await page.getByRole("button", { name: "Настроить" }).click();
     await reveal(page);
-    const result = await new AxeBuilder({ page }).withTags(axeTags).analyze();
-    for (const violation of result.violations) {
-      const nodes = violation.nodes
-        .map((node) => `${node.target.join(" ")} ${node.html}`)
-        .join(" | ");
-      violations.push(`${route} ${violation.id} (${violation.impact}) ${violation.help} :: ${nodes}`);
+    for (const run of axeRuns) {
+      const result = await new AxeBuilder({ page }).withTags(run.tags).analyze();
+      console.log(
+        `${route} ${run.name}: rules passed ${result.passes.length}, violations ${result.violations.length}`,
+      );
+      for (const violation of result.violations) {
+        const nodes = violation.nodes
+          .map((node) => `${node.target.join(" ")} ${node.html}`)
+          .join(" | ");
+        violations.push(`${route} ${run.name} ${violation.id} (${violation.impact}) ${violation.help} :: ${nodes}`);
+      }
     }
-    console.log(`${route}: robots ${robots}; axe violations ${result.violations.length}`);
+    console.log(`${route}: robots ${robots}`);
   }
 } catch (error) {
   stopServer();
@@ -280,4 +292,6 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log(`axe: 0 violations on ${routes.length} routes; tags ${axeTags.join(",")}; port ${port}`);
+console.log(
+  `axe: 0 violations on ${routes.length} routes; runs ${axeRuns.map((run) => run.name).join(", ")}; port ${port}`,
+);
