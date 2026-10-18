@@ -1,24 +1,16 @@
 /**
  * Manager alerts from the Next.js BFF. Never expose Telegram/parser tokens.
- * Every finished landing scan (phase === done) is a new client to pick up.
+ * Messages carry only an id, the site domain, the score, and a cabinet link.
+ * Name, email, phone, company, and comment never leave this process for Telegram.
  */
 
-import { getCheckPdf } from "./parser-client";
-import { findScanContact, hasScanContact } from "./scan-contacts";
-import { isTelegramConfigured, sendTelegramDocument, sendTelegramMessage } from "./telegram";
-import type { CheckJob, Lead, ScanContact } from "./types";
+import { company } from "./company";
+import { logServerError } from "./safe-log";
+import { isTelegramConfigured, sendTelegramMessage } from "./telegram";
+import type { CheckJob, Lead } from "./types";
 
 const notifiedScans = new Set<string>();
 const skippedScans = new Set<string>();
-
-function formatTs(iso?: string): string {
-  const d = iso ? new Date(iso) : new Date();
-  return d.toLocaleString("ru-RU", { timeZone: "Europe/Moscow" });
-}
-
-function scanHasRisks(job: CheckJob): boolean {
-  return job.push === true || (Array.isArray(job.findings) && job.findings.length > 0);
-}
 
 export function shouldNotifyScan(job: CheckJob): boolean {
   return String(job.phase) === "done";
@@ -30,93 +22,56 @@ function logTelegramSkipped(kind: "scan" | "lead"): void {
   );
 }
 
-type ContactBits = {
-  name?: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-};
-
-async function contactsForJob(job: CheckJob): Promise<ContactBits> {
-  let scan: ScanContact | null = hasScanContact(job.contact) ? job.contact || null : null;
-  if (!scan) {
-    try {
-      scan =
-        (await findScanContact(job.scanId || job.id)) ||
-        (job.scanId && job.scanId !== job.id ? await findScanContact(job.id) : null);
-    } catch (err) {
-      console.error("[notify] scan contact lookup failed", err);
-    }
-  }
-  return {
-    name: scan?.name,
-    email: scan?.email,
-    phone: scan?.phone,
-  };
+function cabinetBase(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  return (fromEnv || company.website).replace(/\/$/, "");
 }
 
-function formatScanMessage(job: CheckJob, contact?: ContactBits | null): string {
-  const risks = scanHasRisks(job);
-  const lines: string[] = [
-    "🆕 Новый клиент с лендинга",
-    "",
-    "Проверка сайта завершена — возьмите клиента в работу.",
-    "",
-    `Домен: ${job.domain || "—"}`,
-    `Ссылка: ${job.url || "—"}`,
-    `Балл: ${typeof job.score === "number" ? job.score : "—"}`,
-    `Риски: ${risks ? "да" : "нет"}`,
-  ];
+export function cabinetLink(id: string): string {
+  return `${cabinetBase()}/cabinet/${encodeURIComponent(id)}`;
+}
 
-  if (job.findings.length > 0) {
-    lines.push("", "Находки:");
-    job.findings.slice(0, 18).forEach((f, i) => {
-      lines.push(`${i + 1}. ${f.rule_id} / ${f.title}`);
-      if (f.fact) lines.push(`   ${f.fact}`);
-    });
-    if (job.findings.length > 18) {
-      lines.push(`… ещё ${job.findings.length - 18}`);
-    }
-  } else {
-    lines.push("", "Находки: нет");
+function hostnameOnly(value?: string | null): string | null {
+  if (!value) return null;
+  try {
+    const host = new URL(value).hostname.replace(/^www\./i, "").toLowerCase();
+    if (!host || !host.includes(".") || host.includes("@")) return null;
+    return host;
+  } catch {
+    return null;
   }
+}
 
-  if (contact && (contact.name || contact.phone || contact.email || contact.company)) {
-    lines.push("", "Контакты:");
-    if (contact.name) lines.push(`Имя: ${contact.name}`);
-    if (contact.phone) lines.push(`Телефон: ${contact.phone}`);
-    if (contact.email) lines.push(`Email: ${contact.email}`);
-    if (contact.company) lines.push(`Компания: ${contact.company}`);
-  }
+function publicDomain(url?: string | null, domain?: string | null): string {
+  return hostnameOnly(url) || hostnameOnly(domain ? `https://${domain}` : null) || "—";
+}
 
-  lines.push("", `Время: ${formatTs(job.updatedAt)}`);
-  if (job.mock) lines.push("Режим: mock (PARSER_API_BASE не задан)");
-  return lines.join("\n");
+function scoreLabel(score?: number | null): string {
+  return typeof score === "number" && Number.isFinite(score) ? String(score) : "—";
+}
+
+export function formatScanMessage(job: CheckJob): string {
+  const id = job.scanId || job.id;
+  return [
+    "Проверка завершена",
+    `ID: ${id}`,
+    `Домен: ${publicDomain(job.url, job.domain)}`,
+    `Балл: ${scoreLabel(job.score)}`,
+    `Кабинет: ${cabinetLink(id)}`,
+  ].join("\n");
 }
 
 export function formatLeadMessage(lead: Lead): string {
-  const lines = [
-    "🆕 Новый клиент с лендинга",
-    "",
-    "Новая заявка с формы — возьмите клиента в работу.",
-    "",
-    `Имя: ${lead.name}`,
-    lead.phone ? `Телефон: ${lead.phone}` : null,
-    lead.email ? `Email: ${lead.email}` : null,
-    lead.company ? `Компания: ${lead.company}` : null,
-    lead.url ? `Ссылка: ${lead.url}` : null,
-    lead.checkId ? `Check ID: ${lead.checkId}` : null,
-    lead.message ? `Комментарий: ${lead.message}` : null,
-    `Источник: ${lead.source || "landing"}`,
-    `Время: ${formatTs(lead.createdAt)}`,
-  ].filter((x): x is string => Boolean(x));
-  return lines.join("\n");
+  return [
+    "Новая заявка",
+    `ID: ${lead.id}`,
+    `Домен: ${publicDomain(lead.url)}`,
+    "Балл: —",
+    `Кабинет: ${cabinetLink(lead.id)}`,
+  ].join("\n");
 }
 
-/**
- * Notify the manager as soon as a landing scan finishes — with or without risks.
- * Text always. PDF via sendDocument only when pdf_ready and the scan has risks.
- */
+/** Notify when a landing scan finishes. Text only: id, domain, score, cabinet link. */
 export async function notifyScanIfNeeded(job: CheckJob): Promise<void> {
   if (!shouldNotifyScan(job)) return;
 
@@ -132,26 +87,10 @@ export async function notifyScanIfNeeded(job: CheckJob): Promise<void> {
   notifiedScans.add(key);
 
   try {
-    const contact = await contactsForJob(job);
-    await sendTelegramMessage(formatScanMessage(job, contact));
-
-    if (job.pdfReady && !job.mock && scanHasRisks(job)) {
-      try {
-        const pdf = await getCheckPdf(job.id);
-        if (pdf) {
-          await sendTelegramDocument(
-            pdf.buffer,
-            pdf.filename,
-            `${job.domain} · риски: да · новый клиент с лендинга`
-          );
-        }
-      } catch (err) {
-        console.error("[notify] PDF send failed", err);
-      }
-    }
+    await sendTelegramMessage(formatScanMessage(job));
   } catch (err) {
     notifiedScans.delete(key);
-    console.error("[notify] scan telegram failed", err);
+    logServerError("[notify] scan telegram failed", err);
   }
 }
 
@@ -163,6 +102,6 @@ export async function notifyNewLead(lead: Lead): Promise<void> {
   try {
     await sendTelegramMessage(formatLeadMessage(lead));
   } catch (err) {
-    console.error("[notify] lead telegram failed", err);
+    logServerError("[notify] lead telegram failed", err);
   }
 }

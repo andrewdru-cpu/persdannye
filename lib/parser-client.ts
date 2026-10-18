@@ -9,13 +9,7 @@ import {
 import type { CheckJob, Finding, Recommendation, ScanContact } from "./types";
 import { findingsForClient, scanHasRisks } from "./check-report";
 import { domainFromUrl } from "./utils";
-import {
-  findScanContact,
-  hasScanContact,
-  mergeScanContact,
-  normalizeScanContact,
-  saveScanContact,
-} from "./scan-contacts";
+import { normalizeScanContact } from "./scan-contacts";
 import { randomUUID } from "crypto";
 import { CONSENT_TEXT_VERSION, marketingConsentForParser, ScanConsentRequiredError } from "./consent";
 
@@ -59,7 +53,6 @@ type JobMeta = {
   mock: boolean;
   createdAt: string;
   warning?: string | null;
-  lead?: ScanContact | null;
 };
 
 /** In-memory map: our check id → upstream scan_id (or mock) */
@@ -75,7 +68,7 @@ export type CreateScanLead = {
   marketing_consent_text_version?: string | null;
 };
 
-/** Browser payload: never include contacts read from data/ or /tmp. */
+/** Browser payload: contact fields are not returned. */
 export function publicCheckJob(job: CheckJob): Omit<CheckJob, "contact"> {
   const view = { ...job, findings: findingsForClient(job.findings) };
   delete view.contact;
@@ -223,35 +216,6 @@ async function createUpstreamScan(
   );
 }
 
-async function rememberContact(
-  id: string,
-  url: string,
-  contact: ScanContact | null
-): Promise<void> {
-  if (!hasScanContact(contact) || !contact) return;
-  try {
-    await saveScanContact(id, url, contact);
-  } catch (err) {
-    console.error("[scan-contact] save failed", err);
-  }
-}
-
-async function resolveContact(
-  id: string,
-  metaLead?: ScanContact | null,
-  upstream?: ScanContact | null
-): Promise<ScanContact | null> {
-  let stored = hasScanContact(metaLead) ? metaLead : null;
-  if (!stored) {
-    try {
-      stored = await findScanContact(id);
-    } catch (err) {
-      console.error("[scan-contact] read failed", err);
-    }
-  }
-  return mergeScanContact(stored, upstream);
-}
-
 function remember(checkId: string, meta: JobMeta) {
   jobMeta.set(checkId, meta);
 }
@@ -267,8 +231,7 @@ export async function createCheck(
   if (!isParserConfigured()) {
     const id = randomUUID();
     mockCreateScan(id, url);
-    remember(id, { url, scanId: id, mock: true, createdAt, lead: contact });
-    await rememberContact(id, url, contact);
+    remember(id, { url, scanId: id, mock: true, createdAt });
     const job = mockGetScan(id)!;
     return { ...job, id, createdAt, contact };
   }
@@ -287,9 +250,7 @@ export async function createCheck(
     mock: false,
     createdAt,
     warning: data.warning,
-    lead: contact,
   });
-  await rememberContact(id, url, contact);
 
   return {
     id,
@@ -317,8 +278,7 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
   if (meta?.mock || !isParserConfigured()) {
     const job = mockGetScan(id);
     if (!job) return null;
-    const contact = await resolveContact(id, meta?.lead, job.contact);
-    return { ...job, contact };
+    return job;
   }
 
   const scanId = meta?.scanId || id;
@@ -344,9 +304,7 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
       warning: data.warning,
     });
   }
-  const mapped = mapUpstream(id, url, data, false, createdAt, meta?.warning);
-  const contact = await resolveContact(id, meta?.lead, mapped.contact);
-  return { ...mapped, contact };
+  return mapUpstream(id, url, data, false, createdAt, meta?.warning);
 }
 
 export async function getCheckPdf(

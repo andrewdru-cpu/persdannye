@@ -1,9 +1,11 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { collectionGateResponse } from "@/lib/collection-gate";
 import { LEAD_CONSENT_TEXT_VERSION, marketingConsentForParser } from "@/lib/consent";
 import { leadBodySchema } from "@/lib/lead-schema";
-import { addLead } from "@/lib/leads-store";
 import { notifyNewLead } from "@/lib/notify";
+import { logServerError } from "@/lib/safe-log";
+import type { Lead } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +32,9 @@ export async function POST(req: Request) {
     if (!email && !phone) {
       return NextResponse.json({ error: "Укажите телефон или e-mail" }, { status: 400 });
     }
-    const lead = await addLead({
+    const consent_text_version = parsed.data.consent_text_version || LEAD_CONSENT_TEXT_VERSION;
+    const lead: Lead = {
+      id: randomUUID(),
       name: parsed.data.name,
       email,
       phone,
@@ -38,16 +42,17 @@ export async function POST(req: Request) {
       checkId: parsed.data.checkId,
       message: parsed.data.message,
       consent: true,
-      consent_text_version: parsed.data.consent_text_version || LEAD_CONSENT_TEXT_VERSION,
+      consent_text_version,
       ...marketingConsentForParser(parsed.data.marketing_consent === true),
+      createdAt: new Date().toISOString(),
       source: parsed.data.source || "landing",
-    });
+    };
 
     await notifyNewLead(lead);
 
-    return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
+    return NextResponse.json({ ok: true, id: lead.id, consent_text_version }, { status: 201 });
   } catch (err) {
-    console.error("[leads] request failed", err);
+    logServerError("[leads] request failed", err);
     return NextResponse.json({ error: "Ошибка сервера" }, { status: 500 });
   }
 }

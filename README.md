@@ -48,7 +48,7 @@ Phases: `queued|open|extract|rules|pdf` (+ terminal). Landing risks = `push===tr
 
 Without a public `PARSER_API_BASE` the site uses a polished mock parser.
 
-Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`): every finished landing scan («Новый клиент с лендинга»: domain, score, risks yes/no, findings, contacts, link) plus new-lead alerts. PDF `sendDocument` only when `pdf_ready` and the scan has risks. Missing Telegram env is a logged skip, not a crash.
+Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`): every finished landing scan and every new lead alerts the manager with only the id, the site domain, the score, and a cabinet link. Name, email, phone, company, and comment are not included. PDF `sendDocument` is not sent. Missing Telegram env is a logged skip, not a crash. Lead and scan contacts are not written to disk or to the temp directory.
 
 Public without auth on parser: `GET {BASE}/api/health` only.
 

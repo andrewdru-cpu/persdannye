@@ -7,7 +7,7 @@
 | Свой API проверки | `POST /api/checks`, `GET /api/checks/:id`, `GET /api/checks/:id/pdf` | После отправки адреса на сайте. Это тот же origin, не сторонний SDK. |
 | Свой API заявок | `POST /api/leads` | После отправки формы с обязательным согласием на обработку. |
 | Парсер | `PARSER_API_BASE` на сервере (`lib/parser-client.ts`) | Только с сервера. Браузер к парсеру не ходит. |
-| Telegram | `TELEGRAM_BOT_TOKEN` на сервере | Только с сервера, если токен задан. В браузер токен не попадает. |
+| Telegram | `TELEGRAM_BOT_TOKEN` на сервере | Только с сервера, если токен задан. В браузер токен не попадает. В сообщении только id, домен, балл и ссылка в кабинет, без имени, email, телефона, компании и комментария. |
 | `AnalyticsGate` | `components/layout/AnalyticsGate.tsx` | Скрипт не монтирует. До согласия `analytics === true` ничего не грузит. После согласия в development пишет `console.info`, тега Метрики или GA нет. |
 | Vercel Analytics | пакет `@vercel/analytics` не установлен | Компонент не подключён, запроса нет. |
 | Vercel Speed Insights | пакет `@vercel/speed-insights` не установлен | Компонент не подключён, запроса нет. |
