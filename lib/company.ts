@@ -4,6 +4,8 @@ export const company = {
   legalName: "",
   shortName: "ПерсДанные",
   inn: "",
+  /** КПП обязателен для ООО. Пусто, пока реквизиты не опубликованы. */
+  kpp: "",
   ogrn: "",
   address: "",
   /**

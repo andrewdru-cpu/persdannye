@@ -31,6 +31,15 @@ function ogrnCaption(ogrn: string): "ОГРН" | "ОГРНИП" {
   return ogrn.length === 15 ? "ОГРНИП" : "ОГРН";
 }
 
+function identityDetails(requisites: {
+  inn: string;
+  kpp: string;
+  ogrn: string;
+}): string {
+  const kpp = requisites.kpp.trim() ? `, КПП ${requisites.kpp.trim()}` : "";
+  return `ИНН ${requisites.inn}${kpp}, ${ogrnCaption(requisites.ogrn)} ${requisites.ogrn}`;
+}
+
 /** Прежняя политика. Новые тексты site-legal сюда не добавляем. */
 function LegacyPrivacyPolicy() {
   const requisites = assertPublishedRequisites(company) ? company : null;
@@ -50,7 +59,7 @@ function LegacyPrivacyPolicy() {
           определяет порядок и условия обработки персональных данных пользователей
           сайта {company.website} (далее — Сайт), осуществляемой{" "}
           {requisites
-            ? `оператором — ${requisites.legalName} (ИНН ${requisites.inn}, ${ogrnCaption(requisites.ogrn)} ${requisites.ogrn}), адрес: ${requisites.address} (далее — Оператор).`
+            ? `оператором — ${requisites.legalName} (${identityDetails(requisites)}), адрес: ${requisites.address} (далее — Оператор).`
             : "оператором (далее — Оператор)."}
         </p>
         <p>
@@ -186,9 +195,7 @@ function LegacyPrivacyPolicy() {
         {requisites ? (
           <>
             <p>{requisites.legalName}</p>
-            <p>
-              ИНН {requisites.inn}, {ogrnCaption(requisites.ogrn)} {requisites.ogrn}
-            </p>
+            <p>{identityDetails(requisites)}</p>
             <p>{requisites.address}</p>
             <p>Тел.: {requisites.phone}</p>
           </>
