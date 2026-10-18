@@ -11,7 +11,7 @@ const mockCheck = spawnSync(
 );
 if (mockCheck.status !== 0) {
   throw new Error(
-    "Сборка остановлена: VERCEL_ENV=production или PD_DEPLOY_ENV=prod, и задана непустая E2E, SUPPRESSION_MOCK или OUTBOUND_MOCK."
+    "Сборка остановлена: при VERCEL_ENV=production или PD_DEPLOY_ENV=prod задана непустая E2E, SUPPRESSION_MOCK или OUTBOUND_MOCK, либо PD_BFF_SIGNING_SECRET короче 32 байт."
   );
 }
 

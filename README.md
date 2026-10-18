@@ -50,28 +50,32 @@ Without a public `PARSER_API_BASE` the site uses a polished mock parser.
 
 Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`): every finished landing scan («Новый клиент с лендинга»: domain, score, risks yes/no, findings, contacts, link) plus new-lead alerts. PDF `sendDocument` only when `pdf_ready` and the scan has risks. Missing Telegram env is a logged skip, not a crash.
 
-Public without auth on parser: `GET {BASE}/api/health` only.
+Public without the service bearer: `GET {BASE}/api/health` and `POST {BASE}/public/lead`. The browser never calls the parser.
 
 ### `POST /api/leads` origin and client IP
 
 `ALLOWED_ORIGINS` is a comma-separated list of exact `Origin` values: the production site and each Vercel preview origin (`https://persdannye.ru,https://<preview>.vercel.app`). There is no wildcard. A missing `Origin`, the value `null`, any other host, and a lookalike such as `https://persdannye.vercel.app.evil.com` get **403**. Local dev needs `http://localhost:3000` in that list.
 
-When `PARSER_API_BASE` is set, an accepted lead is forwarded once to `POST {BASE}/api/leads` with the parser bearer token. The client address comes from the Vercel header `x-real-ip`, or from the first address in `x-vercel-forwarded-for`. A client-supplied `X-Forwarded-For` is ignored. Every client-supplied `X-PD-*` header is removed before the parser request is built.
+When `PARSER_API_BASE` is set, an accepted lead is forwarded **once** to `POST {BASE}/public/lead` (contract v1.1, no service bearer, no `smart_token`). The JSON body is at most 16 KB: `name` (2–120), `email` (≤200) and/or `phone` (≤40), optional `url`, `check_id`, `message`, `source`, and `consent: { accepted: true, text_version: "2026-10-11-lead" }`. `marketing_consent: { accepted: true, text_version: "2026-10-11-marketing" }` is included only when the lead has an email and the checkbox is on. The browser sends one `Idempotency-Key` (UUID) per form fill; the BFF forwards it unchanged. A missing or invalid key is **400** `idempotency_key_invalid`. A manual resubmit reuses the same key. Neither the browser nor the BFF retries a lead automatically.
 
-`PD_BFF_SIGNING_SECRET` is the HMAC key for that request. When it is set and a Vercel address is present, the BFF adds:
+Parser statuses are returned with the same `error`: **201**; **400** `validation_failed` plus `fields`; **409** `idempotency_in_progress`; **422** `idempotency_key_reused`, `consent_required`, or `consent_version_unknown`; **429** with `Retry-After`; **503** (any `error`, including `rate_limit_unavailable`). A 503 leaves the typed fields in the form and shows «Не удалось отправить заявку, попробуйте через несколько минут».
+
+The client address comes from the Vercel header `x-real-ip`, or from the first address in `x-vercel-forwarded-for`. A client-supplied `X-Forwarded-For` is ignored. Every client-supplied `X-PD-*` header is removed before the parser request is built.
+
+`PD_BFF_SIGNING_SECRET` (at least 32 bytes) is the HMAC key. The same signature is attached to **every** BFF call to the parser that has a Vercel client address (lead, login, scan, PDF). The headers are:
 
 - `X-PD-Client-IP` — the raw Vercel address
 - `X-PD-Ts` — unix time in seconds
-- `X-PD-Sig` — hex HMAC-SHA256 (`node:crypto`) of the string `ts + "." + ip`, keyed with `PD_BFF_SIGNING_SECRET`
+- `X-PD-Sig` — hex HMAC-SHA256 (`node:crypto`) of `<ts>.<METHOD>.<path>.<ip>`, for example `1760817600.POST./public/lead.203.0.113.7`
 
-When `PD_BFF_SIGNING_SECRET` is unset, those three headers are omitted. A parser **429** is returned unchanged, including `Retry-After`. Lead names, emails, and phones are not written into HTTP responses or server logs. An address that is logged has its last IPv4 octet (or IPv6 interface id) cleared.
+A missing or shorter secret omits those three headers outside production. In production (`VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`) the BFF does not call the parser and responds **503** with no secret details. A parser **429** is returned unchanged, including `Retry-After`. Lead names, emails, and phones are not written into HTTP responses or server logs. An address that is logged has its last IPv4 octet (or IPv6 interface id) cleared.
 
 ## Deploy
 
 Vercel Production (`VERCEL_ENV=production`):
 
 - Do not set `E2E`, `SUPPRESSION_MOCK`, or `OUTBOUND_MOCK` when `VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`. Any non-empty value stops that build. The check does not read `NODE_ENV`, so a local build and CI still succeed when `NODE_ENV=production` and neither flag is set. `E2E=1` alone is allowed.
-- `ALLOWED_ORIGINS` and `PD_BFF_SIGNING_SECRET` are required.
+- `ALLOWED_ORIGINS` and `PD_BFF_SIGNING_SECRET` are required. The signing secret must be at least 32 bytes. An empty or shorter value stops that build the same way a mock variable does.
 
 Preview may keep the mock variables. They are not copied into Production. On the VPS, set `PD_DEPLOY_ENV=prod`.
 

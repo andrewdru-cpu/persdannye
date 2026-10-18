@@ -5,6 +5,7 @@ import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsen
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
 import { LEAD_CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { submitLeadOnce } from "@/lib/lead-submit";
 
 export function LeadForm({
   defaultUrl = "",
@@ -28,6 +29,7 @@ export function LeadForm({
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -41,10 +43,8 @@ export function LeadForm({
     }
     setStatus("loading");
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const result = await submitLeadOnce(
+        {
           name,
           email: mail || undefined,
           phone: tel || undefined,
@@ -58,14 +58,18 @@ export function LeadForm({
           ...(marketingConsent && marketingOptIn
             ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
             : {}),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Ошибка отправки");
+        },
+        idempotencyKey
+      );
+      if (!result.ok) {
+        setStatus("error");
+        setError(result.message);
+        return;
+      }
       setStatus("ok");
-    } catch (err) {
+    } catch {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError("Ошибка отправки");
     }
   }
 

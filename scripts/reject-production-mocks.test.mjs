@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 
 const script = path.resolve("scripts/reject-production-mocks.mjs");
+const SECRET_32 = "a".repeat(32);
 
 function run(env) {
   return spawnSync(process.execPath, [script], {
@@ -14,7 +15,11 @@ function run(env) {
 
 describe("production mock env", () => {
   it("passes a production build when no mock variables are set", () => {
-    const result = run({ VERCEL_ENV: "production", NODE_ENV: "production" });
+    const result = run({
+      VERCEL_ENV: "production",
+      NODE_ENV: "production",
+      PD_BFF_SIGNING_SECRET: SECRET_32,
+    });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, "");
   });
@@ -45,6 +50,7 @@ describe("production mock env", () => {
       E2E: "  ",
       SUPPRESSION_MOCK: "",
       OUTBOUND_MOCK: "",
+      PD_BFF_SIGNING_SECRET: SECRET_32,
     });
     assert.equal(blank.status, 0, blank.stderr);
   });
@@ -60,9 +66,43 @@ describe("production mock env", () => {
   });
 
   it("passes when PD_DEPLOY_ENV=prod and no mock is set", () => {
-    const result = run({ PD_DEPLOY_ENV: "prod", NODE_ENV: "production" });
+    const result = run({
+      PD_DEPLOY_ENV: "prod",
+      NODE_ENV: "production",
+      PD_BFF_SIGNING_SECRET: SECRET_32,
+    });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, "");
+  });
+
+  it("fails production when the signing secret is empty or shorter than 32 bytes", () => {
+    for (const secret of [undefined, "", "   ", "a".repeat(31)]) {
+      const env = { VERCEL_ENV: "production", NODE_ENV: "production" };
+      if (secret !== undefined) env.PD_BFF_SIGNING_SECRET = secret;
+      const result = run(env);
+      assert.equal(result.status, 1, JSON.stringify(secret));
+      assert.match(result.stderr, /PD_BFF_SIGNING_SECRET/);
+      assert.match(result.stderr, /32/);
+      assert.match(result.stderr, /не NODE_ENV/);
+    }
+
+    const onVps = run({
+      PD_DEPLOY_ENV: "prod",
+      NODE_ENV: "test",
+      PD_BFF_SIGNING_SECRET: "a".repeat(31),
+    });
+    assert.equal(onVps.status, 1);
+    assert.match(onVps.stderr, /PD_DEPLOY_ENV=prod/);
+    assert.match(onVps.stderr, /PD_BFF_SIGNING_SECRET/);
+
+    const ok = run({
+      VERCEL_ENV: "production",
+      PD_DEPLOY_ENV: "prod",
+      NODE_ENV: "production",
+      PD_BFF_SIGNING_SECRET: SECRET_32,
+    });
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.equal(ok.stderr, "");
   });
 
   it("passes e2e with E2E=1 when production flags are unset", () => {

@@ -4,15 +4,23 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { POST } from "../app/api/leads/route.ts";
 import { dataFilePath } from "../lib/data-dir.ts";
-import { allowedOriginsFromEnv, isAllowedOrigin, maskIp, stripClientPdHeaders } from "../lib/lead-guard.ts";
+import {
+  allowedOriginsFromEnv,
+  bffSignatureMaterial,
+  isAllowedOrigin,
+  maskIp,
+  signClientPayload,
+  stripClientPdHeaders,
+} from "../lib/lead-guard.ts";
 
 const PROD = "https://persdannye.ru";
 const PREVIEW = "https://persdannye.vercel.app";
-const SECRET = "test-signing-secret";
+const SECRET = "0123456789abcdef0123456789abcdef";
 const RAW_IP = "203.0.113.10";
 const MASKED_IP = "203.0.113.0";
 const FORGED_IP = "198.51.100.99";
 const FORWARDED_FOR = "198.51.100.8";
+const IDEMPOTENCY = "22222222-2222-4222-8222-222222222222";
 const EMAIL = "anna@example.com";
 const PHONE = "+79990001122";
 const NAME = "Анна";
@@ -43,6 +51,8 @@ const ENV_KEYS = [
   "PARSER_API_PASSWORD",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_CHAT_ID",
+  "VERCEL_ENV",
+  "PD_DEPLOY_ENV",
 ] as const;
 
 const PII = [EMAIL, PHONE, NAME, MESSAGE];
@@ -106,6 +116,7 @@ function leadRequest(
   headers.set("x-pd-ts", "1");
   headers.set("x-pd-sig", "deadbeef");
   headers.set("x-pd-note", EMAIL);
+  headers.set("idempotency-key", IDEMPOTENCY);
   if (extra) {
     for (const [key, value] of Object.entries(extra)) {
       if (value === null) headers.delete(key);
@@ -124,7 +135,8 @@ function outgoingHeaders(init: RequestInit | undefined): Headers {
 }
 
 function signature(ts: string, ip: string, secret = SECRET) {
-  return createHmac("sha256", secret).update(`${ts}.${ip}`).digest("hex");
+  const material = `${ts}.POST./public/lead.${ip}`;
+  return createHmac("sha256", secret).update(material).digest("hex");
 }
 
 describe("POST /api/leads", { concurrency: 1 }, () => {
@@ -141,6 +153,8 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     delete process.env.PARSER_API_PASSWORD;
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_CHAT_ID;
+    delete process.env.VERCEL_ENV;
+    delete process.env.PD_DEPLOY_ENV;
     restoreLogs = captureLogs();
     const prevFetch = globalThis.fetch;
     globalThis.fetch = (async () => {
@@ -242,7 +256,7 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(payload.email, undefined);
     assertNoLeadPii(JSON.stringify(payload));
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, "https://parser.example/api/leads");
+    assert.equal(calls[0].url, "https://parser.example/public/lead");
     const headers = outgoingHeaders(calls[0].init);
     const ts = headers.get("x-pd-ts") || "";
     const tsNum = Number(ts);
@@ -253,7 +267,16 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(headers.get("x-pd-client-ts"), null);
     assert.equal(headers.get("x-pd-client-sig"), null);
     assert.equal(headers.get("x-forwarded-for"), null);
-    assert.equal(headers.get("authorization"), "Bearer parser-token");
+    assert.equal(headers.get("authorization"), null);
+    assert.equal(headers.get("idempotency-key"), IDEMPOTENCY);
+    const forwardedBody = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>;
+    assert.equal(forwardedBody.smart_token, undefined);
+    assert.deepEqual(forwardedBody.consent, { accepted: true, text_version: "2026-10-11-lead" });
+    assert.equal("marketing_consent" in forwardedBody, false);
+    assert.equal(forwardedBody.check_id, lead.checkId);
+    assert.equal(forwardedBody.email, EMAIL);
+    assert.equal(forwardedBody.phone, PHONE);
+    assert.equal(forwardedBody.name, NAME);
     const forwarded = JSON.stringify(Object.fromEntries(headers.entries()));
     assert.equal(forwarded.includes(FORGED_IP), false);
     assert.equal(forwarded.includes(EMAIL), false);
@@ -411,6 +434,167 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
       assert.equal(value.includes(RAW_IP), false);
     }
     assertLogsMasked();
+  });
+
+  it("matches the parser example with an independent HMAC", () => {
+    const material = bffSignatureMaterial("1760817600", "post", "/public/lead", "203.0.113.7");
+    assert.equal(material, "1760817600.POST./public/lead.203.0.113.7");
+    const expected = createHmac("sha256", SECRET).update("1760817600.POST./public/lead.203.0.113.7").digest("hex");
+    assert.equal(signClientPayload("1760817600", "POST", "/public/lead", "203.0.113.7", SECRET), expected);
+  });
+
+  it("rejects a missing or invalid Idempotency-Key before calling the parser", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    for (const key of [null, "", "not-a-uuid", "22222222-2222-4222-8222-22222222222"]) {
+      const res = await POST(leadRequest(PROD, { "idempotency-key": key }));
+      assert.equal(res.status, 400, String(key));
+      assert.deepEqual(await res.json(), { error: "idempotency_key_invalid" });
+    }
+    assert.equal(calls, 0);
+  });
+
+  it("forwards the Idempotency-Key unchanged and omits marketing consent without an email", async () => {
+    const key = "ABCDEFAB-1234-4678-9ABC-DEF012345678";
+    const calls: Array<{ init: RequestInit }> = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ init: init ?? {} });
+      return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    const phoneOnly = await POST(
+      leadRequest(
+        PROD,
+        { "idempotency-key": key },
+        { ...lead, email: "", marketing_consent: true, marketing_consent_text_version: "client-version" }
+      )
+    );
+    assert.equal(phoneOnly.status, 201);
+    assert.equal(outgoingHeaders(calls[0].init).get("idempotency-key"), key);
+    const phoneBody = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>;
+    assert.equal("email" in phoneBody, false);
+    assert.equal("marketing_consent" in phoneBody, false);
+    assert.equal("smart_token" in phoneBody, false);
+
+    calls.length = 0;
+    const withMail = await POST(
+      leadRequest(PROD, { "idempotency-key": key }, { ...lead, phone: "", marketing_consent: true })
+    );
+    assert.equal(withMail.status, 201);
+    const mailBody = JSON.parse(String(calls[0].init.body)) as {
+      marketing_consent?: { accepted: boolean; text_version: string };
+      phone?: string;
+    };
+    assert.deepEqual(mailBody.marketing_consent, {
+      accepted: true,
+      text_version: "2026-10-11-marketing",
+    });
+    assert.equal(mailBody.phone, undefined);
+  });
+
+  it("passes parser lead errors through and does not retry 503", async () => {
+    const cases: Array<{ status: number; body: string; retry?: string }> = [
+      { status: 400, body: JSON.stringify({ error: "validation_failed", fields: { email: "invalid" }, email: EMAIL }) },
+      { status: 409, body: JSON.stringify({ error: "idempotency_in_progress", detail: EMAIL }) },
+      { status: 422, body: JSON.stringify({ error: "idempotency_key_reused" }) },
+      { status: 422, body: JSON.stringify({ error: "consent_required" }) },
+      { status: 422, body: JSON.stringify({ error: "consent_version_unknown" }) },
+      { status: 503, body: JSON.stringify({ error: "rate_limit_unavailable", detail: EMAIL }), retry: "9" },
+    ];
+    for (const item of cases) {
+      let calls = 0;
+      globalThis.fetch = (async () => {
+        calls += 1;
+        return new Response(item.body, {
+          status: item.status,
+          headers: {
+            "Content-Type": "application/json",
+            ...(item.retry ? { "Retry-After": item.retry } : {}),
+            "X-Should-Not-Leak": EMAIL,
+          },
+        });
+      }) as typeof fetch;
+      const before = storedCopies(EMAIL);
+      const res = await POST(leadRequest(PROD));
+      assert.equal(res.status, item.status);
+      assert.equal(calls, 1, String(item.status));
+      assert.equal(res.headers.get("x-should-not-leak"), null);
+      const payload = (await res.json()) as { error?: string; fields?: Record<string, string>; detail?: string; email?: string };
+      const upstream = JSON.parse(item.body) as { error: string; fields?: Record<string, string> };
+      assert.equal(payload.error, upstream.error);
+      if (upstream.fields) assert.deepEqual(payload.fields, upstream.fields);
+      assert.equal(payload.detail, undefined);
+      assert.equal(payload.email, undefined);
+      assertNoLeadPii(JSON.stringify(payload));
+      assert.equal(storedCopies(EMAIL), before);
+      if (item.status === 503) assert.equal(res.headers.get("retry-after"), null);
+    }
+  });
+
+  it("rejects a lead body larger than 16KB", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    const res = await POST(leadRequest(PROD, undefined, { ...lead, padding: "a".repeat(17_000) }));
+    assert.equal(res.status, 400);
+    assert.deepEqual(await res.json(), { error: "validation_failed" });
+    assert.equal(calls, 0);
+  });
+
+  it("does not call the parser in production when the signing secret is unusable", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    for (const [envName, secret] of [
+      ["VERCEL_ENV", ""],
+      ["VERCEL_ENV", "a".repeat(31)],
+      ["PD_DEPLOY_ENV", ""],
+      ["PD_DEPLOY_ENV", "b".repeat(31)],
+    ] as const) {
+      calls = 0;
+      delete process.env.VERCEL_ENV;
+      delete process.env.PD_DEPLOY_ENV;
+      delete process.env.PD_BFF_SIGNING_SECRET;
+      if (envName === "VERCEL_ENV") process.env.VERCEL_ENV = "production";
+      else process.env.PD_DEPLOY_ENV = "prod";
+      if (secret) process.env.PD_BFF_SIGNING_SECRET = secret;
+      const res = await POST(leadRequest(PROD));
+      assert.equal(res.status, 503, `${envName}:${secret.length}`);
+      const text = await res.text();
+      assert.equal(text.includes("PD_BFF"), false);
+      assert.equal(text.includes("secret"), false);
+      assert.equal(text.includes(SECRET), false);
+      assertNoLeadPii(text);
+      assert.equal(calls, 0);
+    }
+
+    delete process.env.VERCEL_ENV;
+    delete process.env.PD_DEPLOY_ENV;
+    process.env.PD_BFF_SIGNING_SECRET = "c".repeat(31);
+    const dev = await POST(leadRequest(PROD));
+    assert.equal(dev.status, 201);
+    assert.equal(calls, 1);
+
+    process.env.VERCEL_ENV = "production";
+    process.env.PD_BFF_SIGNING_SECRET = SECRET;
+    calls = 0;
+    const signed: Headers[] = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls += 1;
+      signed.push(outgoingHeaders(init));
+      return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    const prod = await POST(leadRequest(PROD));
+    assert.equal(prod.status, 201);
+    assert.equal(calls, 1);
+    assert.equal(signed[0].get("x-pd-sig"), signature(signed[0].get("x-pd-ts") || "", RAW_IP));
   });
 
   it("masks addresses before they are logged", () => {

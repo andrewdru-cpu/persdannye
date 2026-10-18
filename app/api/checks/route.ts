@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isScanConsentRequiredError } from "@/lib/consent";
+import { isParserUnavailable } from "@/lib/lead-guard";
 import { createCheck, publicCheckJob } from "@/lib/parser-client";
 import { normalizeUrl } from "@/lib/utils";
 
@@ -54,10 +55,14 @@ export async function POST(req: Request) {
             marketing_consent: lead?.marketing_consent,
             marketing_consent_text_version: lead?.marketing_consent_text_version,
           }
-        : undefined
+        : undefined,
+      req.headers
     );
     return NextResponse.json(publicCheckJob(job), { status: 201 });
   } catch (e) {
+    if (isParserUnavailable(e)) {
+      return NextResponse.json({ error: "unavailable" }, { status: 503 });
+    }
     if (isScanConsentRequiredError(e)) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }

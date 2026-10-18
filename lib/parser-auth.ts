@@ -6,6 +6,8 @@
  * `ngrok-skip-browser-warning` (and a non-browser User-Agent).
  */
 
+import { applySignedClientHeaders, ParserUnavailableError, parserSigningBlocked } from "./lead-guard";
+
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
 export function getParserBase(): string | null {
@@ -17,7 +19,7 @@ export function isParserConfigured(): boolean {
   return Boolean(getParserBase());
 }
 
-function clearParserToken() {
+export function clearParserToken() {
   cachedToken = null;
 }
 
@@ -75,18 +77,23 @@ async function parserRequest(
   base: string,
   path: string,
   init: RequestInit,
-  auth: boolean
+  auth: boolean,
+  client?: Headers
 ): Promise<Response> {
+  if (parserSigningBlocked()) throw new ParserUnavailableError();
+
   const headers = new Headers(init.headers);
   applyParserHeaders(headers);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (auth) {
-    const token = await getParserBearer();
+    const token = await getParserBearer(client);
     headers.set("Authorization", `Bearer ${token}`);
   }
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+  const method = (init.method || "GET").toUpperCase();
+  if (client) applySignedClientHeaders(headers, client, method, path);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
@@ -109,7 +116,9 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function loginWithPassword(base: string): Promise<string> {
+async function loginWithPassword(base: string, client?: Headers): Promise<string> {
+  if (parserSigningBlocked()) throw new ParserUnavailableError();
+
   const email = process.env.PARSER_API_EMAIL?.trim();
   const password = process.env.PARSER_API_PASSWORD;
   if (!email || !password) {
@@ -121,6 +130,7 @@ async function loginWithPassword(base: string): Promise<string> {
     Accept: "application/json",
   });
   applyParserHeaders(headers);
+  if (client) applySignedClientHeaders(headers, client, "POST", "/api/auth/login");
 
   const res = await fetch(`${base}/api/auth/login`, {
     method: "POST",
@@ -148,7 +158,7 @@ async function loginWithPassword(base: string): Promise<string> {
 }
 
 /** Prefer JWT via email/password; fall back to static PARSER_API_TOKEN */
-export async function getParserBearer(): Promise<string> {
+export async function getParserBearer(client?: Headers): Promise<string> {
   const base = getParserBase();
   if (!base) throw new Error("PARSER_API_BASE не задан");
 
@@ -158,7 +168,7 @@ export async function getParserBearer(): Promise<string> {
     if (cachedToken && cachedToken.expiresAt > Date.now() + 30_000) {
       return cachedToken.token;
     }
-    return loginWithPassword(base);
+    return loginWithPassword(base, client);
   }
 
   const staticToken = (process.env.PARSER_API_TOKEN || process.env.PARSER_API_KEY)?.trim();
@@ -172,18 +182,21 @@ export async function getParserBearer(): Promise<string> {
 export async function parserFetch(
   path: string,
   init: RequestInit = {},
-  auth = true
+  auth = true,
+  client?: Headers
 ): Promise<Response> {
+  if (parserSigningBlocked()) throw new ParserUnavailableError();
+
   const base = getParserBase();
   if (!base) throw new Error("PARSER_API_BASE не задан");
 
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      let res = await parserRequest(base, path, init, auth);
+      let res = await parserRequest(base, path, init, auth, client);
       if (auth && res.status === 401) {
         clearParserToken();
-        res = await parserRequest(base, path, init, auth);
+        res = await parserRequest(base, path, init, auth, client);
       }
       if ([502, 503, 504, 429].includes(res.status) && attempt < 2) {
         await sleep(400 * 2 ** attempt);

@@ -117,7 +117,7 @@ export function formatLeadMessage(lead: Lead): string {
  * Notify the manager as soon as a landing scan finishes — with or without risks.
  * Text always. PDF via sendDocument only when pdf_ready and the scan has risks.
  */
-export async function notifyScanIfNeeded(job: CheckJob): Promise<void> {
+export async function notifyScanIfNeeded(job: CheckJob, client?: Headers): Promise<void> {
   if (!shouldNotifyScan(job)) return;
 
   const key = job.scanId || job.id;
@@ -137,7 +137,7 @@ export async function notifyScanIfNeeded(job: CheckJob): Promise<void> {
 
     if (job.pdfReady && !job.mock && scanHasRisks(job)) {
       try {
-        const pdf = await getCheckPdf(job.id);
+        const pdf = await getCheckPdf(job.id, client);
         if (pdf) {
           await sendTelegramDocument(
             pdf.buffer,

@@ -24,7 +24,8 @@ npm run dev
 - или `PARSER_API_TOKEN` — Bearer, если пользователей в БД ещё нет
 - `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` — мгновенные алерты менеджеру
 - `ALLOWED_ORIGINS` — точные Origin для `POST /api/leads` через запятую (прод и preview Vercel). Нет заголовка, `null` и чужой хост — 403
-- `PD_BFF_SIGNING_SECRET` — ключ HMAC для `X-PD-Sig` (`ts.ip`) на запросе лида в парсер. Если секрет пуст, заголовки `X-PD-Client-IP`, `X-PD-Ts` и `X-PD-Sig` не отправляются
+- `PD_BFF_SIGNING_SECRET` — ключ HMAC для `X-PD-Sig` на каждом запросе BFF в парсер. Строка подписи: `<ts>.<METHOD>.<path>.<ip>` (например `1760817600.POST./public/lead.203.0.113.7`). Секрет не короче 32 байт. В проде пустой или короткий секрет не пускает запрос в парсер: ответ 503 без подробностей. Вне прода такие заголовки просто не ставятся
+- Заявка уходит один раз на `POST {BASE}/public/lead` (без bearer и без `smart_token`). Браузер передаёт один `Idempotency-Key` (UUID) и повторяет его только при ручной отправке. Автоповторов нет. Любой ответ 503 показывает «Не удалось отправить заявку, попробуйте через несколько минут», введённые поля остаются
 - Если токен или chat id не заданы, алерт пропускается с записью в лог (сайт не падает)
 - `NEXT_PUBLIC_SHOW_FINES=true` — вместе с `approved: true` в `content/fines.ts` показывает таблицу штрафов и калькулятор. Пока юрист не поставил `approved: true`, даже с флагом цифр нет. Без флага блок скрыт целиком.
 
@@ -47,7 +48,7 @@ npm run dev
 В Production env Vercel (`VERCEL_ENV=production`):
 
 - Не задавайте `E2E`, `SUPPRESSION_MOCK`, `OUTBOUND_MOCK`, если `VERCEL_ENV=production` или `PD_DEPLOY_ENV=prod`. Непустое значение останавливает такую сборку. `NODE_ENV` не проверяется: локальная сборка и CI без этих флагов проходят, в том числе при `E2E=1`.
-- `ALLOWED_ORIGINS` и `PD_BFF_SIGNING_SECRET` обязательны.
+- `ALLOWED_ORIGINS` и `PD_BFF_SIGNING_SECRET` обязательны. Секрет короче 32 байт останавливает такую сборку так же, как тестовая переменная.
 
 На превью эти три переменные можно оставить. В Production их переносить нельзя. На VPS задаётся `PD_DEPLOY_ENV=prod`.
 

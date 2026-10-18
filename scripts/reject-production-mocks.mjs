@@ -3,6 +3,9 @@ import { pathToFileURL } from "node:url";
 /** Test switches that must not be set on a Vercel production build. */
 export const PRODUCTION_MOCK_KEYS = ["E2E", "SUPPRESSION_MOCK", "OUTBOUND_MOCK"];
 
+/** UTF-8 length required of PD_BFF_SIGNING_SECRET. Keep in sync with lib/deploy-env.ts. */
+export const MIN_SIGNING_SECRET_BYTES = 32;
+
 /** True for a Vercel production build or an explicit prod deploy. NODE_ENV is ignored. */
 export function isProductionDeploy(env = process.env) {
   return env.VERCEL_ENV === "production" || env.PD_DEPLOY_ENV === "prod";
@@ -15,6 +18,25 @@ export function productionMockKeys(env = process.env) {
     const value = env[key];
     return typeof value === "string" && value.trim() !== "";
   });
+}
+
+export function signingSecretByteLength(env = process.env) {
+  const value = env.PD_BFF_SIGNING_SECRET;
+  if (typeof value !== "string") return 0;
+  return Buffer.byteLength(value.trim(), "utf8");
+}
+
+export function productionSigningSecretError(env = process.env) {
+  const bytes = signingSecretByteLength(env);
+  const flags = [];
+  if (env.VERCEL_ENV === "production") flags.push("VERCEL_ENV=production");
+  if (env.PD_DEPLOY_ENV === "prod") flags.push("PD_DEPLOY_ENV=prod");
+  return [
+    "Сборка production остановлена.",
+    `${flags.join(" и ")}, но PD_BFF_SIGNING_SECRET пустой или короче 32 байт (сейчас ${bytes}).`,
+    "Задайте PD_BFF_SIGNING_SECRET длиной не меньше 32 байт.",
+    "Проверяются VERCEL_ENV и PD_DEPLOY_ENV, не NODE_ENV.",
+  ].join("\n");
 }
 
 export function productionMockError(keys, env = process.env) {
@@ -36,8 +58,9 @@ function isCli() {
 
 if (isCli()) {
   const keys = productionMockKeys(process.env);
-  if (keys.length > 0) {
-    console.error(productionMockError(keys, process.env));
-    process.exit(1);
-  }
+  const secretTooShort =
+    isProductionDeploy(process.env) && signingSecretByteLength(process.env) < MIN_SIGNING_SECRET_BYTES;
+  if (keys.length > 0) console.error(productionMockError(keys, process.env));
+  if (secretTooShort) console.error(productionSigningSecretError(process.env));
+  if (keys.length > 0 || secretTooShort) process.exit(1);
 }

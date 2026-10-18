@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { isParserUnavailable } from "@/lib/lead-guard";
 import { getCheck, publicCheckJob } from "@/lib/parser-client";
 import { notifyScanIfNeeded } from "@/lib/notify";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -13,16 +14,19 @@ export async function GET(
     if (!id) {
       return NextResponse.json({ error: "id обязателен" }, { status: 400 });
     }
-    const job = await getCheck(id);
+    const job = await getCheck(id, req.headers);
     if (!job) {
       return NextResponse.json({ error: "Проверка не найдена" }, { status: 404 });
     }
 
     // Every finished landing scan alerts the manager (risks or not).
-    await notifyScanIfNeeded(job);
+    await notifyScanIfNeeded(job, req.headers);
 
     return NextResponse.json(publicCheckJob(job));
   } catch (e) {
+    if (isParserUnavailable(e)) {
+      return NextResponse.json({ error: "unavailable" }, { status: 503 });
+    }
     const message = e instanceof Error ? e.message : "Ошибка сервера";
     return NextResponse.json({ error: message }, { status: 500 });
   }

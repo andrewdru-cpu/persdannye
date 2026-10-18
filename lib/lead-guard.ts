@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { isProductionDeploy, signingSecret } from "./deploy-env";
 
 const IPV4 =
   /^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
@@ -65,28 +66,65 @@ export function stripClientPdHeaders(headers: Headers): void {
   }
 }
 
-/** Hex HMAC-SHA256 of `ts + "." + ip`. */
-export function signClientPayload(ts: string, ip: string, secret: string): string {
-  return createHmac("sha256", secret).update(`${ts}.${ip}`).digest("hex");
+/**
+ * The only signature string the BFF sends to the parser.
+ * `<unix seconds>.<METHOD>.<path>.<ip>`, for example
+ * `1760817600.POST./public/lead.203.0.113.7`.
+ */
+export function bffSignatureMaterial(ts: string, method: string, path: string, ip: string): string {
+  return `${ts}.${method.toUpperCase()}.${path}.${ip}`;
+}
+
+/** Hex HMAC-SHA256 of {@link bffSignatureMaterial}. */
+export function signClientPayload(
+  ts: string,
+  method: string,
+  path: string,
+  ip: string,
+  secret: string
+): string {
+  return createHmac("sha256", secret).update(bffSignatureMaterial(ts, method, path, ip)).digest("hex");
 }
 
 export function unixSeconds(nowMs: number): string {
   return String(Math.floor(nowMs / 1000));
 }
 
+/** Production deploy without a secret of at least 32 bytes. The parser must not be called. */
+export function parserSigningBlocked(env: NodeJS.ProcessEnv = process.env): boolean {
+  return isProductionDeploy(env) && signingSecret(env) === null;
+}
+
+export class ParserUnavailableError extends Error {
+  constructor() {
+    super("unavailable");
+    this.name = "ParserUnavailableError";
+  }
+}
+
+export function isParserUnavailable(err: unknown): err is ParserUnavailableError {
+  return err instanceof ParserUnavailableError || (err instanceof Error && err.name === "ParserUnavailableError");
+}
+
 /**
  * Remove any X-PD-* already on the outgoing headers, then set
- * X-PD-Client-IP, X-PD-Ts, and X-PD-Sig when the signing secret and a Vercel IP exist.
- * If PD_BFF_SIGNING_SECRET is missing, none of those headers are set.
+ * X-PD-Client-IP, X-PD-Ts, and X-PD-Sig when a usable signing secret and a Vercel IP exist.
+ * A missing or short secret leaves those headers unset.
  */
-export function applySignedClientHeaders(headers: Headers, incoming: Headers, nowMs = Date.now()): void {
+export function applySignedClientHeaders(
+  headers: Headers,
+  incoming: Headers,
+  method: string,
+  path: string,
+  nowMs = Date.now()
+): void {
   stripClientPdHeaders(headers);
-  const secret = process.env.PD_BFF_SIGNING_SECRET?.trim();
+  const secret = signingSecret();
   if (!secret) return;
   const ip = trustedClientIp(incoming);
   if (!ip) return;
   const ts = unixSeconds(nowMs);
   headers.set("X-PD-Client-IP", ip);
   headers.set("X-PD-Ts", ts);
-  headers.set("X-PD-Sig", signClientPayload(ts, ip, secret));
+  headers.set("X-PD-Sig", signClientPayload(ts, method, path, ip, secret));
 }

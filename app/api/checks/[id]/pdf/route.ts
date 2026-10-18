@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isParserUnavailable } from "@/lib/lead-guard";
 import { getCheckPdf } from "@/lib/parser-client";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ export const runtime = "nodejs";
  * The browser never sees PARSER_* or Telegram tokens.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -17,7 +18,7 @@ export async function GET(
     if (!id) {
       return NextResponse.json({ error: "id обязателен" }, { status: 400 });
     }
-    const pdf = await getCheckPdf(id);
+    const pdf = await getCheckPdf(id, req.headers);
     if (!pdf) {
       return NextResponse.json(
         { error: "PDF ещё не готов или проверка в демо-режиме" },
@@ -33,6 +34,9 @@ export async function GET(
       },
     });
   } catch (e) {
+    if (isParserUnavailable(e)) {
+      return NextResponse.json({ error: "unavailable" }, { status: 503 });
+    }
     const message = e instanceof Error ? e.message : "Ошибка сервера";
     return NextResponse.json({ error: message }, { status: 500 });
   }

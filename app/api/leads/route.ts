@@ -1,13 +1,24 @@
 import { NextResponse } from "next/server";
 import { LEAD_CONSENT_TEXT_VERSION, marketingConsentForParser } from "@/lib/consent";
-import { allowedOriginsFromEnv, isAllowedOrigin, logLeadIp } from "@/lib/lead-guard";
+import {
+  allowedOriginsFromEnv,
+  isAllowedOrigin,
+  isParserUnavailable,
+  logLeadIp,
+  parserSigningBlocked,
+} from "@/lib/lead-guard";
 import { leadBodySchema } from "@/lib/lead-schema";
 import { addLead } from "@/lib/leads-store";
-import { postLeadToParser, unchanged429 } from "@/lib/leads-upstream";
+import { classifyLeadUpstream, postLeadToParser } from "@/lib/leads-upstream";
 import { notifyNewLead } from "@/lib/notify";
 import { isParserConfigured } from "@/lib/parser-auth";
+import { buildPublicLeadBody, exceedsPublicLeadBytes, isIdempotencyKey } from "@/lib/public-lead";
 
 export const dynamic = "force-dynamic";
+
+function unavailable() {
+  return NextResponse.json({ error: "unavailable" }, { status: 503 });
+}
 
 export async function POST(req: Request) {
   if (!isAllowedOrigin(req.headers.get("origin"), allowedOriginsFromEnv())) {
@@ -15,8 +26,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Запрос отклонён" }, { status: 403 });
   }
 
+  const idempotencyKey = req.headers.get("idempotency-key");
+  if (!isIdempotencyKey(idempotencyKey)) {
+    return NextResponse.json({ error: "idempotency_key_invalid" }, { status: 400 });
+  }
+
   try {
-    const json = await req.json();
+    const raw = await req.text();
+    if (exceedsPublicLeadBytes(raw)) {
+      return NextResponse.json({ error: "validation_failed" }, { status: 400 });
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(raw) as unknown;
+    } catch {
+      return NextResponse.json({ error: "validation_failed" }, { status: 400 });
+    }
     const parsed = leadBodySchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
@@ -35,6 +60,7 @@ export async function POST(req: Request) {
     if (!email && !phone) {
       return NextResponse.json({ error: "Укажите телефон или e-mail" }, { status: 400 });
     }
+    const marketing = parsed.data.marketing_consent === true;
     const leadInput = {
       name: parsed.data.name,
       email,
@@ -44,29 +70,50 @@ export async function POST(req: Request) {
       message: parsed.data.message,
       consent: true as const,
       consent_text_version: parsed.data.consent_text_version || LEAD_CONSENT_TEXT_VERSION,
-      ...marketingConsentForParser(parsed.data.marketing_consent === true),
+      ...marketingConsentForParser(marketing),
       source: parsed.data.source || "landing",
     };
+    const publicBody = buildPublicLeadBody({
+      name: leadInput.name,
+      email,
+      phone,
+      url: leadInput.url,
+      checkId: leadInput.checkId,
+      message: leadInput.message,
+      source: leadInput.source,
+      marketingConsent: marketing,
+    });
+    if (exceedsPublicLeadBytes(JSON.stringify(publicBody))) {
+      return NextResponse.json({ error: "validation_failed" }, { status: 400 });
+    }
+
+    if (parserSigningBlocked()) {
+      logLeadIp("signing unavailable", req.headers);
+      return unavailable();
+    }
 
     if (isParserConfigured()) {
-      const upstream = await postLeadToParser(leadInput, req.headers);
-      if (upstream.status === 429) {
-        logLeadIp("parser 429", req.headers);
-        return unchanged429(upstream);
+      const upstream = await postLeadToParser(publicBody, req.headers, idempotencyKey);
+      const result = await classifyLeadUpstream(upstream);
+      if (result.kind === "response") {
+        logLeadIp(`parser ${result.response.status}`, req.headers);
+        return result.response;
       }
-      if (!upstream.ok) {
-        await upstream.arrayBuffer().catch(() => undefined);
+      if (result.kind === "generic") {
         logLeadIp(`parser ${upstream.status}`, req.headers);
         return NextResponse.json({ error: "Ошибка сервера" }, { status: 502 });
       }
-      await upstream.arrayBuffer().catch(() => undefined);
     }
 
     const lead = await addLead(leadInput);
     await notifyNewLead(lead);
     logLeadIp("accepted", req.headers);
     return NextResponse.json({ ok: true, id: lead.id }, { status: 201 });
-  } catch {
+  } catch (err) {
+    if (isParserUnavailable(err)) {
+      logLeadIp("signing unavailable", req.headers);
+      return unavailable();
+    }
     logLeadIp("request failed", req.headers);
     return NextResponse.json({ error: "Ошибка сервера" }, { status: 500 });
   }
