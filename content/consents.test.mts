@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { MARKETING_CONSENT_TEXT_VERSION } from "../lib/consent.ts";
 import { reportConsent } from "./consents.ts";
 import { flags } from "./flags.ts";
-import { fillPlaceholders } from "./placeholders.ts";
+import { fillPlaceholders, placeholders } from "./placeholders.ts";
 import {
   MARKETING_CONSENT_FILE,
   UnresolvedMarketingConsentError,
@@ -16,7 +16,18 @@ import {
   renderMarketingConsentHtml,
 } from "./marketing-consent.ts";
 
-const TEMPLATE_SHA256 = "bea0f2b43fc39d5a9b78d4542f13c10de9d0cfaf435030cfa65c3e1a0da35fd1";
+const TEMPLATE_SHA256 = "32cba482c1f2b48ed195fe48f332bf0572f7df4bb34dbd5bc0924309950044e9";
+
+const placeholderKeys = [
+  "operator_full_name",
+  "operator_inn",
+  "operator_address",
+  "operator_site",
+  "processor_timeweb_legal",
+  "processor_email_provider_legal",
+  "privacy_contact_email",
+  "policy_url",
+] as const;
 
 const fullRequisites: Record<string, string> = {
   operator_site: "https://example.test",
@@ -25,7 +36,8 @@ const fullRequisites: Record<string, string> = {
   operator_address: "г. Пример, ул. Примерная, д. 1",
   privacy_contact_email: "privacy@example.test",
   processor_timeweb_legal: "ООО «Таймвэб»",
-  processor_yandex360_legal: "ООО «Яндекс»",
+  processor_email_provider_legal: "ООО «Пример почты»",
+  policy_url: "https://example.test/privacy",
 };
 
 const phrases = ["ч. 1 ст. 18", "ч. 1 ст. 15 152-ФЗ", "журнале согласий", "до его отзыва"] as const;
@@ -39,13 +51,13 @@ describe("marketing consent canon", () => {
     const bytes = templateBytes();
     assert.equal(createHash("sha256").update(bytes).digest("hex"), TEMPLATE_SHA256);
     assert.equal(bytes.includes(13), false);
-    assert.equal(bytes.subarray(-12).toString("utf8"), "/privacy).\n\n");
+    assert.equal(bytes.subarray(-6).toString("utf8"), "}}).\n\n");
     assert.equal(readMarketingConsentTemplate(), bytes.toString("utf8"));
   });
 
   it("uses the form version string as the canon filename", () => {
     assert.equal(MARKETING_CONSENT_FILE, `content/consents/${MARKETING_CONSENT_TEXT_VERSION}.md`);
-    assert.equal(MARKETING_CONSENT_TEXT_VERSION, "2026-10-11-marketing");
+    assert.equal(MARKETING_CONSENT_TEXT_VERSION, "2026-10-18-marketing");
     const forms = ["../components/landing/LeadForm.tsx", "../components/check/UrlChecker.tsx"];
     for (const form of forms) {
       const source = readFileSync(new URL(form, import.meta.url), "utf8");
@@ -81,7 +93,7 @@ describe("marketing consent canon", () => {
       assert.equal(file.includes(phrase), true, phrase);
       assert.equal(html.includes(phrase), true, phrase);
     }
-    assert.equal(file.includes("{{operator_site}}/privacy"), true);
+    assert.equal(file.includes("]({{policy_url}})"), true);
     assert.equal(html.includes('href="https://example.test/privacy"'), true);
     assert.equal(html.includes("<strong>рекламных</strong>"), true);
     assert.equal(html.includes("<ol"), true);
@@ -99,6 +111,18 @@ describe("marketing consent canon", () => {
     assert.equal(text.includes("{{"), false);
     assert.equal(text.includes("}}"), false);
     assert.equal(fillMarketingConsent(readMarketingConsentTemplate(), fullRequisites).includes("{{"), false);
+  });
+
+  it("contains exactly the eight approved placeholders", () => {
+    const file = templateBytes().toString("utf8");
+    const found = [...file.matchAll(/\{\{([a-z0-9_]+)\}\}/g)].map((match) => match[1]);
+    assert.deepEqual([...found].sort(), [...placeholderKeys].sort());
+    assert.equal(new Set(found).size, placeholderKeys.length);
+    assert.equal(file.includes("marketing_consent_term"), false);
+    const source = readFileSync(new URL("./placeholders.ts", import.meta.url), "utf8");
+    assert.equal(source.includes("marketing_consent_term"), false);
+    assert.equal(placeholders.processor_email_provider_legal, "");
+    assert.equal(placeholders.policy_url, "/privacy");
   });
 
   it("fails the guard when requisites are empty", () => {

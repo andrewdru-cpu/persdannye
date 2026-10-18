@@ -20,6 +20,8 @@ export const placeholders: Record<string, string> = {
   operator_ogrn: company.ogrn,
   operator_address: company.address,
   retention_months_goal1: "36 месяцев",
+  /** Наименование почтового обработчика. Реквизитов нет, значение не выдумываем. */
+  processor_email_provider_legal: "",
 };
 
 const token = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;

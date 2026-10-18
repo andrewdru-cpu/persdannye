@@ -8,9 +8,9 @@ export const LEAD_CONSENT_TEXT_VERSION = "2026-10-11-lead";
  * Version of the mailing-consent checkbox text.
  * Separate from the URL-check consent. The parser stores this in
  * marketing_consent_text_version, which is at most 32 characters.
- * "2026-10-11-marketing" is 20 characters.
+ * "2026-10-18-marketing" is 20 characters.
  */
-export const MARKETING_CONSENT_TEXT_VERSION = "2026-10-11-marketing";
+export const MARKETING_CONSENT_TEXT_VERSION = "2026-10-18-marketing";
 
 /** Fields the parser expects for mailing consent. It sets marketing_consent_at itself. */
 export function marketingConsentForParser(consented: boolean): {
