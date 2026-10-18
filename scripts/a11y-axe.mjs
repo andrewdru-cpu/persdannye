@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
+import { flags } from "../content/flags.ts";
 
 const routes = [
   "/",
@@ -21,6 +22,37 @@ const pendingText = "Текст не опубликован";
 const hiddenHrefs = ["/terms", "/offer", "/refund", "/data-deletion"];
 const port = Number(process.env.A11Y_PORT || 3456);
 const base = `http://127.0.0.1:${port}`;
+
+/** Имя флага, который открывает документ. Значение берётся из content/flags.ts. */
+const routeFlag = {
+  "/cookies": "show_cookie_policy",
+  "/terms": "show_terms",
+  "/offer": "show_offer",
+  "/refund": "show_refund",
+  "/data-deletion": "show_data_deletion",
+};
+
+/** Опубликованы без флага. /privacy при show_site_legal=false остаётся редакцией 21.09, не заглушкой. */
+const publishedRoutes = new Set(["/", "/privacy", "/consent", "/consent-lead", "/consent-marketing"]);
+
+const axeTags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
+
+function flagEnabled(name) {
+  if (!(name in flags) || typeof flags[name] !== "boolean") {
+    throw new Error(`В content/flags.ts нет boolean-флага ${name}`);
+  }
+  return flags[name];
+}
+
+function expectsNoindex(route) {
+  if (Object.hasOwn(routeFlag, route)) return !flagEnabled(routeFlag[route]);
+  if (publishedRoutes.has(route)) return false;
+  throw new Error(`Нет правила robots для ${route}`);
+}
+
+function robotsTokens(contents) {
+  return contents.flatMap((content) => content.toLowerCase().split(/[\s,]+/).filter(Boolean));
+}
 
 const buildId = fileURLToPath(new URL("../.next/BUILD_ID", import.meta.url));
 if (!existsSync(buildId)) {
@@ -83,7 +115,29 @@ function expectExcludes(route, text, needle) {
   }
 }
 
+async function assertRobots(page, route) {
+  const contents = await page.locator('head meta[name="robots"]').evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute("content") ?? ""),
+  );
+  const tokens = new Set(robotsTokens(contents));
+  const shown = contents.length > 0 ? contents.join(" | ") : "нет meta";
+  if (expectsNoindex(route)) {
+    if (!tokens.has("noindex") || !tokens.has("nofollow")) {
+      throw new Error(
+        `${route}: флаг ${routeFlag[route]}=false, в head ожидался robots noindex, nofollow, получено ${shown}`,
+      );
+    }
+    return `${shown} (${routeFlag[route]}=false)`;
+  }
+  if (tokens.has("noindex")) {
+    const why = publishedRoutes.has(route) ? "страница опубликована" : `флаг ${routeFlag[route]}=true`;
+    throw new Error(`${route}: ${why}, noindex в head быть не должно, получено ${shown}`);
+  }
+  return shown;
+}
+
 async function assertPage(page, route) {
+  const robots = await assertRobots(page, route);
   const main = await page.locator("main").innerText();
   const dialog = page.getByRole("dialog", { name: "Настройки cookie" });
   await dialog.waitFor({ state: "visible" });
@@ -164,6 +218,7 @@ async function assertPage(page, route) {
     expectExcludes(route, main, "Настоящее соглашение является публичной офертой");
     expectExcludes(route, main, "Редакция от 21.09.2026");
   }
+  return robots;
 }
 
 async function reveal(page) {
@@ -197,17 +252,17 @@ try {
     if (!response || response.status() !== 200) {
       throw new Error(`${route}: HTTP ${response ? response.status() : "без ответа"}`);
     }
-    await assertPage(page, route);
+    const robots = await assertPage(page, route);
     await page.getByRole("button", { name: "Настроить" }).click();
     await reveal(page);
-    const result = await new AxeBuilder({ page }).analyze();
+    const result = await new AxeBuilder({ page }).withTags(axeTags).analyze();
     for (const violation of result.violations) {
       const nodes = violation.nodes
         .map((node) => `${node.target.join(" ")} ${node.html}`)
         .join(" | ");
       violations.push(`${route} ${violation.id} (${violation.impact}) ${violation.help} :: ${nodes}`);
     }
-    console.log(`${route}: axe violations ${result.violations.length}`);
+    console.log(`${route}: robots ${robots}; axe violations ${result.violations.length}`);
   }
 } catch (error) {
   stopServer();
@@ -225,4 +280,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log(`axe: 0 violations on ${routes.length} routes`);
+console.log(`axe: 0 violations on ${routes.length} routes; tags ${axeTags.join(",")}; port ${port}`);

@@ -43,7 +43,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Accessibility
-        run: node scripts/a11y-axe.mjs
+        run: npm run a11y
 
       - name: Audit production dependencies
         run: npm audit --omit=dev
