@@ -6,7 +6,7 @@ import { visibleFooterDocuments } from "@/content/legal-nav";
 import { fillPlaceholders } from "@/content/placeholders";
 import { DbipAttribution } from "@/components/layout/DbipAttribution";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
-import { company, privacyContactLabel } from "@/lib/company";
+import { company, OPERATOR_REQUISITES_PENDING, privacyContactLabel } from "@/lib/company";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export function Footer() {
@@ -60,7 +60,7 @@ export function Footer() {
                   ДПО: <PrivacyContactLink className="hover:text-amber-300" />
                 </li>
               ) : (
-                <li>Реквизиты не опубликованы</li>
+                <li>{OPERATOR_REQUISITES_PENDING}</li>
               )}
             </ul>
           )}

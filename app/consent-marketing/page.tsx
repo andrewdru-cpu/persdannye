@@ -2,13 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { marketingConsent } from "@/content/consents";
 import { fillPlaceholders } from "@/content/placeholders";
+import { LegalPending } from "@/components/legal/LegalPending";
+import { legalPublication, unpublishedRobots } from "@/lib/legal-publication";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export const metadata: Metadata = {
   title: "Согласие на получение рекламных и информационных рассылок",
+  robots: unpublishedRobots(),
 };
 
 export default function MarketingConsentPage() {
+  if (legalPublication() === "pending") {
+    return <LegalPending title="Согласие на получение рекламных и информационных рассылок" />;
+  }
+  return <MarketingConsentDocument />;
+}
+
+function MarketingConsentDocument() {
   const todos = showPlaceholderTodos();
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">

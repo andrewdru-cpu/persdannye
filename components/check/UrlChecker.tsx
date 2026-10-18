@@ -4,8 +4,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
+import { flags } from "@/content/flags";
 import { CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
-import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
+import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex, phaseStatusText } from "@/lib/phases";
 import type { CheckJob } from "@/lib/types";
 import { CheckReport } from "@/components/check/CheckReport";
 import { cn, domainFromUrl } from "@/lib/utils";
@@ -72,6 +73,7 @@ export function UrlChecker({
   const [error, setError] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const showTiming = flags.hero_speed_claim && !heroSurface;
 
   const domain = useMemo(() => {
     if (job?.domain) return job.domain;
@@ -298,11 +300,7 @@ export function UrlChecker({
             </div>
             <div className="mt-2 flex items-center justify-between text-xs text-white/80">
               <span>
-                {activeStep
-                  ? heroSurface
-                    ? `Сейчас: ${activeStep.label}`
-                    : `Сейчас: ${activeStep.label} · обычно ${activeStep.eta}`
-                  : "Запуск"}
+                {activeStep ? phaseStatusText(activeStep.label, activeStep.eta, showTiming) : "Запуск"}
                 {job ? "" : " · соединяемся"}
               </span>
               <span>{progress}%</span>
@@ -337,9 +335,9 @@ export function UrlChecker({
                         )}
                         {s.label}
                       </span>
-                      {heroSurface ? null : (
+                      {showTiming ? (
                         <span className="text-[10px] uppercase tracking-wider opacity-70">{s.eta}</span>
-                      )}
+                      ) : null}
                     </div>
                     <div className="mt-0.5 text-xs opacity-80">
                       {active && !doneStep && !heroSurface

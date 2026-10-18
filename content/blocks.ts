@@ -14,10 +14,24 @@ export const footerDisclaimer = [
 
 const privateCompanySentence = `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`;
 
-export function footerParagraphs(todos: boolean, showRequisites = flags.show_requisites): string[] {
-  const source = showRequisites
-    ? footerDisclaimer
-    : footerDisclaimer.filter((paragraph) => !paragraph.includes("{{operator_inn}}"));
+function isFinesFootnote(paragraph: string): boolean {
+  return (
+    paragraph.includes("13.11") ||
+    paragraph.includes("Точные суммы штрафов") ||
+    paragraph.includes("4.1.1")
+  );
+}
+
+export function footerParagraphs(
+  todos: boolean,
+  showRequisites = flags.show_requisites,
+  showFines = flags.show_fines,
+): string[] {
+  const source = footerDisclaimer.filter((paragraph) => {
+    if (!showRequisites && paragraph.includes("{{operator_inn}}")) return false;
+    if (!showFines && isFinesFootnote(paragraph)) return false;
+    return true;
+  });
   const filled = source.map((paragraph) => fillPlaceholders(paragraph, todos));
   filled.splice(Math.min(4, filled.length), 0, privateCompanySentence);
   return filled;
@@ -150,7 +164,6 @@ export const formCopy = {
 
 export function faqItems(todos: boolean, showFinesTable = false) {
   const retention = fillPlaceholders("{{data_retention_label}}", todos);
-  const site = fillPlaceholders("{{operator_site}}", todos);
   const retentionSentence = retention ? ` Срок хранения: ${retention}.` : "";
   const fineRanges = showFinesTable
     ? "Штрафы предусмотрены ст. 13.11 КоАП, диапазоны — в таблице выше."
@@ -188,7 +201,7 @@ export function faqItems(todos: boolean, showFinesTable = false) {
     },
     {
       q: "Что вы делаете с данными, которые я ввожу?",
-      a: `Для проверки нужен только адрес сайта. Как и любой сайт, наш получает технические данные: IP-адрес, а также cookie, если вы на них согласились. Подробнее в политике cookie (${site}/cookies). Если вы оставляете e-mail для отчёта, мы обрабатываем его только с вашего согласия и по политике обработки ПДн.${retentionSentence}`,
+      a: `Для проверки нужен только адрес сайта. Как и любой сайт, наш получает технические данные: IP-адрес, а также cookie, если вы на них согласились. Подробнее в политике cookie (/cookies). Если вы оставляете e-mail для отчёта, мы обрабатываем его только с вашего согласия и по политике обработки ПДн.${retentionSentence}`,
     },
   ];
 }
