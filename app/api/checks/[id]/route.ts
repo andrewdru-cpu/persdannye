@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { collectionGateResponse } from "@/lib/collection-gate";
 import { getCheck, publicCheckJob } from "@/lib/parser-client";
 import { notifyScanIfNeeded } from "@/lib/notify";
 
@@ -8,6 +9,8 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const closed = collectionGateResponse();
+  if (closed) return closed;
   try {
     const { id } = await ctx.params;
     if (!id) {
