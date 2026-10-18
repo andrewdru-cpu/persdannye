@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, promises as fs } from "node:fs";
 import { afterEach, describe, it, mock } from "node:test";
 import { createElement, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -13,10 +13,12 @@ import { POST as postLead } from "../app/api/leads/route.ts";
 import { UrlChecker } from "../components/check/UrlChecker.tsx";
 import { COLLECTION_CLOSED_NOTICE } from "../components/collection/CollectionClosed.tsx";
 import { collectionEnabled } from "../lib/collection-gate.ts";
+import { dataFilePath } from "../lib/data-dir.ts";
 import { flags } from "./flags.ts";
 
 const PROBE_EMAIL = "probe-secret@example.test";
 const PROBE_PHONE = "+79990001122";
+const CONSENT_SENTINEL = "consent-version-qa-8741-do-not-store";
 const ANALYTICS = /mc\.yandex|metrika|gtag/i;
 const CONTACT_INPUT =
   /type="(?:email|tel)"|autocomplete="(?:email|tel)"|inputmode="(?:email|tel)"|aria-label="[^"]*(?:e-mail|телефон|phone)/i;
@@ -155,10 +157,18 @@ describe("personal data collection gate", { concurrency: false }, () => {
       assert.deepEqual(await leadRes.json(), { error: "collection_disabled" });
       assert.equal(leadReq.bodyUsed, false);
 
-      const checkReq = post("/api/checks", { url: "https://probe-secret.example", email: PROBE_EMAIL });
+      const checkReq = post("/api/checks", {
+        url: "https://probe-secret.example",
+        lead: {
+          email: PROBE_EMAIL,
+          consent: true,
+          consent_text_version: CONSENT_SENTINEL,
+        },
+      });
       const checkRes = await postCheck(checkReq);
       assert.equal(checkRes.status, 503, String(value));
       assert.equal(checkReq.bodyUsed, false);
+      assert.equal((await checkRes.clone().text()).includes(CONSENT_SENTINEL), false);
 
       const statusReq = new Request("http://localhost/api/checks/probe-secret");
       const statusRes = await getCheck(statusReq, { params: Promise.resolve({ id: "probe-secret" }) });
@@ -179,6 +189,10 @@ describe("personal data collection gate", { concurrency: false }, () => {
         assert.equal(ANALYTICS.test(rendered), false, page);
         assert.equal(rendered.includes("Настройки cookie"), false, page);
         assert.equal(rendered.includes("маркетинговые cookie"), false, page);
+        assert.equal(rendered.includes(">Принять<"), false, page);
+        assert.equal(rendered.includes(">Отклонить<"), false, page);
+        assert.equal(rendered.includes(">Настроить<"), false, page);
+        assert.equal(rendered.includes("Политике cookie"), false, page);
         assert.equal(rendered.includes('href="/cookies"'), false, page);
         assert.equal(rendered.includes("/cookies"), false, page);
         assert.equal(rendered.includes(COLLECTION_CLOSED_NOTICE), true, page);
@@ -193,6 +207,82 @@ describe("personal data collection gate", { concurrency: false }, () => {
       assert.equal(checker.includes("E-mail для отчёта"), false);
       assert.equal(checker.includes("<form"), false);
       assert.equal(checker.includes(COLLECTION_CLOSED_NOTICE), true);
+    }
+  });
+
+  it("returns 503 for a lead and a scan lead and does not store consent_text_version", async () => {
+    flags.show_site_legal = false;
+    for (const value of [undefined, "true", "false"]) {
+      postEnv(value);
+      assert.equal(collectionEnabled(), false, String(value));
+      process.env.PARSER_API_BASE = "https://parser.invalid";
+      const fetchMock = mock.method(globalThis, "fetch", async () => {
+        throw new Error("fetch should not run");
+      });
+      const writeMock = mock.method(fs, "writeFile", async () => undefined);
+      const appendMock = mock.method(fs, "appendFile", async () => undefined);
+      const logs: unknown[] = [];
+      const consoleMethods = ["log", "info", "warn", "error", "debug"] as const;
+      const restoreConsole = consoleMethods.map((method) => {
+        const original = console[method].bind(console);
+        console[method] = (...args: unknown[]) => {
+          logs.push(args);
+        };
+        return () => {
+          console[method] = original;
+        };
+      });
+
+      try {
+        const leadReq = post("/api/leads", { ...probeBody, consent_text_version: CONSENT_SENTINEL });
+        const leadRes = await postLead(leadReq);
+        assert.equal(leadRes.status, 503, String(value));
+        assert.equal(leadReq.bodyUsed, false);
+        assert.equal((await leadRes.text()).includes(CONSENT_SENTINEL), false);
+
+        const checkReq = post("/api/checks", {
+          url: "https://probe-secret.example",
+          lead: {
+            name: "Probe",
+            email: PROBE_EMAIL,
+            phone: PROBE_PHONE,
+            consent: true,
+            consent_text_version: CONSENT_SENTINEL,
+            marketing_consent: true,
+            marketing_consent_text_version: CONSENT_SENTINEL,
+          },
+        });
+        const checkRes = await postCheck(checkReq);
+        assert.equal(checkRes.status, 503, String(value));
+        assert.equal(checkReq.bodyUsed, false);
+        assert.equal((await checkRes.text()).includes(CONSENT_SENTINEL), false);
+
+        assert.equal(fetchMock.mock.calls.length, 0, String(value));
+        const stored = JSON.stringify([
+          writeMock.mock.calls,
+          appendMock.mock.calls,
+          logs,
+        ]);
+        assert.equal(stored.includes(CONSENT_SENTINEL), false, String(value));
+        assert.equal(stored.includes(PROBE_EMAIL), false, String(value));
+        assert.equal(writeMock.mock.calls.length, 0, String(value));
+        assert.equal(appendMock.mock.calls.length, 0, String(value));
+        for (const file of ["leads.json", "scan-contacts.json"]) {
+          let raw = "";
+          try {
+            raw = await fs.readFile(dataFilePath(file), "utf8");
+          } catch (err) {
+            if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+          }
+          assert.equal(raw.includes(CONSENT_SENTINEL), false, file);
+          assert.equal(raw.includes(PROBE_EMAIL), false, file);
+        }
+      } finally {
+        for (const restore of restoreConsole) restore();
+        fetchMock.mock.restore();
+        writeMock.mock.restore();
+        appendMock.mock.restore();
+      }
     }
   });
 
