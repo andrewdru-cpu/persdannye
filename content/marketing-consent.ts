@@ -1,9 +1,12 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { MARKETING_CONSENT_TEXT_VERSION } from "../lib/consent";
 import { safeHref } from "../lib/safe-href";
 import { fillPlaceholders } from "./placeholders";
 
-export const MARKETING_CONSENT_FILE = "content/consents/marketing-2026-10-11.md";
+/** Имя файла — строка версии. Другого источника версии нет. */
+export const MARKETING_CONSENT_FILE = `content/consents/${MARKETING_CONSENT_TEXT_VERSION}.md`;
 
 export function readMarketingConsentTemplate(): string {
   return readFileSync(join(process.cwd(), MARKETING_CONSENT_FILE), "utf8");
@@ -34,6 +37,11 @@ export function publishMarketingConsent(template: string, extra: Record<string, 
   const text = fillMarketingConsent(template, extra);
   if (text.includes("{{")) throw new UnresolvedMarketingConsentError();
   return text;
+}
+
+/** SHA-256 итогового текста с реквизитами. Эталон появится вместе с настоящими реквизитами. */
+export function hashFilledMarketingConsent(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 export type MarketingInline =

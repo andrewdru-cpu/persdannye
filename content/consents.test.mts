@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { MARKETING_CONSENT_TEXT_VERSION } from "../lib/consent.ts";
 import { reportConsent } from "./consents.ts";
 import { flags } from "./flags.ts";
 import { fillPlaceholders } from "./placeholders.ts";
 import {
+  MARKETING_CONSENT_FILE,
   UnresolvedMarketingConsentError,
   fillMarketingConsent,
+  hashFilledMarketingConsent,
   publishMarketingConsent,
   readMarketingConsentTemplate,
   renderMarketingConsentHtml,
@@ -28,7 +31,7 @@ const fullRequisites: Record<string, string> = {
 const phrases = ["ч. 1 ст. 18", "ч. 1 ст. 15 152-ФЗ", "журнале согласий", "до его отзыва"] as const;
 
 function templateBytes(): Buffer {
-  return readFileSync(new URL("./consents/marketing-2026-10-11.md", import.meta.url));
+  return readFileSync(new URL(`./consents/${MARKETING_CONSENT_TEXT_VERSION}.md`, import.meta.url));
 }
 
 describe("marketing consent canon", () => {
@@ -36,8 +39,28 @@ describe("marketing consent canon", () => {
     const bytes = templateBytes();
     assert.equal(createHash("sha256").update(bytes).digest("hex"), TEMPLATE_SHA256);
     assert.equal(bytes.includes(13), false);
-    assert.equal(bytes.subarray(-2).toString(), "\n\n");
+    assert.equal(bytes.subarray(-12).toString("utf8"), "/privacy).\n\n");
     assert.equal(readMarketingConsentTemplate(), bytes.toString("utf8"));
+  });
+
+  it("uses the form version string as the canon filename", () => {
+    assert.equal(MARKETING_CONSENT_FILE, `content/consents/${MARKETING_CONSENT_TEXT_VERSION}.md`);
+    assert.equal(MARKETING_CONSENT_TEXT_VERSION, "2026-10-11-marketing");
+    const forms = ["../components/landing/LeadForm.tsx", "../components/check/UrlChecker.tsx"];
+    for (const form of forms) {
+      const source = readFileSync(new URL(form, import.meta.url), "utf8");
+      assert.equal(source.includes("MARKETING_CONSENT_TEXT_VERSION"), true, form);
+      assert.equal(source.includes("marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION"), true, form);
+      assert.equal(source.includes(`"${MARKETING_CONSENT_TEXT_VERSION}"`), false, form);
+    }
+  });
+
+  it("hashes filled text separately and does not pin a production digest", () => {
+    const filled = publishMarketingConsent(readMarketingConsentTemplate(), fullRequisites);
+    const digest = hashFilledMarketingConsent(filled);
+    assert.equal(digest, createHash("sha256").update(filled, "utf8").digest("hex"));
+    assert.equal(digest === TEMPLATE_SHA256, false);
+    assert.equal(filled.includes("{{"), false);
   });
 
   it("has no three-year term in the file or the rendered page", () => {
