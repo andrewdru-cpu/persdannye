@@ -4,21 +4,52 @@ import { fillPlaceholders, placeholders } from "./placeholders";
 export const shortDisclaimer =
   "Информация носит справочный характер и не является юридической консультацией; размер штрафа определяет орган или суд по обстоятельствам дела. Суммы — по ст. 13.11 КоАП РФ в ред. от 04.08.2026.";
 
-export const footerDisclaimer = [
-  "Материалы сайта и результаты проверки носят информационный характер и не являются юридической консультацией. Точные суммы штрафов зависят от обстоятельств дела: квалификацию и размер штрафа определяют уполномоченный орган или суд.",
-  "Суммы приведены по ст. 13.11 КоАП РФ в редакции от 04.08.2026 (проверено {{fines_checked_at}}). Пометка «по нашей оценке» означает толкование норм, а не их прямой текст.",
-  "В ряде случаев штраф может быть заменён предупреждением (ст. 4.1.1 КоАП РФ) или не назначен.",
-  "Автоматическая проверка анализирует публичную часть сайта, доступную на момент проверки. Она не оценивает внутренние процессы компании и не гарантирует отсутствия претензий контролирующих органов.",
-  "Оператор сайта: {{operator_legal_name}}, ИНН {{operator_inn}}.",
-] as const;
+export type FooterParagraphGate = "fines" | "requisites";
+
+export type FooterParagraph = {
+  text: string;
+  /** Нет gate — абзац показывается всегда. */
+  gate?: FooterParagraphGate;
+};
+
+export const footerDisclaimer: readonly FooterParagraph[] = [
+  {
+    text: "Материалы сайта и результаты проверки носят информационный характер и не являются юридической консультацией.",
+  },
+  {
+    text: "Точные суммы штрафов зависят от обстоятельств дела: квалификацию и размер штрафа определяют уполномоченный орган или суд.",
+    gate: "fines",
+  },
+  {
+    text: "Суммы приведены по ст. 13.11 КоАП РФ в редакции от 04.08.2026 (проверено {{fines_checked_at}}). Пометка «по нашей оценке» означает толкование норм, а не их прямой текст.",
+    gate: "fines",
+  },
+  {
+    text: "В ряде случаев штраф может быть заменён предупреждением (ст. 4.1.1 КоАП РФ) или не назначен.",
+    gate: "fines",
+  },
+  {
+    text: "Автоматическая проверка анализирует публичную часть сайта, доступную на момент проверки. Она не оценивает внутренние процессы компании и не гарантирует отсутствия претензий контролирующих органов.",
+  },
+  {
+    text: "Оператор сайта: {{operator_legal_name}}, ИНН {{operator_inn}}.",
+    gate: "requisites",
+  },
+];
 
 const privateCompanySentence = `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`;
 
-export function footerParagraphs(todos: boolean, showRequisites = flags.show_requisites): string[] {
-  const source = showRequisites
-    ? footerDisclaimer
-    : footerDisclaimer.filter((paragraph) => !paragraph.includes("{{operator_inn}}"));
-  const filled = source.map((paragraph) => fillPlaceholders(paragraph, todos));
+export function footerParagraphs(
+  todos: boolean,
+  showRequisites = flags.show_requisites,
+  showFines = flags.show_fines,
+): string[] {
+  const source = footerDisclaimer.filter((paragraph) => {
+    if (paragraph.gate === "fines") return showFines;
+    if (paragraph.gate === "requisites") return showRequisites;
+    return true;
+  });
+  const filled = source.map((paragraph) => fillPlaceholders(paragraph.text, todos));
   filled.splice(Math.min(4, filled.length), 0, privateCompanySentence);
   return filled;
 }
@@ -150,7 +181,6 @@ export const formCopy = {
 
 export function faqItems(todos: boolean, showFinesTable = false) {
   const retention = fillPlaceholders("{{data_retention_label}}", todos);
-  const site = fillPlaceholders("{{operator_site}}", todos);
   const retentionSentence = retention ? ` Срок хранения: ${retention}.` : "";
   const fineRanges = showFinesTable
     ? "Штрафы предусмотрены ст. 13.11 КоАП, диапазоны — в таблице выше."
@@ -188,7 +218,7 @@ export function faqItems(todos: boolean, showFinesTable = false) {
     },
     {
       q: "Что вы делаете с данными, которые я ввожу?",
-      a: `Для проверки нужен только адрес сайта. Как и любой сайт, наш получает технические данные: IP-адрес, а также cookie, если вы на них согласились. Подробнее в политике cookie (${site}/cookies). Если вы оставляете e-mail для отчёта, мы обрабатываем его только с вашего согласия и по политике обработки ПДн.${retentionSentence}`,
+      a: `Для проверки нужен только адрес сайта. Как и любой сайт, наш получает технические данные: IP-адрес, а также cookie, если вы на них согласились. Подробнее в политике cookie (/cookies). Если вы оставляете e-mail для отчёта, мы обрабатываем его только с вашего согласия и по политике обработки ПДн.${retentionSentence}`,
     },
   ];
 }

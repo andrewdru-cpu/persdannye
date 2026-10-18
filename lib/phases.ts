@@ -1,3 +1,5 @@
+import { flags } from "../content/flags";
+
 /** Маппинг фаз парсера → дружелюбные русские шаги UI */
 export type ParserPhase =
   | "queued"
@@ -52,6 +54,24 @@ export const PHASE_STEPS: {
 ];
 
 export const TERMINAL_PHASES: ParserPhase[] = ["done", "error", "blocked"];
+
+/** Сроки фаз — только после замеров, под тем же флагом, что и срок в герое. */
+export function phaseStatusText(
+  label: string,
+  eta: string,
+  showTiming = flags.hero_speed_claim,
+): string {
+  return showTiming ? `Сейчас: ${label} · обычно ${eta}` : `Сейчас: ${label}`;
+}
+
+/** Текст виджета проверки: названия и описания фаз, сроки только при флаге. */
+export function visiblePhaseCopy(showTiming = flags.hero_speed_claim): string {
+  return PHASE_STEPS.map((step) => {
+    const lines = [step.label, step.description, phaseStatusText(step.label, step.eta, showTiming)];
+    if (showTiming) lines.push(step.eta);
+    return lines.join("\n");
+  }).join("\n");
+}
 
 const PHASE_ALIASES: Record<string, ParserPhase> = {
   queued: "queued",

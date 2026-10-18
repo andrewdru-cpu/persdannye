@@ -7,6 +7,7 @@ import { CookieBanner } from "@/components/layout/CookieBanner";
 import { StickyCta } from "@/components/layout/StickyCta";
 import { AnalyticsGate } from "@/components/layout/AnalyticsGate";
 import { SiteAtmosphere } from "@/components/motion/SiteAtmosphere";
+import { siteDescription } from "@/content/site-meta";
 import { company } from "@/lib/company";
 
 const manrope = localFont({
@@ -37,8 +38,7 @@ export const metadata: Metadata = {
     default: `${company.brand} — проверка сайта на 152-ФЗ и требования РКН`,
     template: `%s · ${company.brand}`,
   },
-  description:
-    "Премиальный сканер соответствия сайтов 152-ФЗ и практике Роскомнадзора. Находите риски и устраняйте их с юристами ПерсДанные.",
+  description: siteDescription,
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
 };
 

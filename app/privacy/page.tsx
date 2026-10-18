@@ -2,15 +2,21 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { flags } from "@/content/flags";
 import { privacySurface, siteLegalPrivacy, subjectsAgeClause } from "@/content/site-legal";
+import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { legalPublication, unpublishedRobots } from "@/lib/legal-publication";
 import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Политика обработки персональных данных",
+  robots: unpublishedRobots(),
 };
 
 export default function PrivacyPage() {
+  if (legalPublication() === "pending") {
+    return <LegalPending title="Политика обработки персональных данных" />;
+  }
   if (privacySurface(flags.show_site_legal, siteLegalPrivacy) === "site-legal" && siteLegalPrivacy) {
     return (
       <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
