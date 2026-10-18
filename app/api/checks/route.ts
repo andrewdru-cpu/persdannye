@@ -3,6 +3,7 @@ import { z } from "zod";
 import { collectionGateResponse } from "@/lib/collection-gate";
 import { isScanConsentRequiredError } from "@/lib/consent";
 import { createCheck, publicCheckJob } from "@/lib/parser-client";
+import { logServerError } from "@/lib/safe-log";
 import { normalizeUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -60,11 +61,11 @@ export async function POST(req: Request) {
         : undefined
     );
     return NextResponse.json(publicCheckJob(job), { status: 201 });
-  } catch (e) {
-    if (isScanConsentRequiredError(e)) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
+  } catch (err) {
+    if (isScanConsentRequiredError(err)) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
-    const message = e instanceof Error ? e.message : "Ошибка сервера";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const code = logServerError("[checks] create failed", err);
+    return NextResponse.json({ error: code }, { status: 500 });
   }
 }

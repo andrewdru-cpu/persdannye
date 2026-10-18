@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { collectionGateResponse } from "@/lib/collection-gate";
-import { getCheckPdf } from "@/lib/parser-client";
+import { getCheckPdf, isPublicScanId } from "@/lib/parser-client";
+import { logServerError } from "@/lib/safe-log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,8 +18,8 @@ export async function GET(
   if (closed) return closed;
   try {
     const { id } = await ctx.params;
-    if (!id) {
-      return NextResponse.json({ error: "id обязателен" }, { status: 400 });
+    if (!isPublicScanId(id)) {
+      return NextResponse.json({ error: "invalid_id" }, { status: 400 });
     }
     const pdf = await getCheckPdf(id);
     if (!pdf) {
@@ -35,8 +36,8 @@ export async function GET(
         "Cache-Control": "no-store",
       },
     });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Ошибка сервера";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err) {
+    const code = logServerError("[checks] pdf failed", err);
+    return NextResponse.json({ error: code }, { status: 500 });
   }
 }

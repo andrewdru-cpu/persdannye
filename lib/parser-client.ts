@@ -15,6 +15,13 @@ import { CONSENT_TEXT_VERSION, marketingConsentForParser, ScanConsentRequiredErr
 
 export { isParserConfigured, getParserBase };
 
+/** Public scan id. Rejects path segments that could retarget the parser request. */
+const PUBLIC_SCAN_ID = /^[A-Za-z0-9-]{1,64}$/;
+
+export function isPublicScanId(id: unknown): id is string {
+  return typeof id === "string" && PUBLIC_SCAN_ID.test(id);
+}
+
 interface UpstreamCreate {
   scan_id?: string;
   id?: string;
@@ -273,6 +280,7 @@ export async function createCheck(
 }
 
 export async function getCheck(id: string): Promise<CheckJob | null> {
+  if (!isPublicScanId(id)) return null;
   const meta = jobMeta.get(id);
 
   if (meta?.mock || !isParserConfigured()) {
@@ -281,7 +289,7 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
     return job;
   }
 
-  const scanId = meta?.scanId || id;
+  const scanId = meta?.scanId && isPublicScanId(meta.scanId) ? meta.scanId : id;
   const res = await parserFetch(`/api/scans/${scanId}`, { method: "GET" });
   if (res.status === 404) {
     const text = await res.text().catch(() => "");
@@ -310,11 +318,12 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
 export async function getCheckPdf(
   id: string
 ): Promise<{ buffer: Buffer; filename: string; contentType: string } | null> {
+  if (!isPublicScanId(id)) return null;
   if (!isParserConfigured()) return null;
   const meta = jobMeta.get(id);
   if (meta?.mock) return null;
 
-  const scanId = meta?.scanId || id;
+  const scanId = meta?.scanId && isPublicScanId(meta.scanId) ? meta.scanId : id;
   const res = await parserFetch(`/api/scans/${scanId}/pdf`, {
     method: "GET",
     headers: { Accept: "application/pdf" },

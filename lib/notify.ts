@@ -23,7 +23,7 @@ function logTelegramSkipped(kind: "scan" | "lead"): void {
 }
 
 function cabinetBase(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL;
   return (fromEnv || company.website).replace(/\/$/, "");
 }
 

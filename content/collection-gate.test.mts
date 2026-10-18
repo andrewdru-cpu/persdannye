@@ -145,6 +145,11 @@ describe("personal data collection gate", { concurrency: false }, () => {
   it("keeps the lead form, report email, Metrika, and optional cookies off while the policy is unpublished", async () => {
     flags.show_site_legal = false;
     flags.show_cookie_policy = false;
+    const savedBot = process.env.TELEGRAM_BOT_TOKEN;
+    const savedChat = process.env.TELEGRAM_CHAT_ID;
+    process.env.TELEGRAM_BOT_TOKEN = "123456:collection-gate-off";
+    process.env.TELEGRAM_CHAT_ID = "515151";
+    try {
     for (const value of [undefined, "", "false", "TRUE", "1", "yes", "true"]) {
       postEnv(value);
       assert.equal(collectionEnabled(), false, String(value));
@@ -208,6 +213,12 @@ describe("personal data collection gate", { concurrency: false }, () => {
       assert.equal(checker.includes("E-mail для отчёта"), false);
       assert.equal(checker.includes("<form"), false);
       assert.equal(checker.includes(COLLECTION_CLOSED_NOTICE), true);
+    }
+    } finally {
+      if (savedBot === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+      else process.env.TELEGRAM_BOT_TOKEN = savedBot;
+      if (savedChat === undefined) delete process.env.TELEGRAM_CHAT_ID;
+      else process.env.TELEGRAM_CHAT_ID = savedChat;
     }
   });
 

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import { afterEach, describe, it, mock } from "node:test";
 import { GET as getCheck } from "../app/api/checks/[id]/route.ts";
+import { GET as getCheckPdf } from "../app/api/checks/[id]/pdf/route.ts";
 import { POST as postCheck } from "../app/api/checks/route.ts";
 import { POST as postLead } from "../app/api/leads/route.ts";
+import { LEAD_CONSENT_TEXT_VERSION } from "../lib/consent.ts";
 import { flags } from "./flags.ts";
 import { notifyNewLead, notifyScanIfNeeded } from "../lib/notify.ts";
 import type { CheckJob, Lead } from "../lib/types.ts";
@@ -153,7 +155,8 @@ describe("personal data is not stored on Vercel or sent to Telegram", { concurre
       };
       assert.equal(leadBody.ok, true);
       assert.equal(typeof leadBody.id, "string");
-      assert.equal(leadBody.consent_text_version, CONSENT);
+      assert.equal(leadBody.consent_text_version, LEAD_CONSENT_TEXT_VERSION);
+      assert.equal(JSON.stringify(leadBody).includes(CONSENT), false);
       assert.deepEqual(Object.keys(leadBody).sort(), ["consent_text_version", "id", "ok"]);
 
       const checkRes = await postCheck(
@@ -199,6 +202,8 @@ describe("personal data is not stored on Vercel or sent to Telegram", { concurre
         assert.equal(sent.includes(marker), false, marker);
         assert.equal(JSON.stringify(calls).includes(marker), false, marker);
       }
+      assert.equal(sent.includes(CONSENT), false);
+      assert.equal(JSON.stringify(calls).includes(CONSENT), false);
       assert.equal(
         calls.some((call) => call.url.includes("sendDocument")),
         false,
@@ -335,6 +340,86 @@ describe("personal data is not stored on Vercel or sent to Telegram", { concurre
       for (const marker of [EMAIL, PHONE, COMMENT, NAME]) {
         assert.equal(packed.includes(marker), false, marker);
       }
+    } finally {
+      logs.restore();
+    }
+  });
+
+  it("rejects a scan id outside the allowlist before any parser fetch", async () => {
+    enableCollection();
+    enableTelegram();
+    process.env.PARSER_API_BASE = "https://parser.invalid";
+    process.env.PARSER_API_TOKEN = "parser-token";
+    delete process.env.PARSER_API_EMAIL;
+    delete process.env.PARSER_API_PASSWORD;
+
+    let fetches = 0;
+    mock.method(globalThis, "fetch", async () => {
+      fetches += 1;
+      return new Response("should-not-run", { status: 500 });
+    });
+
+    const rejected = ["../", "%2F", " ", "", "a".repeat(65), "проверка"];
+    for (const id of rejected) {
+      const before = fetches;
+      for (const load of [getCheck, getCheckPdf]) {
+        const res = await load(new Request("http://localhost/api/checks/id"), {
+          params: Promise.resolve({ id }),
+        });
+        assert.equal(res.status, 400, JSON.stringify(id));
+        assert.deepEqual(await res.json(), { error: "invalid_id" });
+      }
+      assert.equal(fetches, before, JSON.stringify(id));
+    }
+
+    const id = "scan-ok-1";
+    const status = await getCheck(new Request("http://localhost/api/checks/scan-ok-1"), {
+      params: Promise.resolve({ id }),
+    });
+    assert.notEqual(status.status, 400);
+    const statusBody = (await status.json()) as { error?: string };
+    assert.notEqual(statusBody.error, "invalid_id");
+    assert.equal(fetches > 0, true);
+
+    const afterStatus = fetches;
+    const pdf = await getCheckPdf(new Request("http://localhost/api/checks/scan-ok-1/pdf"), {
+      params: Promise.resolve({ id }),
+    });
+    assert.notEqual(pdf.status, 400);
+    const pdfBody = (await pdf.json()) as { error?: string };
+    assert.notEqual(pdfBody.error, "invalid_id");
+    assert.equal(fetches > afterStatus, true);
+  });
+
+  it("returns an error code for a failed scan create and pdf fetch without the parser body", async () => {
+    enableCollection();
+    process.env.PARSER_API_BASE = "https://parser.invalid";
+    process.env.PARSER_API_TOKEN = "parser-token";
+    delete process.env.PARSER_API_EMAIL;
+    delete process.env.PARSER_API_PASSWORD;
+    const marker = "upstream-parser-body-q7";
+    mock.method(globalThis, "fetch", async () => {
+      return new Response(marker, {
+        status: 500,
+        headers: { "content-type": "text/plain" },
+      });
+    });
+    const logs = spyConsole();
+    try {
+      const created = await postCheck(post("/api/checks", { url: "https://example.com" }));
+      assert.equal(created.status, 500);
+      const createdBody = (await created.json()) as { error?: string };
+      assert.equal(createdBody.error, "server_error");
+      assert.equal(JSON.stringify(createdBody).includes(marker), false);
+
+      const pdf = await getCheckPdf(new Request("http://localhost/api/checks/pdf-ok/pdf"), {
+        params: Promise.resolve({ id: "pdf-ok" }),
+      });
+      assert.equal(pdf.status, 500);
+      const pdfBody = (await pdf.json()) as { error?: string };
+      assert.equal(pdfBody.error, "server_error");
+      assert.equal(JSON.stringify(pdfBody).includes(marker), false);
+      assert.equal(logs.text().includes(marker), false);
     } finally {
       logs.restore();
     }

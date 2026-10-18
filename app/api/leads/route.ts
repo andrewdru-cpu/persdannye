@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     if (!email && !phone) {
       return NextResponse.json({ error: "Укажите телефон или e-mail" }, { status: 400 });
     }
-    const consent_text_version = parsed.data.consent_text_version || LEAD_CONSENT_TEXT_VERSION;
+    const consent_text_version = LEAD_CONSENT_TEXT_VERSION;
     const lead: Lead = {
       id: randomUUID(),
       name: parsed.data.name,
