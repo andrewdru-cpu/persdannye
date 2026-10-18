@@ -7,6 +7,7 @@ import { CookieBanner } from "@/components/layout/CookieBanner";
 import { StickyCta } from "@/components/layout/StickyCta";
 import { AnalyticsGate } from "@/components/layout/AnalyticsGate";
 import { SiteAtmosphere } from "@/components/motion/SiteAtmosphere";
+import { isPdCollectionEnabled } from "@/lib/collection-gate";
 import { company } from "@/lib/company";
 
 const manrope = localFont({
@@ -60,9 +61,9 @@ export default function RootLayout({
           <Header />
           <main id="content">{children}</main>
           <Footer />
-          <CookieBanner />
-          <AnalyticsGate />
-          <StickyCta />
+          {isPdCollectionEnabled() ? <CookieBanner /> : null}
+          {isPdCollectionEnabled() ? <AnalyticsGate /> : null}
+          {isPdCollectionEnabled() ? <StickyCta /> : null}
         </div>
       </body>
     </html>

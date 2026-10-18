@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { UrlChecker } from "@/components/check/UrlChecker";
+import { CollectionClosed } from "@/components/collection/CollectionClosed";
 import { Reveal } from "@/components/motion/Reveal";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { isPdCollectionEnabled } from "@/lib/collection-gate";
 import { marketingConsentEnabled } from "@/lib/runtime-flags";
 
 export const metadata: Metadata = {
@@ -21,16 +23,22 @@ export default function CheckPage() {
           <h1 className="mt-3 font-display text-4xl font-semibold leading-[1.02] text-white md:text-6xl">
             Проверить свой сайт
           </h1>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/80">
-            Введите URL — ход проверки и наблюдения обновляются на странице.
-            Страницу можно листать: проверка не блокирует экран.
-          </p>
+          {isPdCollectionEnabled() ? (
+            <p className="mt-4 max-w-xl text-base leading-relaxed text-white/80">
+              Введите URL — ход проверки и наблюдения обновляются на странице.
+              Страницу можно листать: проверка не блокирует экран.
+            </p>
+          ) : null}
         </Reveal>
         <Reveal delay={0.08} className="mt-8">
           <div id="url-check" className="scroll-mt-28">
-            <GlassCard gold>
-              <UrlChecker marketingConsent={marketingConsentEnabled()} />
-            </GlassCard>
+            {isPdCollectionEnabled() ? (
+              <GlassCard gold>
+                <UrlChecker marketingConsent={marketingConsentEnabled()} />
+              </GlassCard>
+            ) : (
+              <CollectionClosed />
+            )}
           </div>
         </Reveal>
       </div>

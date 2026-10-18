@@ -6,6 +6,7 @@ import { Reveal, Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { HeroBackdrop } from "@/components/motion/HeroBackdrop";
 import { TrustMarquee } from "@/components/motion/Marquee";
 import { UrlChecker } from "@/components/check/UrlChecker";
+import { CollectionClosed } from "@/components/collection/CollectionClosed";
 import { LeadForm } from "@/components/landing/LeadForm";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CheckLink } from "@/components/landing/CheckLink";
@@ -18,6 +19,7 @@ import {
   howSteps,
 } from "@/content/blocks";
 import { flags } from "@/content/flags";
+import { isPdCollectionEnabled } from "@/lib/collection-gate";
 import { sampleFinesNote, sampleReport, sampleRulesLine } from "@/content/extra-blocks";
 import { safeHref } from "@/lib/safe-href";
 import { cta, fixWithUs, heroChrome, trustItems, whoFor } from "@/content/landing";
@@ -156,20 +158,26 @@ export function Hero({
           transition={reduce ? { duration: 0 } : { delay: 0.35, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
         >
           <GlassCard gold className="p-5 md:p-7 lg:mt-4">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <div className="font-display text-3xl font-semibold text-white">
-                  {heroChrome.checkerTitle}
+            {isPdCollectionEnabled() ? (
+              <>
+                <div className="mb-5 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-display text-3xl font-semibold text-white">
+                      {heroChrome.checkerTitle}
+                    </div>
+                    <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/80">
+                      {heroChrome.checkerText}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-amber-200/35 bg-amber-100/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-50">
+                    {heroChrome.checkerBadge}
+                  </span>
                 </div>
-                <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/80">
-                  {heroChrome.checkerText}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full border border-amber-200/35 bg-amber-100/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-50">
-                {heroChrome.checkerBadge}
-              </span>
-            </div>
-            <UrlChecker compact pulseCta ctaLabel={ctaLabel} heroSurface marketingConsent={marketingConsent} />
+                <UrlChecker compact pulseCta ctaLabel={ctaLabel} heroSurface marketingConsent={marketingConsent} />
+              </>
+            ) : (
+              <CollectionClosed />
+            )}
           </GlassCard>
         </motion.div>
       </div>
@@ -440,7 +448,7 @@ export function FixWithUs() {
               <CheckLink className="btn-gold inline-flex min-h-12 items-center rounded-2xl px-7 py-3.5 text-base">
                 {fixWithUs.cta}
               </CheckLink>
-              {flags.show_lead_form ? (
+              {flags.show_lead_form && isPdCollectionEnabled() ? (
                 <Link
                   href="/#lead"
                   className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/40 bg-[#14110c]/80 px-7 py-3.5 text-base text-[#f7f1e6] hover:border-amber-100/70 hover:bg-amber-200/10"
@@ -549,15 +557,21 @@ export function LeadSection({ marketingConsent = false }: { marketingConsent?: b
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             Обсудить исправления
           </h2>
-          <p className="mt-4 text-white/80">
-            Имя и телефон или e-mail. Ответим по заявке.
-          </p>
+          {isPdCollectionEnabled() ? (
+            <p className="mt-4 text-white/80">Имя и телефон или e-mail. Ответим по заявке.</p>
+          ) : (
+            <div className="mt-4">
+              <CollectionClosed />
+            </div>
+          )}
         </Reveal>
-        <Reveal delay={0.08}>
-          <GlassCard gold>
-            <LeadForm source="landing-lead" marketingConsent={marketingConsent} />
-          </GlassCard>
-        </Reveal>
+        {isPdCollectionEnabled() ? (
+          <Reveal delay={0.08}>
+            <GlassCard gold>
+              <LeadForm source="landing-lead" marketingConsent={marketingConsent} />
+            </GlassCard>
+          </Reveal>
+        ) : null}
       </div>
     </section>
   );
