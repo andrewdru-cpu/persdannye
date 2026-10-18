@@ -4,7 +4,7 @@ import { flags } from "@/content/flags";
 import { privacySurface, siteLegalPrivacy, subjectsAgeClause } from "@/content/site-legal";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
-import { requisiteIdLine, visibleRequisite } from "@/lib/requisite-lines";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -27,30 +27,33 @@ export default function PrivacyPage() {
   return <LegacyPrivacyPolicy />;
 }
 
+function ogrnCaption(ogrn: string): "ОГРН" | "ОГРНИП" {
+  return ogrn.length === 15 ? "ОГРНИП" : "ОГРН";
+}
+
 /** Прежняя политика. Новые тексты site-legal сюда не добавляем. */
 function LegacyPrivacyPolicy() {
-  const legalName = visibleRequisite(company.legalName);
-  const idLine = requisiteIdLine(company.inn, company.ogrn, company.legalForm);
-  const address = visibleRequisite(company.address);
-  const phone = visibleRequisite(company.phone);
-  const identity = [legalName, idLine ? `(${idLine})` : "", address ? `адрес: ${address}` : ""]
-    .filter(Boolean)
-    .join(", ");
+  const requisites = assertPublishedRequisites(company) ? company : null;
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 prose-legal md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">
         Политика обработки персональных данных
       </h1>
       <p className="mt-2 text-sm text-white/80">
-        Редакция от 21.09.2026{legalName ? ` · оператор: ${legalName}` : ""}
+        Редакция от 21.09.2026
+        {requisites ? ` · оператор: ${requisites.legalName}` : null}
       </p>
 
       <Section title="1. Общие положения">
         <p>
           Настоящая Политика обработки персональных данных (далее — Политика)
           определяет порядок и условия обработки персональных данных пользователей
-          сайта {company.website} (далее — Сайт), осуществляемой оператором
-          {identity ? ` — ${identity}` : ""} (далее — Оператор).
+          сайта {company.website} (далее — Сайт), осуществляемой{" "}
+          {requisites
+            ? `оператором — ${requisites.legalName} (ИНН ${requisites.inn}${
+                requisites.kpp ? `, КПП ${requisites.kpp}` : ""
+              }, ${ogrnCaption(requisites.ogrn)} ${requisites.ogrn}), адрес: ${requisites.address} (далее — Оператор).`
+            : "оператором (далее — Оператор)."}
         </p>
         <p>
           Политика разработана во исполнение требований Федерального закона
@@ -182,15 +185,23 @@ function LegacyPrivacyPolicy() {
       </Section>
 
       <Section title="12. Контакты оператора">
-        {legalName ? <p>{legalName}</p> : null}
-        {idLine ? <p>{idLine}</p> : null}
-        {address ? <p>{address}</p> : null}
+        {requisites ? (
+          <>
+            <p>{requisites.legalName}</p>
+            <p>
+              ИНН {requisites.inn}
+              {requisites.kpp ? `, КПП ${requisites.kpp}` : ""}, {ogrnCaption(requisites.ogrn)}{" "}
+              {requisites.ogrn}
+            </p>
+            <p>{requisites.address}</p>
+            <p>Тел.: {requisites.phone}</p>
+          </>
+        ) : null}
         {privacyContactLabel() ? (
           <p>
             ДПО: <PrivacyContactLink />
           </p>
         ) : null}
-        {phone ? <p>Тел.: {phone}</p> : null}
         <p>{company.supportHours}</p>
       </Section>
     </article>

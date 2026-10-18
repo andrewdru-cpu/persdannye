@@ -10,6 +10,7 @@ import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { collectionEnabled } from "@/lib/collection-gate";
 import { company, privacyContactLabel } from "@/lib/company";
 import { requisiteIdLine, visiblePhone, visibleRequisite } from "@/lib/requisite-lines";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export function Footer() {
@@ -44,7 +45,7 @@ export function Footer() {
           <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-300/90">
             Оператор
           </div>
-          {flags.show_requisites ? (
+          {flags.show_requisites && assertPublishedRequisites(company) ? (
             <OperatorRequisites />
           ) : (
             <ul className="space-y-1 text-sm text-white/80">
@@ -98,6 +99,7 @@ function OperatorRequisites() {
     <ul className="space-y-1 text-sm text-white/80">
       {legalName ? <li>{legalName}</li> : null}
       {idLine ? <li>{idLine}</li> : null}
+      {company.kpp.trim() ? <li>КПП {company.kpp.trim()}</li> : null}
       {address ? <li>{address}</li> : null}
       {contact ? (
         <li>

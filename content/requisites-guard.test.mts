@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { renderToStaticMarkup } from "react-dom/server";
 import { flags } from "./flags.ts";
 import { footerParagraphs } from "./blocks.ts";
+import CookiesPage from "../app/cookies/page.tsx";
+import PrivacyPage from "../app/privacy/page.tsx";
+import TermsPage from "../app/terms/page.tsx";
 import { company } from "../lib/company.ts";
 import { ogrnLabel, operatorDisclaimer, requisiteIdLine, visiblePhone, visibleRequisite } from "../lib/requisite-lines.ts";
 import {
@@ -10,6 +14,10 @@ import {
   assertRequisiteFlags,
   assertTermsAndCookieFlags,
   emptyRequisiteFields,
+  entrepreneurRequisites,
+  validInn10,
+  validKpp,
+  validOgrn13,
   type PublishedRequisites,
   type RequisiteIdentity,
 } from "../lib/requisites-guard.ts";
@@ -136,72 +144,161 @@ describe("requisites guard", () => {
     assert.equal(company.legalName, "");
     assert.equal(company.inn, "");
     assert.equal(company.ogrn, "");
+    assert.equal(company.kpp, "");
     assert.equal(company.address, "");
     assert.equal(company.phone, "");
     assert.equal(company.phoneHref, "");
+    assert.equal(entrepreneurRequisites(company.legalForm), false);
     const hidden = footerParagraphs(false, true).find((line) => line.startsWith("Оператор сайта"));
     assert.equal(hidden, undefined);
-    const published: PublishedRequisites = {
-      legalName: "ООО Пример",
-      inn: "1098765439",
-      ogrn: "1234567890127",
-      address: "г. Пример, ул. Примерная, д. 1",
-      phone: "+7 900 111-22-33",
-      phoneHref: "tel:+79001112233",
-      legalForm: "",
-    };
-    assert.doesNotThrow(() => assertPublishedRequisites(false, company));
-    assert.throws(() => assertPublishedRequisites(true, company), /Реквизиты пустые/);
-    assert.throws(
-      () => assertPublishedRequisites(true, { ...published, inn: "0000000000" }),
-      /Тестовый ИНН/,
-    );
-    assert.throws(
-      () => assertPublishedRequisites(true, { ...published, inn: "7700000000" }),
-      /Тестовый ИНН/,
-    );
-    assert.throws(
-      () => assertPublishedRequisites(true, { ...published, ogrn: "0000000000000" }),
-      /Тестовый ОГРН/,
-    );
-    assert.throws(
-      () => assertPublishedRequisites(true, { ...published, address: "г. Пример, {{address}}" }),
-      /Плейсхолдер в реквизитах/,
-    );
-    assert.throws(
-      () => assertPublishedRequisites(true, { ...published, inn: "1098765432" }),
-      /Некорректный ИНН/,
-    );
-    assert.throws(
-      () => assertPublishedRequisites(true, { ...published, ogrn: "1234567890123" }),
-      /Некорректный ОГРН/,
-    );
-    assert.throws(
-      () => assertPublishedRequisites(true, { ...published, legalForm: "ИП" }),
-      /Некорректный ИНН/,
-    );
     assert.equal(
-      assertPublishedRequisites(true, {
-        ...published,
-        legalForm: "ИП",
-        inn: "109876543252",
-        ogrn: "304770000000008",
-      }),
-      undefined,
-    );
-    assert.equal(assertPublishedRequisites(true, published), undefined);
-    assert.equal(
-      operatorDisclaimer(published.legalName, published.inn),
+      operatorDisclaimer("ООО Пример", "1098765439"),
       "Оператор сайта: ООО Пример, ИНН 1098765439.",
     );
     const footer = source("components/layout/Footer.tsx");
     assert.equal(footer.includes("requisiteIdLine("), true);
     assert.equal(footer.includes("visiblePhone("), true);
+    assert.equal(footer.includes("assertPublishedRequisites("), true);
     assert.equal(footer.includes("ИНН {company.inn}"), false);
     assert.equal(footer.includes("ОГРН {company.ogrn}"), false);
     assert.equal(footer.includes("href={company.phoneHref}"), false);
     const privacy = source("app/privacy/page.tsx");
     assert.equal(privacy.includes("Тел.: {company.phone}"), false);
-    assert.equal(privacy.includes("visibleRequisite(company.phone)"), true);
+    assert.equal(privacy.includes("assertPublishedRequisites(company)"), true);
+    assert.equal(source("app/terms/page.tsx").includes("assertPublishedRequisites(company)"), true);
+    assert.equal(source("app/cookies/page.tsx").includes("assertPublishedRequisites(company)"), true);
+  });
+});
+
+const legalEntity: PublishedRequisites = {
+  legalName: "ООО Пример",
+  inn: "1098765439",
+  ogrn: "1234567890127",
+  kpp: "773601001",
+  address: "г. Пример, ул. Примерная, д. 1",
+  phone: "+7 900 111-22-33",
+  phoneHref: "tel:+79001112233",
+  legalForm: "",
+};
+
+const entrepreneur: PublishedRequisites = {
+  legalName: "ИП Пример Пример Пример",
+  inn: "109876543252",
+  ogrn: "304770000000008",
+  address: "г. Пример, ул. Примерная, д. 1",
+  phone: "+7 900 111-22-33",
+  phoneHref: "tel:+79001112233",
+  legalForm: "ИП",
+};
+
+const storedPlaceholders: PublishedRequisites = {
+  legalName: "ООО «ПерсДанные»",
+  inn: "7700000000",
+  ogrn: "1207700000000",
+  kpp: "770001001",
+  address: "123112, г. Москва, Пресненская наб., д. 12, этаж 1, офис 1",
+  phone: "+7 (495) 000-00-00",
+  phoneHref: "tel:+74950000000",
+  legalForm: "",
+};
+
+function withBadChecksum(value: string): string {
+  const last = Number(value[value.length - 1]);
+  return `${value.slice(0, -1)}${last === 9 ? 0 : last + 1}`;
+}
+
+describe("published requisites", () => {
+  it("checks OGRN and INN-10 checksums, KPP, and rejects a 12-digit INN while IP is off", () => {
+    assert.equal(validInn10(legalEntity.inn ?? ""), true);
+    assert.equal(validOgrn13(legalEntity.ogrn ?? ""), true);
+    assert.equal(validKpp("773601001"), true);
+    assert.equal(validKpp("77360100"), false);
+    assert.equal(validKpp("000000000"), false);
+    assert.equal(validKpp("7736AB001"), true);
+    assert.equal(entrepreneurRequisites(""), false);
+    assert.equal(entrepreneurRequisites("ООО"), false);
+    assert.equal(entrepreneurRequisites("ИП"), true);
+    assert.equal(assertPublishedRequisites(legalEntity), true);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, kpp: "12345678" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, kpp: "" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, inn: withBadChecksum(legalEntity.inn ?? "") }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, ogrn: withBadChecksum(legalEntity.ogrn ?? "") }), false);
+    assert.equal(
+      assertPublishedRequisites({ ...legalEntity, inn: "109876543252", legalForm: "" }),
+      false,
+    );
+    assert.equal(
+      assertPublishedRequisites({ ...legalEntity, inn: "109876543252", legalForm: "ООО" }),
+      false,
+    );
+    assert.equal(assertPublishedRequisites({ ...entrepreneur, legalForm: "" }), false);
+    assert.equal(assertPublishedRequisites(entrepreneur), true);
+    assert.equal(assertPublishedRequisites({ ...entrepreneur, inn: withBadChecksum(entrepreneur.inn ?? "") }), false);
+    assert.equal(assertPublishedRequisites({ ...entrepreneur, ogrn: withBadChecksum(entrepreneur.ogrn ?? "") }), false);
+  });
+
+  it("rejects placeholders", () => {
+    assert.equal(assertPublishedRequisites(company), false);
+    assert.equal(assertPublishedRequisites(null), false);
+    assert.equal(assertPublishedRequisites(storedPlaceholders), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, legalName: "  " }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, legalName: "ООО {{legalName}}" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, inn: "0000000000" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, inn: "7700000000" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, ogrn: "0000000000000" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, ogrn: "1207700000000" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, address: storedPlaceholders.address }), false);
+    assert.equal(
+      assertPublishedRequisites({
+        ...legalEntity,
+        address: "г. Москва, Пресненская набережная, д. 12",
+      }),
+      false,
+    );
+    assert.equal(assertPublishedRequisites({ ...legalEntity, phone: "+7 (495) 000-00-00" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, phoneHref: "tel:+74950000000" }), false);
+    assert.equal(assertPublishedRequisites({ ...legalEntity, phoneHref: "+79001112233" }), false);
+  });
+
+  it("does not render requisite blocks from placeholder company data", () => {
+    const saved = {
+      terms: flags.show_terms,
+      cookies: flags.show_cookie_policy,
+      requisites: flags.show_requisites,
+    };
+    flags.show_terms = true;
+    flags.show_cookie_policy = true;
+    flags.show_requisites = true;
+    try {
+      assert.equal(assertPublishedRequisites(company), false);
+      const privacy = renderToStaticMarkup(PrivacyPage());
+      const terms = renderToStaticMarkup(TermsPage());
+      const cookies = renderToStaticMarkup(CookiesPage());
+      for (const [name, html] of [
+        ["privacy", privacy],
+        ["terms", terms],
+        ["cookies", cookies],
+      ] as const) {
+        assert.equal(html.includes("Пресненская"), false, name);
+        assert.equal(html.includes("7700000000"), false, name);
+        assert.equal(html.includes("1207700000000"), false);
+        assert.equal(html.includes("000-00-00"), false, name);
+        assert.equal(html.includes("ООО «ПерсДанные»"), false, name);
+        assert.equal(html.includes("ИНН"), false, name);
+        assert.equal(html.includes("ОГРН"), false, name);
+        assert.equal(html.includes("КПП"), false, name);
+        assert.equal(html.includes("адрес:"), false, name);
+        assert.equal(html.includes("Тел.:"), false, name);
+      }
+      assert.match(privacy, /Редакция от 21\.09\.2026/);
+      assert.match(privacy, /осуществляемой оператором \(далее — Оператор\)/);
+      assert.equal(terms.includes("9. Реквизиты"), false);
+      assert.match(terms, /Пользовательское соглашение/);
+      assert.match(cookies, /Политика cookie/);
+    } finally {
+      flags.show_terms = saved.terms;
+      flags.show_cookie_policy = saved.cookies;
+      flags.show_requisites = saved.requisites;
+    }
   });
 });

@@ -13,7 +13,7 @@ import { editionCaption } from "@/content/placeholders";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
-import { visibleRequisite } from "@/lib/requisite-lines";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 
 export const metadata: Metadata = {
   title: "Политика cookie",
@@ -24,7 +24,7 @@ export default function CookiesPage() {
   if (!flags.show_cookie_policy) {
     return <LegalPending title="Политика cookie" />;
   }
-  const legalName = visibleRequisite(company.legalName);
+  const legalName = assertPublishedRequisites(company) ? company.legalName.trim() : "";
   const contact = privacyContactLabel();
   const contacts = cookieContactsText(contact);
   const edition = editionCaption("{{cookie_policy_edition_date}}");

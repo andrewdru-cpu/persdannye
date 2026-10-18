@@ -10,15 +10,21 @@ assertRequisiteFlags(flags, {
   address: company.address,
 });
 
-assertPublishedRequisites(flags.show_requisites || flags.show_terms, {
-  legalName: company.legalName,
-  inn: company.inn,
-  ogrn: company.ogrn,
-  address: company.address,
-  phone: company.phone,
-  phoneHref: company.phoneHref,
-  legalForm: company.legalForm,
-});
+if (
+  (flags.show_requisites || flags.show_terms) &&
+  !assertPublishedRequisites({
+    legalName: company.legalName,
+    inn: company.inn,
+    ogrn: company.ogrn,
+    kpp: company.kpp,
+    address: company.address,
+    phone: company.phone,
+    phoneHref: company.phoneHref,
+    legalForm: company.legalForm,
+  })
+) {
+  throw new Error("Нельзя публиковать реквизиты, пока страж их не подтвердил.");
+}
 
 assertTermsAndCookieFlags(flags, {
   legalName: company.legalName,

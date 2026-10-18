@@ -8,6 +8,7 @@ import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 import { requisiteIdLine, visiblePhone, visibleRequisite } from "@/lib/requisite-lines";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение",
@@ -18,10 +19,13 @@ export default function TermsPage() {
   if (!flags.show_terms) {
     return <LegalPending title="Пользовательское соглашение" />;
   }
-  const legalName = visibleRequisite(company.legalName);
-  const idLine = requisiteIdLine(company.inn, company.ogrn, company.legalForm);
-  const address = visibleRequisite(company.address);
-  const phone = visiblePhone(company.phone, company.phoneHref);
+  const requisites = assertPublishedRequisites(company) ? company : null;
+  const legalName = requisites ? visibleRequisite(requisites.legalName) : null;
+  const idLine = requisites
+    ? requisiteIdLine(requisites.inn, requisites.ogrn, requisites.legalForm)
+    : null;
+  const address = requisites ? visibleRequisite(requisites.address) : null;
+  const phone = requisites ? visiblePhone(requisites.phone, requisites.phoneHref) : null;
   const contact = privacyContactLabel();
   const edition = editionCaption("{{terms_edition_date}}");
   return (
@@ -106,10 +110,11 @@ export default function TermsPage() {
         </p>
       </Sec>
 
-      {legalName || idLine || address || phone || contact ? (
+      {requisites ? (
         <Sec title="9. Реквизиты">
           {legalName ? <p>{legalName}</p> : null}
           {idLine ? <p>{idLine}</p> : null}
+          {requisites.kpp ? <p>КПП {requisites.kpp}</p> : null}
           {address ? <p>{address}</p> : null}
           {phone || contact ? (
             <p>
