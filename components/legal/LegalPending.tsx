@@ -1,4 +1,4 @@
-import { LEGAL_PENDING_TEXT } from "@/content/legal-publication";
+import { LEGAL_PENDING_TEXT } from "@/lib/legal-publication";
 
 /** Заглушка, пока юрист не отдал текст. Это не юридическая формулировка. */
 export function LegalPending({ title }: { title: string }) {

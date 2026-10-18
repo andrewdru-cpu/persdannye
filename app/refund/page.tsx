@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { flags } from "@/content/flags";
 import { refundDocument } from "@/content/legal-documents";
-import { legalRobots } from "@/content/legal-publication";
+import { legalRobots } from "@/lib/legal-publication";
 import { GatedLegalPage } from "@/components/legal/GatedLegalPage";
 
 export const metadata: Metadata = {
