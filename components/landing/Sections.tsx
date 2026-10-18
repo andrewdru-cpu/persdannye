@@ -6,6 +6,7 @@ import { Reveal, Stagger, StaggerItem } from "@/components/motion/Reveal";
 import { HeroBackdrop } from "@/components/motion/HeroBackdrop";
 import { TrustMarquee } from "@/components/motion/Marquee";
 import { UrlChecker } from "@/components/check/UrlChecker";
+import { CollectionClosed } from "@/components/collection/CollectionClosed";
 import { LeadForm } from "@/components/landing/LeadForm";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { CheckLink } from "@/components/landing/CheckLink";
@@ -61,6 +62,7 @@ export function Hero({
   sublineNarrow,
   ctaLabel = cta.primary,
   marketingConsent = false,
+  collectionEnabled = false,
 }: {
   headline: string;
   highlight: string | null;
@@ -68,6 +70,7 @@ export function Hero({
   sublineNarrow: string;
   ctaLabel?: string;
   marketingConsent?: boolean;
+  collectionEnabled?: boolean;
 }) {
   const reduce = useReducedMotion();
 
@@ -156,20 +159,33 @@ export function Hero({
           transition={reduce ? { duration: 0 } : { delay: 0.35, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
         >
           <GlassCard gold className="p-5 md:p-7 lg:mt-4">
-            <div className="mb-5 flex items-start justify-between gap-3">
-              <div>
-                <div className="font-display text-3xl font-semibold text-white">
-                  {heroChrome.checkerTitle}
+            {collectionEnabled ? (
+              <>
+                <div className="mb-5 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-display text-3xl font-semibold text-white">
+                      {heroChrome.checkerTitle}
+                    </div>
+                    <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/80">
+                      {heroChrome.checkerText}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-amber-200/35 bg-amber-100/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-50">
+                    {heroChrome.checkerBadge}
+                  </span>
                 </div>
-                <p className="mt-1 max-w-xs text-sm leading-relaxed text-white/80">
-                  {heroChrome.checkerText}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full border border-amber-200/35 bg-amber-100/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-50">
-                {heroChrome.checkerBadge}
-              </span>
-            </div>
-            <UrlChecker compact pulseCta ctaLabel={ctaLabel} heroSurface marketingConsent={marketingConsent} />
+                <UrlChecker
+                  compact
+                  pulseCta
+                  ctaLabel={ctaLabel}
+                  heroSurface
+                  marketingConsent={marketingConsent}
+                  collectionEnabled
+                />
+              </>
+            ) : (
+              <CollectionClosed />
+            )}
           </GlassCard>
         </motion.div>
       </div>
@@ -408,7 +424,7 @@ export function WhoFor() {
   );
 }
 
-export function FixWithUs() {
+export function FixWithUs({ collectionEnabled = false }: { collectionEnabled?: boolean }) {
   return (
     <section className="py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-4 md:px-6">
@@ -440,7 +456,7 @@ export function FixWithUs() {
               <CheckLink className="btn-gold inline-flex min-h-12 items-center rounded-2xl px-7 py-3.5 text-base">
                 {fixWithUs.cta}
               </CheckLink>
-              {flags.show_lead_form ? (
+              {flags.show_lead_form && collectionEnabled ? (
                 <Link
                   href="/#lead"
                   className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/40 bg-[#14110c]/80 px-7 py-3.5 text-base text-[#f7f1e6] hover:border-amber-100/70 hover:bg-amber-200/10"
@@ -538,7 +554,13 @@ export function FAQ({
   );
 }
 
-export function LeadSection({ marketingConsent = false }: { marketingConsent?: boolean }) {
+export function LeadSection({
+  marketingConsent = false,
+  collectionEnabled = false,
+}: {
+  marketingConsent?: boolean;
+  collectionEnabled?: boolean;
+}) {
   return (
     <section id="lead" className="scroll-mt-24 bg-ink-975 py-20 md:py-28">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 md:grid-cols-2 md:px-6">
@@ -549,15 +571,21 @@ export function LeadSection({ marketingConsent = false }: { marketingConsent?: b
           <h2 className="mt-2 font-display text-4xl font-semibold text-white md:text-5xl">
             Обсудить исправления
           </h2>
-          <p className="mt-4 text-white/80">
-            Имя и телефон или e-mail. Ответим по заявке.
-          </p>
+          {collectionEnabled ? (
+            <p className="mt-4 text-white/80">Имя и телефон или e-mail. Ответим по заявке.</p>
+          ) : (
+            <div className="mt-4">
+              <CollectionClosed />
+            </div>
+          )}
         </Reveal>
-        <Reveal delay={0.08}>
-          <GlassCard gold>
-            <LeadForm source="landing-lead" marketingConsent={marketingConsent} />
-          </GlassCard>
-        </Reveal>
+        {collectionEnabled ? (
+          <Reveal delay={0.08}>
+            <GlassCard gold>
+              <LeadForm source="landing-lead" marketingConsent={marketingConsent} />
+            </GlassCard>
+          </Reveal>
+        ) : null}
       </div>
     </section>
   );
