@@ -1,9 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
+import { flags } from "@/content/flags";
+import { scanTermsNotice } from "@/content/terms-copy";
 import { CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
 import type { CheckJob } from "@/lib/types";
@@ -191,6 +194,7 @@ export function UrlChecker({
   const progress = terminal ? 100 : Math.max(phaseProgress, creep);
   const activeStep = PHASE_STEPS[Math.min(Math.max(step, 0), PHASE_STEPS.length - 1)];
   const stepLabel = job?.phase === "done" ? PHASE_STEPS.length : Math.max(step, 0) + 1;
+  const termsNotice = scanTermsNotice(ctaLabel, flags.show_terms);
 
   return (
     <div className={cn("w-full", compact ? "" : "mx-auto max-w-2xl")}>
@@ -219,6 +223,14 @@ export function UrlChecker({
             {status === "running" ? formCopy.pending : ctaLabel}
           </Button>
         </div>
+        {termsNotice ? (
+          <p className="text-xs leading-relaxed text-white/80">
+            {termsNotice.before}
+            <Link href={termsNotice.href} className="text-amber-300 hover:underline">
+              {termsNotice.linkText}
+            </Link>
+          </p>
+        ) : null}
 
         <label className="grid gap-1 text-xs text-white/80">
           {formCopy.emailLabel}

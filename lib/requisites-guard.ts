@@ -32,3 +32,24 @@ export function assertRequisiteFlags(
   if (missing.length === 0) return;
   throw new Error(`Нельзя включать ${enabled.join(" и ")} при пустых реквизитах: ${missing.join(", ")}`);
 }
+
+/**
+ * `show_terms` только вместе с `show_site_legal`.
+ * `show_cookie_policy` — вместе с `show_site_legal`, наименованием и privacy_contact_email.
+ */
+export function assertTermsAndCookieFlags(
+  publication: { show_terms: boolean; show_cookie_policy: boolean; show_site_legal: boolean },
+  identity: { legalName: string; privacy_contact_email: string },
+): void {
+  if (publication.show_terms && !publication.show_site_legal) {
+    throw new Error("Нельзя включать show_terms без show_site_legal");
+  }
+  if (!publication.show_cookie_policy) return;
+  const missing: string[] = [];
+  if (!publication.show_site_legal) missing.push("show_site_legal");
+  if (identity.legalName.trim() === "") missing.push("legalName");
+  if (identity.privacy_contact_email.trim() === "") missing.push("privacy_contact_email");
+  if (missing.length > 0) {
+    throw new Error(`Нельзя включать show_cookie_policy без: ${missing.join(", ")}`);
+  }
+}

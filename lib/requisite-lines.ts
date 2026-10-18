@@ -3,11 +3,16 @@ export function visibleRequisite(value: string): string | null {
   return trimmed ? trimmed : null;
 }
 
-/** «ИНН …, ОГРН …». Пустые значения в строку не попадают. */
-export function requisiteIdLine(inn: string, ogrn: string): string | null {
+/** ИП — «ОГРНИП», пустая форма, ООО и всё остальное — «ОГРН». */
+export function ogrnLabel(legalForm: string | null | undefined): "ОГРН" | "ОГРНИП" {
+  return legalForm?.trim().toLocaleUpperCase("ru") === "ИП" ? "ОГРНИП" : "ОГРН";
+}
+
+/** «ИНН …, ОГРН/ОГРНИП …». Пустые значения в строку не попадают. */
+export function requisiteIdLine(inn: string, ogrn: string, legalForm = ""): string | null {
   const parts = [
     inn.trim() ? `ИНН ${inn.trim()}` : "",
-    ogrn.trim() ? `ОГРН ${ogrn.trim()}` : "",
+    ogrn.trim() ? `${ogrnLabel(legalForm)} ${ogrn.trim()}` : "",
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : null;
 }

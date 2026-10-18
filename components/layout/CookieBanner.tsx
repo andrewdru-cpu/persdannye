@@ -9,7 +9,9 @@ import {
   COOKIE_CONSENT_STORAGE_KEY,
   OPEN_COOKIE_SETTINGS_EVENT,
   consentFromChoice,
-  readStoredCookieConsent,
+  loadCookieConsent,
+  noteCookieChoiceSaved,
+  savedAnalyticsChoice,
   type CookieConsent,
 } from "@/lib/cookie-consent";
 
@@ -17,23 +19,20 @@ export type { CookieConsent };
 
 const [acceptLabel, rejectLabel, settingsLabel] = COOKIE_BANNER_ACTIONS;
 
-function loadConsent(): CookieConsent | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return readStoredCookieConsent(localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY))?.consent ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function saveConsent(c: CookieConsent) {
   localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, JSON.stringify(c));
+  noteCookieChoiceSaved();
   window.dispatchEvent(new CustomEvent("pd-cookie-consent", { detail: c }));
 }
 
-/** Analytics scripts must wait for consent.analytics === true */
+/** Analytics scripts must wait for a current v2 choice with analytics === true. */
 export function hasAnalyticsConsent(): boolean {
-  return loadConsent()?.analytics === true;
+  if (typeof window === "undefined") return false;
+  try {
+    return loadCookieConsent(localStorage).analyticsConsented;
+  } catch {
+    return false;
+  }
 }
 
 const choiceClass = "min-h-11 w-full flex-1";
@@ -46,20 +45,9 @@ export function CookieBanner() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY);
-      const read = readStoredCookieConsent(raw);
-      if (!read) {
-        setVisible(true);
-        return;
-      }
-      setAnalytics(read.consent.analytics);
-      if (read.droppedMarketing) {
-        try {
-          saveConsent(read.consent);
-        } catch {
-          // Квота или закрытое хранилище: выбор уже прочитан, исключение не показываем.
-        }
-      }
+      const decision = loadCookieConsent(localStorage);
+      setAnalytics(decision.analyticsConsented);
+      setVisible(decision.showBanner);
     } catch {
       setVisible(true);
     }
@@ -67,8 +55,13 @@ export function CookieBanner() {
 
   useEffect(() => {
     function open() {
-      const read = loadConsent();
-      setAnalytics(read?.analytics ?? false);
+      let raw: string | null = null;
+      try {
+        raw = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY);
+      } catch {
+        raw = null;
+      }
+      setAnalytics(savedAnalyticsChoice(raw));
       setAdvanced(false);
       setVisible(true);
     }

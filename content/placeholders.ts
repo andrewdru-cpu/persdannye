@@ -21,7 +21,20 @@ export const placeholders: Record<string, string> = {
   operator_address: company.address,
   retention_months_goal1: "36 месяцев",
   marketing_consent_term: "3 года",
+  terms_edition_date: "",
+  cookie_policy_edition_date: "",
 };
+
+/** Пустая дата редакции не рисует «Редакция от ». */
+export function editionCaption(
+  token: "{{terms_edition_date}}" | "{{cookie_policy_edition_date}}",
+  values: Record<string, string> = placeholders,
+): string | null {
+  const key = token.slice(2, -2);
+  const value = (values[key] ?? "").trim();
+  if (!value) return null;
+  return `Редакция от ${value}`;
+}
 
 const token = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;
 

@@ -4,8 +4,13 @@ import { describe, it } from "node:test";
 import { flags } from "./flags.ts";
 import { footerParagraphs } from "./blocks.ts";
 import { company } from "../lib/company.ts";
-import { operatorDisclaimer, requisiteIdLine, visiblePhone, visibleRequisite } from "../lib/requisite-lines.ts";
-import { assertRequisiteFlags, emptyRequisiteFields, type RequisiteIdentity } from "../lib/requisites-guard.ts";
+import { ogrnLabel, operatorDisclaimer, requisiteIdLine, visiblePhone, visibleRequisite } from "../lib/requisite-lines.ts";
+import {
+  assertRequisiteFlags,
+  assertTermsAndCookieFlags,
+  emptyRequisiteFields,
+  type RequisiteIdentity,
+} from "../lib/requisites-guard.ts";
 
 const filled: RequisiteIdentity = {
   legalName: "ООО Пример",
@@ -46,6 +51,57 @@ describe("requisites guard", () => {
     }
     const config = source("next.config.ts");
     assert.equal(config.includes("assertRequisiteFlags"), true);
+    assert.equal(config.includes("assertTermsAndCookieFlags"), true);
+    assert.doesNotThrow(() =>
+      assertTermsAndCookieFlags(flags, {
+        legalName: company.legalName,
+        privacy_contact_email: company.privacy_contact_email,
+      }),
+    );
+    assert.throws(
+      () =>
+        assertTermsAndCookieFlags(
+          { show_terms: true, show_cookie_policy: false, show_site_legal: false },
+          { legalName: filled.legalName, privacy_contact_email: "a@b.c" },
+        ),
+      /show_terms/,
+    );
+    assert.doesNotThrow(() =>
+      assertTermsAndCookieFlags(
+        { show_terms: true, show_cookie_policy: false, show_site_legal: true },
+        { legalName: filled.legalName, privacy_contact_email: "a@b.c" },
+      ),
+    );
+    assert.throws(
+      () =>
+        assertTermsAndCookieFlags(
+          { show_terms: false, show_cookie_policy: true, show_site_legal: false },
+          { legalName: filled.legalName, privacy_contact_email: "a@b.c" },
+        ),
+      /show_site_legal/,
+    );
+    assert.throws(
+      () =>
+        assertTermsAndCookieFlags(
+          { show_terms: false, show_cookie_policy: true, show_site_legal: true },
+          { legalName: "  ", privacy_contact_email: "a@b.c" },
+        ),
+      /legalName/,
+    );
+    assert.throws(
+      () =>
+        assertTermsAndCookieFlags(
+          { show_terms: false, show_cookie_policy: true, show_site_legal: true },
+          { legalName: filled.legalName, privacy_contact_email: "" },
+        ),
+      /privacy_contact_email/,
+    );
+    assert.doesNotThrow(() =>
+      assertTermsAndCookieFlags(
+        { show_terms: true, show_cookie_policy: true, show_site_legal: true },
+        { legalName: filled.legalName, privacy_contact_email: "a@b.c" },
+      ),
+    );
   });
 
   it("omits empty inn, ogrn, and tel labels", () => {
@@ -54,6 +110,13 @@ describe("requisites guard", () => {
     assert.equal(requisiteIdLine("1098765432", ""), "ИНН 1098765432");
     assert.equal(requisiteIdLine("", "1234567890123"), "ОГРН 1234567890123");
     assert.equal(requisiteIdLine("1098765432", "1234567890123"), "ИНН 1098765432, ОГРН 1234567890123");
+    assert.equal(company.legalForm, "");
+    assert.equal(ogrnLabel(""), "ОГРН");
+    assert.equal(ogrnLabel("ООО"), "ОГРН");
+    assert.equal(ogrnLabel("ИП"), "ОГРНИП");
+    assert.equal(requisiteIdLine("1098765432", "1234567890123", ""), "ИНН 1098765432, ОГРН 1234567890123");
+    assert.equal(requisiteIdLine("1098765432", "1234567890123", "ООО"), "ИНН 1098765432, ОГРН 1234567890123");
+    assert.equal(requisiteIdLine("1098765432", "304770000000000", "ИП"), "ИНН 1098765432, ОГРНИП 304770000000000");
     assert.equal(visiblePhone("", "tel:"), null);
     assert.equal(visiblePhone("  ", "tel:+79001112233"), null);
     assert.deepEqual(visiblePhone("+7 900 111-22-33", "tel:"), { text: "+7 900 111-22-33", href: null });

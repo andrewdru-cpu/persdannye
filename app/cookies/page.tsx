@@ -9,6 +9,7 @@ import {
   cookieContactsText,
 } from "@/content/cookies-policy";
 import { flags } from "@/content/flags";
+import { editionCaption } from "@/content/placeholders";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
@@ -26,26 +27,31 @@ export default function CookiesPage() {
   const legalName = visibleRequisite(company.legalName);
   const contact = privacyContactLabel();
   const contacts = cookieContactsText(contact);
+  const edition = editionCaption("{{cookie_policy_edition_date}}");
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">Политика cookie</h1>
-      <p className="mt-2 text-sm text-white/80">
-        Редакция от 21.09.2026{legalName ? ` · ${legalName}` : ""}
-      </p>
+      {edition || legalName ? (
+        <p className="mt-2 text-sm text-white/80">
+          {edition}
+          {edition && legalName ? " · " : ""}
+          {legalName}
+        </p>
+      ) : null}
 
-      <Sec title="1. Что это.">
+      <Sec title="1. Что это">
         <p>{COOKIE_SECTION_WHAT}</p>
       </Sec>
 
-      <Sec title="2. Категории.">
+      <Sec title="2. Категории">
         <p>{COOKIE_SECTION_CATEGORIES}</p>
       </Sec>
 
-      <Sec title="3. Согласие и отзыв.">
+      <Sec title="3. Согласие и отзыв">
         <p>{COOKIE_SECTION_CONSENT}</p>
       </Sec>
 
-      <Sec title="4. Срок хранения.">
+      <Sec title="4. Срок хранения">
         <p>{COOKIE_SECTION_RETENTION}</p>
       </Sec>
 
@@ -66,7 +72,7 @@ export default function CookiesPage() {
         </p>
       </Sec>
 
-      <Sec title="7. Контакты.">
+      <Sec title="7. Контакты">
         <p>
           {contact && contacts.includes(contact) ? (
             <>

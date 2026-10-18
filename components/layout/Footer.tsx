@@ -80,7 +80,7 @@ export function Footer() {
 
 function OperatorRequisites() {
   const legalName = visibleRequisite(company.legalName);
-  const idLine = requisiteIdLine(company.inn, company.ogrn);
+  const idLine = requisiteIdLine(company.inn, company.ogrn, company.legalForm);
   const address = visibleRequisite(company.address);
   const phone = visiblePhone(company.phone, company.phoneHref);
   const contact = privacyContactLabel();
