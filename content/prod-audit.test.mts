@@ -164,6 +164,20 @@ describe("rendered production surface", () => {
     assert.equal(faq.includes("/cookies"), true);
     assert.equal(faq.includes("persdannye.ru"), false);
   });
+
+  it("keeps the legal disclaimer in the footer when fines are hidden", () => {
+    const lines = footerParagraphs(false, false, false);
+    assert.equal(
+      lines.includes(
+        "Материалы сайта и результаты проверки носят информационный характер и не являются юридической консультацией.",
+      ),
+      true,
+    );
+    assert.equal(
+      lines.some((line) => line.includes("Точные суммы штрафов")),
+      false,
+    );
+  });
 });
 
 describe("unpublished legal pages", () => {
