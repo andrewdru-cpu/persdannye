@@ -5,6 +5,7 @@ import { flags } from "@/content/flags";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { visibleRequisite } from "@/lib/requisite-lines";
 
 export const metadata: Metadata = {
   title: "Политика cookie",
@@ -15,11 +16,14 @@ export default function CookiesPage() {
   if (!flags.show_cookie_policy) {
     return <LegalPending title="Политика cookie" />;
   }
+  const legalName = visibleRequisite(company.legalName);
+  const phone = visibleRequisite(company.phone);
+  const contact = privacyContactLabel();
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">Политика cookie</h1>
       <p className="mt-2 text-sm text-white/80">
-        Редакция от 21.09.2026 · {company.legalName}
+        Редакция от 21.09.2026{legalName ? ` · ${legalName}` : ""}
       </p>
 
       <Sec title="1. Что такое cookie">
@@ -79,17 +83,19 @@ export default function CookiesPage() {
         </p>
       </Sec>
 
-      <Sec title="7. Контакты">
-        <p>
-          {privacyContactLabel() ? (
-            <>
-              <PrivacyContactLink />
-              {", "}
-            </>
-          ) : null}
-          тел. {company.phone}.
-        </p>
-      </Sec>
+      {phone || contact ? (
+        <Sec title="7. Контакты">
+          <p>
+            {contact ? (
+              <>
+                <PrivacyContactLink />
+                {phone ? ", " : null}
+              </>
+            ) : null}
+            {phone ? `тел. ${phone}.` : null}
+          </p>
+        </Sec>
+      ) : null}
     </article>
   );
 }
