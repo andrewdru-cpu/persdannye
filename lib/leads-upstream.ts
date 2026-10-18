@@ -3,8 +3,12 @@ import { applySignedClientHeaders, ParserUnavailableError, parserSigningBlocked 
 import { PUBLIC_LEAD_PATH } from "./public-lead";
 
 /**
- * One POST to the parser. parserFetch retries 502/503/504/429, which would
- * drop the original Retry-After and repeat a lead, so this path never retries.
+ * One POST to `{PARSER_API_BASE}/public/lead`.
+ * The parser no longer serves `/api/leads` (that route is 404), so this is the only lead URL.
+ * `Idempotency-Key` is always forwarded. The parser ignores it until its own follow-up.
+ * parserFetch retries 502/503/504/429, which would drop the original Retry-After and
+ * repeat a lead, so this path never retries. A Redis outage is one 503
+ * `rate_limit_unavailable` with `Retry-After: 30`.
  */
 export async function postLeadToParser(
   body: unknown,

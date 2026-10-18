@@ -76,6 +76,25 @@ describe("lead form submit", () => {
     assert.equal(calls, 1);
   });
 
+  it("shows ~1 мин for Redis 503 Retry-After 30, keeps the payload, and does not retry", async () => {
+    assert.equal(leadUnavailableMessage("30"), "Не удалось отправить заявку, попробуйте через ~1 мин");
+    const calls: Array<{ key: string | null; body: string }> = [];
+    const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      calls.push({ key: headers.get("idempotency-key"), body: String(init?.body ?? "") });
+      return unavailable("30");
+    }) as typeof fetch;
+
+    const result = await submitLeadOnce(payload, KEY, fetchImpl);
+    assert.deepEqual(result, {
+      ok: false,
+      message: "Не удалось отправить заявку, попробуйте через ~1 мин",
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].key, KEY);
+    assert.deepEqual(JSON.parse(calls[0].body), payload);
+  });
+
   it("reuses the idempotency key on a manual resubmit", async () => {
     const calls: Array<{ key: string | null; body: string }> = [];
     const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {

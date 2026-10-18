@@ -99,7 +99,7 @@ export function bffSignatureMaterial(ts: string, method: string, path: string, i
 
 /**
  * Encoding of X-PD-Sig. This is the only place it is chosen.
- * Hex until the parser sends its reference vector.
+ * Hex is final: hex(HMAC-SHA256(key, `<ts>.<METHOD>.<path>.<ip>`)).
  */
 const SIGNATURE_ENCODING = "hex" as const;
 
