@@ -17,6 +17,7 @@ import { flags } from "./flags.ts";
 import type { LegalDocument } from "./legal-documents.ts";
 import { visibleFooterDocuments } from "./legal-nav.ts";
 import { LEGAL_PENDING_TEXT, legalRobots } from "./legal-publication.ts";
+import { company } from "../lib/company.ts";
 import { requisiteIdLine, visibleRequisite } from "../lib/requisite-lines.ts";
 import { SITE_LEGAL_SUBJECTS_CLAUSE, siteLegalPrivacyMarkers } from "./site-legal.ts";
 
@@ -159,6 +160,24 @@ describe("legal page flags", { concurrency: 1 }, () => {
       assert.equal(requisiteIdLine("", ""), null);
       assert.equal(visibleRequisite("ООО Пример"), "ООО Пример");
       assert.equal(visibleRequisite("  "), null);
+    });
+    assert.equal(flags.show_cookie_policy, false);
+    assert.equal(flags.show_terms, false);
+  });
+
+  it("hides blank requisite labels on terms and cookies", () => {
+    assert.equal(company.legalName, "");
+    assert.equal(company.inn, "");
+    assert.equal(company.ogrn, "");
+    assert.equal(company.address, "");
+    assert.equal(company.phone, "");
+    withFlags({ show_cookie_policy: true, show_terms: true }, () => {
+      const pages = [markup(createElement(CookiesPage)), markup(createElement(TermsPage))];
+      for (const html of pages) {
+        assert.equal(/ИНН\s*,/.test(html), false);
+        assert.equal(/ОГРН/.test(html), false);
+        assert.equal(/тел\.\s*\./.test(html), false);
+      }
     });
     assert.equal(flags.show_cookie_policy, false);
     assert.equal(flags.show_terms, false);
