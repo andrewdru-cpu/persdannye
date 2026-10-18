@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { previousSigningSecret } from "../lib/deploy-env.ts";
 import { bffSignatureMaterial, ParserUnavailableError, trustedClientIp } from "../lib/lead-guard.ts";
 import { postLeadToParser } from "../lib/leads-upstream.ts";
@@ -348,7 +348,7 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     assert.notEqual(seen[0].sig, seen[1].sig);
   });
 
-  it("reads the client IP only from x-real-ip or the forwarded-for value Vercel sets", () => {
+  it("prefers the Vercel address over a client x-real-ip and x-forwarded-for", () => {
     assert.equal(
       trustedClientIp(
         new Headers({
@@ -361,7 +361,7 @@ describe("parser request signatures", { concurrency: 1 }, () => {
           "true-client-ip": "198.51.100.2",
         })
       ),
-      "203.0.113.10"
+      "192.0.2.5"
     );
     assert.equal(
       trustedClientIp(
@@ -385,5 +385,105 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     );
     assert.equal(previousSigningSecret({ PD_BFF_SIGNING_SECRET_PREV: "a".repeat(31) } as NodeJS.ProcessEnv), null);
     assert.equal(previousSigningSecret({ PD_BFF_SIGNING_SECRET_PREV: `  ${"b".repeat(32)}  ` } as NodeJS.ProcessEnv), "b".repeat(32));
+  });
+
+  it("signs the fetch URL path when PARSER_API_BASE has a prefix", async () => {
+    process.env.PARSER_API_BASE = "https://host/api";
+    process.env.PARSER_API_TOKEN = "parser-token";
+    const realNow = Date.now;
+    Date.now = () => 1_700_000_000_000;
+    const calls: Array<{ url: string; headers: Headers; body: string | null }> = [];
+    const client = new Headers({
+      "x-real-ip": "198.51.100.8",
+      "x-forwarded-for": "198.51.100.9",
+      "x-vercel-forwarded-for": IP,
+    });
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({
+          url: String(input),
+          headers: new Headers(init?.headers),
+          body: typeof init?.body === "string" ? init.body : null,
+        });
+        return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+      }) as typeof fetch;
+
+      await parserFetch("/public/lead", { method: "POST", body: "{}" }, true, client);
+      await postLeadToParser({ name: "Test" }, client, "22222222-2222-4222-8222-222222222222");
+    } finally {
+      Date.now = realNow;
+    }
+
+    assert.equal(calls.length, 2);
+    for (const call of calls) {
+      const pathname = new URL(call.url).pathname;
+      assert.equal(call.url, "https://host/api/public/lead");
+      assert.equal(pathname, "/api/public/lead");
+      const ts = call.headers.get("x-pd-ts") ?? "";
+      const material = `${ts}\nPOST\n${pathname}\n${IP}\n${bodySha(call.body)}`;
+      const expected = createHmac("sha256", SECRET).update(material).digest("hex");
+      assert.equal(call.headers.get("x-pd-sig"), expected);
+      assert.equal(call.headers.get("x-pd-client-ip"), IP);
+      const withoutPrefix = createHmac("sha256", SECRET)
+        .update(`${ts}\nPOST\n/public/lead\n${IP}\n${bodySha(call.body)}`)
+        .digest("hex");
+      assert.notEqual(call.headers.get("x-pd-sig"), withoutPrefix);
+    }
+    assert.equal(calls[1].headers.get("idempotency-key"), "22222222-2222-4222-8222-222222222222");
+    assert.equal(calls[1].body, '{"name":"Test"}');
+  });
+
+  it("retries parserFetch only on 503 with Retry-After and re-signs that one call", async () => {
+    process.env.PARSER_API_TOKEN = "parser-token";
+    const key = "33333333-3333-4333-8333-333333333333";
+    mock.timers.enable({ apis: ["setTimeout", "Date"], now: 1_700_000_000_000 });
+    const calls: Array<{ headers: Headers; body: string | null }> = [];
+    const client = new Headers({ "x-real-ip": IP });
+    const init: RequestInit = {
+      method: "POST",
+      body: "{}",
+      headers: { "Idempotency-Key": key },
+    };
+    try {
+      globalThis.fetch = (async (_input: RequestInfo | URL, request?: RequestInit) => {
+        calls.push({
+          headers: new Headers(request?.headers),
+          body: typeof request?.body === "string" ? request.body : null,
+        });
+        if (calls.length === 1) {
+          return new Response(JSON.stringify({ error: "rate_limit_unavailable" }), {
+            status: 503,
+            headers: { "Retry-After": "1", "Content-Type": "application/json" },
+          });
+        }
+        return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+      }) as typeof fetch;
+
+      const pending = parserFetch("/api/scans", init, true, client);
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+      mock.timers.tick(1_000);
+      for (let i = 0; i < 40; i++) await Promise.resolve();
+      const res = await pending;
+      assert.equal(res.status, 201);
+      assert.equal(calls.length, 2);
+      assert.notEqual(calls[0].headers.get("x-pd-ts"), calls[1].headers.get("x-pd-ts"));
+      assert.notEqual(calls[0].headers.get("x-pd-sig"), calls[1].headers.get("x-pd-sig"));
+      assert.equal(calls[0].headers.get("idempotency-key"), key);
+      assert.equal(calls[1].headers.get("idempotency-key"), key);
+      assert.equal(calls[0].body, calls[1].body);
+    } finally {
+      mock.timers.reset();
+    }
+
+    for (const status of [401, 413, 429]) {
+      let n = 0;
+      globalThis.fetch = (async () => {
+        n += 1;
+        return new Response("{}", { status, headers: { "Retry-After": "1" } });
+      }) as typeof fetch;
+      const res = await parserFetch("/api/scans", { method: "GET" }, true, client);
+      assert.equal(res.status, status);
+      assert.equal(n, 1, String(status));
+    }
   });
 });

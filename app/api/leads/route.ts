@@ -88,7 +88,7 @@ export async function POST(req: Request) {
       marketingConsent: marketing,
     });
     if (exceedsPublicLeadBytes(JSON.stringify(publicBody))) {
-      return NextResponse.json({ error: "validation_failed" }, { status: 400 });
+      return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
     }
 
     if (parserSigningBlocked()) {

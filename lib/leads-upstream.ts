@@ -1,14 +1,14 @@
-import { applyParserHeaders, getParserBase } from "./parser-auth";
 import { applySignedClientHeaders, ParserUnavailableError, parserSigningBlocked } from "./lead-guard";
-import { PUBLIC_LEAD_PATH } from "./public-lead";
+import { applyParserHeaders, getParserBase } from "./parser-auth";
+import { exceedsPublicLeadBytes, PUBLIC_LEAD_PATH } from "./public-lead";
+import { attemptTimeoutMs, withUnavailableRetry } from "./upstream-retry";
 
 /**
- * One POST to `{PARSER_API_BASE}/public/lead`.
+ * POST `{PARSER_API_BASE}/public/lead`.
  * The parser no longer serves `/api/leads` (that route is 404), so this is the only lead URL.
- * `Idempotency-Key` is always forwarded. The parser ignores it until its own follow-up.
- * parserFetch retries 502/503/504/429, which would drop the original Retry-After and
- * repeat a lead, so this path never retries. A Redis outage is one 503
- * `rate_limit_unavailable` with `Retry-After: 30`.
+ * `Idempotency-Key` is set once and reused if a 503 with Retry-After is retried.
+ * That retry signs again (new ts, same body bytes). 401, 413, and 429 are not retried.
+ * An outgoing body over 16 KB is rejected here, before any signature or fetch.
  */
 export async function postLeadToParser(
   body: unknown,
@@ -20,20 +20,36 @@ export async function postLeadToParser(
   const base = getParserBase();
   if (!base) throw new Error("PARSER_API_BASE не задан");
 
+  const raw = JSON.stringify(body);
+  if (exceedsPublicLeadBytes(raw)) {
+    return Response.json({ error: "payload_too_large" }, { status: 413 });
+  }
+
+  const url = `${base}${PUBLIC_LEAD_PATH}`;
+  const startedAt = Date.now();
+  return withUnavailableRetry(startedAt, () => sendLead(url, raw, incoming, idempotencyKey, startedAt));
+}
+
+async function sendLead(
+  url: string,
+  raw: string,
+  incoming: Headers,
+  idempotencyKey: string,
+  startedAt: number
+): Promise<Response> {
   const headers = new Headers();
   applyParserHeaders(headers);
   headers.set("Accept", "application/json");
   headers.set("Content-Type", "application/json");
   headers.set("Idempotency-Key", idempotencyKey);
-  const raw = JSON.stringify(body);
-  applySignedClientHeaders(headers, incoming, "POST", PUBLIC_LEAD_PATH, raw);
+  applySignedClientHeaders(headers, incoming, "POST", url, raw);
 
-  return fetch(`${base}${PUBLIC_LEAD_PATH}`, {
+  return fetch(url, {
     method: "POST",
     headers,
     body: raw,
     cache: "no-store",
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(attemptTimeoutMs(startedAt)),
   });
 }
 
@@ -48,7 +64,7 @@ export async function unchanged429(upstream: Response): Promise<Response> {
   return new Response(body, { status: 429, headers });
 }
 
-const PASSTHROUGH = new Set([400, 409, 422, 503]);
+const PASSTHROUGH = new Set([400, 409, 413, 422, 503]);
 
 function leadErrorPayload(
   status: number,

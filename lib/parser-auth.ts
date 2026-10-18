@@ -7,6 +7,7 @@
  */
 
 import { applySignedClientHeaders, ParserUnavailableError, parserSigningBlocked } from "./lead-guard";
+import { attemptTimeoutMs, withUnavailableRetry } from "./upstream-retry";
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -78,7 +79,8 @@ async function parserRequest(
   path: string,
   init: RequestInit,
   auth: boolean,
-  client?: Headers
+  client: Headers | undefined,
+  startedAt: number
 ): Promise<Response> {
   if (parserSigningBlocked()) throw new ParserUnavailableError();
 
@@ -93,17 +95,18 @@ async function parserRequest(
     headers.set("Content-Type", "application/json");
   }
   const method = (init.method || "GET").toUpperCase();
-  // Fresh ts and signature for this attempt. Retries call parserRequest again.
-  // Hash init.body: that same value is the fetch body below.
-  if (client) applySignedClientHeaders(headers, client, method, path, init.body);
+  // Sign the URL fetch will open, so a base path prefix is part of the pathname.
+  // A retry calls parserRequest again: new ts, same body bytes, same Idempotency-Key.
+  const url = `${base}${path}`;
+  if (client) applySignedClientHeaders(headers, client, method, url, init.body);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
+  const timer = setTimeout(() => controller.abort(), attemptTimeoutMs(startedAt));
   if (init.signal) {
     init.signal.addEventListener("abort", () => controller.abort(), { once: true });
   }
   try {
-    return await fetch(`${base}${path}`, {
+    return await fetch(url, {
       ...init,
       headers,
       cache: "no-store",
@@ -112,10 +115,6 @@ async function parserRequest(
   } finally {
     clearTimeout(timer);
   }
-}
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 async function loginWithPassword(base: string, client?: Headers): Promise<string> {
@@ -133,9 +132,10 @@ async function loginWithPassword(base: string, client?: Headers): Promise<string
   });
   applyParserHeaders(headers);
   const body = JSON.stringify({ email, password });
-  if (client) applySignedClientHeaders(headers, client, "POST", "/api/auth/login", body);
+  const url = `${base}/api/auth/login`;
+  if (client) applySignedClientHeaders(headers, client, "POST", url, body);
 
-  const res = await fetch(`${base}/api/auth/login`, {
+  const res = await fetch(url, {
     method: "POST",
     headers,
     body,
@@ -193,29 +193,7 @@ export async function parserFetch(
   const base = getParserBase();
   if (!base) throw new Error("PARSER_API_BASE не задан");
 
-  let lastErr: unknown = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      let res = await parserRequest(base, path, init, auth, client);
-      if (auth && res.status === 401) {
-        clearParserToken();
-        res = await parserRequest(base, path, init, auth, client);
-      }
-      if ([502, 503, 504, 429].includes(res.status) && attempt < 2) {
-        await sleep(400 * 2 ** attempt);
-        continue;
-      }
-      return res;
-    } catch (err) {
-      lastErr = err;
-      const msg = err instanceof Error ? err.message : String(err);
-      const name = err instanceof Error ? err.name : "";
-      const retryable =
-        name === "AbortError" ||
-        /offline|ngrok|aborted|fetch|network|ECONNRESET|ETIMEDOUT/i.test(msg);
-      if (!retryable || attempt === 2) throw err;
-      await sleep(400 * 2 ** attempt);
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error("Parser request failed");
+  // 401, 413, and 429 are returned as-is. A 503 with Retry-After is retried once.
+  const startedAt = Date.now();
+  return withUnavailableRetry(startedAt, () => parserRequest(base, path, init, auth, client, startedAt));
 }

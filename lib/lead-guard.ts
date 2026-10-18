@@ -36,14 +36,21 @@ function firstAddress(value: string | null): string | null {
 }
 
 /**
- * Client address from a header Vercel sets, never from a header the browser can forge.
- * x-real-ip wins. Otherwise the first address in x-vercel-forwarded-for, which is
- * the X-Forwarded-For value Vercel writes. Client X-Forwarded-For, Forwarded,
- * and X-PD-Client-IP are not read: on a chain the left side, and sometimes the
- * right side, is attacker-controlled.
+ * Address that is signed.
+ *
+ * Vercel overwrites the incoming `X-Forwarded-For` header and does not keep a
+ * browser or upstream-proxy value there (that blocks spoofing). `x-real-ip` is
+ * the same address Vercel puts in `X-Forwarded-For`. `x-vercel-forwarded-for`
+ * is Vercel's own copy of that address: a proxy placed in front of Vercel can
+ * replace `X-Forwarded-For`, and this header still holds what Vercel recorded.
+ *
+ * When `x-vercel-forwarded-for` is present it is the signed IP. A client
+ * `x-real-ip` or `x-forwarded-for` on the same request does not replace it.
+ * `x-forwarded-for`, `Forwarded`, and `X-PD-Client-IP` are never read. Without
+ * the Vercel header, `x-real-ip` is the fallback.
  */
 export function trustedClientIp(headers: Headers): string | null {
-  return firstAddress(headers.get("x-real-ip")) ?? firstAddress(headers.get("x-vercel-forwarded-for"));
+  return firstAddress(headers.get("x-vercel-forwarded-for")) ?? firstAddress(headers.get("x-real-ip"));
 }
 
 /** Last IPv4 octet, or the IPv6 interface id, is cleared before anything is logged. */
@@ -116,7 +123,10 @@ export function bodySha256Hex(body: BodyInit | null | undefined): string {
 /**
  * The only signature string the BFF sends to the parser.
  * `ts\nMETHOD\npathname\nip\nsha256hex(body)`. METHOD is uppercased.
- * The path is the parser pathname, for example `/public/lead`, never `/api/leads`.
+ * The path is the pathname of the URL passed to fetch, never the Vercel route.
+ * A lead whose base has no prefix signs `/public/lead`, never `/api/leads`.
+ * A base such as `https://host/api` signs `/api/public/lead`, because that is
+ * the fetch URL path. Query, fragment, and a trailing slash are omitted.
  * The last field is the hash of the exact fetch body. No body hashes the empty string.
  */
 export function bffSignatureMaterial(

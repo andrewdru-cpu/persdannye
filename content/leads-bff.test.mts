@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { POST } from "../app/api/leads/route.ts";
 import { flags } from "./flags.ts";
 import { dataFilePath } from "../lib/data-dir.ts";
@@ -15,6 +15,7 @@ import {
   stripClientPdHeaders,
   trustedClientIp,
 } from "../lib/lead-guard.ts";
+import { classifyLeadUpstream, postLeadToParser } from "../lib/leads-upstream.ts";
 import { buildPublicLeadBody } from "../lib/public-lead.ts";
 
 const PROD = "https://persdannye.ru";
@@ -155,10 +156,32 @@ function forwardedLeadBody(): string {
   );
 }
 
-function signature(ts: string, ip: string, body: string, secret = SECRET) {
+function signature(ts: string, ip: string, body: string, secret = SECRET, path = "/public/lead") {
   const hash = createHash("sha256").update(body, "utf8").digest("hex");
-  const material = `${ts}\nPOST\n/public/lead\n${ip}\n${hash}`;
+  const material = `${ts}\nPOST\n${path}\n${ip}\n${hash}`;
   return createHmac("sha256", secret).update(material).digest("hex");
+}
+
+async function flushMicrotasks() {
+  for (let i = 0; i < 40; i++) await Promise.resolve();
+}
+
+async function withFakeClock(now: number, run: (tick: (ms: number) => Promise<void>) => Promise<void>) {
+  mock.timers.enable({ apis: ["setTimeout", "Date"], now });
+  try {
+    await run(async (ms) => {
+      await flushMicrotasks();
+      mock.timers.tick(ms);
+      await flushMicrotasks();
+    });
+  } finally {
+    mock.timers.reset();
+  }
+}
+
+function leadOfBytes(bytes: number): { pad: string } {
+  const overhead = Buffer.byteLength(JSON.stringify({ pad: "" }), "utf8");
+  return { pad: "a".repeat(bytes - overhead) };
 }
 
 describe("POST /api/leads", { concurrency: 1 }, () => {
@@ -412,7 +435,9 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(res.status, 201);
     assert.equal(calls.length, 1);
     const headers = calls[0];
-    assert.equal(headers.get("x-pd-client-ip"), RAW_IP);
+    assert.equal(headers.get("x-pd-client-ip"), "192.0.2.5");
+    assert.equal(headers.get("x-pd-sig"), signature(headers.get("x-pd-ts") || "", "192.0.2.5", forwardedLeadBody()));
+    assert.equal(headers.get("x-pd-client-ip") === RAW_IP, false);
     assert.equal(headers.get("x-pd-client-ip") === FORGED_IP, false);
     for (const [key, value] of headers.entries()) {
       assert.equal(key.toLowerCase() === "x-pd-note", false);
@@ -541,7 +566,7 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
       keys.push(new Headers(init?.headers).get("idempotency-key") || "");
       return new Response(JSON.stringify({ error: "rate_limit_unavailable" }), {
         status: 503,
-        headers: { "Content-Type": "application/json", "Retry-After": "30" },
+        headers: { "Content-Type": "application/json" },
       });
     }) as typeof fetch;
     const first = await POST(leadRequest(PROD));
@@ -603,14 +628,14 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(mailBody.phone, undefined);
   });
 
-  it("passes parser lead errors through and does not retry 503", async () => {
+  it("passes parser lead errors through and does not retry a 503 without Retry-After", async () => {
     const cases: Array<{ status: number; body: string; retry?: string }> = [
       { status: 400, body: JSON.stringify({ error: "validation_failed", fields: { email: "invalid" }, email: EMAIL }) },
       { status: 409, body: JSON.stringify({ error: "idempotency_in_progress", detail: EMAIL }) },
       { status: 422, body: JSON.stringify({ error: "idempotency_key_reused" }) },
       { status: 422, body: JSON.stringify({ error: "consent_required" }) },
       { status: 422, body: JSON.stringify({ error: "consent_version_unknown" }) },
-      { status: 503, body: JSON.stringify({ error: "rate_limit_unavailable", detail: EMAIL }), retry: "9" },
+      { status: 503, body: JSON.stringify({ error: "rate_limit_unavailable", detail: EMAIL }) },
     ];
     for (const item of cases) {
       let calls = 0;
@@ -638,37 +663,197 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
       assert.equal(payload.email, undefined);
       assertNoLeadPii(JSON.stringify(payload));
       assert.equal(storedCopies(EMAIL), before);
-      if (item.status === 503) assert.equal(res.headers.get("retry-after"), "9");
+      if (item.status === 503) assert.equal(res.headers.get("retry-after"), null);
     }
   });
 
-  it("forwards Redis 503 rate_limit_unavailable with Retry-After 30 and does not retry", async () => {
+  it("retries 503 with Retry-After once, re-signs, and keeps the body and Idempotency-Key", async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      calls.push({ url: String(input), init: init ?? {} });
-      return new Response(JSON.stringify({ error: "rate_limit_unavailable", detail: EMAIL }), {
+    await withFakeClock(1_700_000_000_000, async (tick) => {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ url: String(input), init: init ?? {} });
+        if (calls.length === 1) {
+          return new Response(JSON.stringify({ error: "rate_limit_unavailable", detail: EMAIL }), {
+            status: 503,
+            headers: { "Content-Type": "application/json", "Retry-After": "1" },
+          });
+        }
+        return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+      }) as typeof fetch;
+
+      const pending = POST(leadRequest(PROD));
+      await tick(1_000);
+      const res = await pending;
+      assert.equal(res.status, 201);
+    });
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, calls[1].url);
+    const first = outgoingHeaders(calls[0].init);
+    const second = outgoingHeaders(calls[1].init);
+    const body = String(calls[0].init.body);
+    assert.equal(String(calls[1].init.body), body);
+    assert.equal(Buffer.byteLength(body, "utf8"), Buffer.byteLength(String(calls[1].init.body), "utf8"));
+    assert.equal(first.get("idempotency-key"), IDEMPOTENCY);
+    assert.equal(second.get("idempotency-key"), IDEMPOTENCY);
+    assert.notEqual(first.get("x-pd-ts"), second.get("x-pd-ts"));
+    assert.equal(first.get("x-pd-ts"), "1700000000");
+    assert.equal(second.get("x-pd-ts"), "1700000001");
+    assert.notEqual(first.get("x-pd-sig"), second.get("x-pd-sig"));
+    assert.equal(first.get("x-pd-sig"), signature(first.get("x-pd-ts") || "", RAW_IP, body));
+    assert.equal(second.get("x-pd-sig"), signature(second.get("x-pd-ts") || "", RAW_IP, body));
+    assertLogsMasked();
+    assert.equal(logs.join("\n").includes(first.get("x-pd-sig") || ""), false);
+    assert.equal(logs.join("\n").includes(SECRET), false);
+  });
+
+  it("returns an error after two 503 responses and does not call the parser a third time", async () => {
+    const calls: Array<{ init: RequestInit }> = [];
+    await withFakeClock(1_700_000_000_000, async (tick) => {
+      globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ init: init ?? {} });
+        return new Response(JSON.stringify({ error: "rate_limit_unavailable", detail: EMAIL }), {
+          status: 503,
+          headers: {
+            "Content-Type": "application/json",
+            "Retry-After": "1",
+            "X-Should-Not-Leak": EMAIL,
+          },
+        });
+      }) as typeof fetch;
+
+      const pending = POST(leadRequest(PROD));
+      await tick(1_000);
+      const res = await pending;
+      assert.equal(res.status, 503);
+      assert.equal(res.headers.get("x-should-not-leak"), null);
+      assert.equal(res.headers.get("retry-after"), "1");
+      assert.deepEqual(await res.json(), { error: "rate_limit_unavailable" });
+      assertNoLeadPii(JSON.stringify({ error: "rate_limit_unavailable" }));
+    });
+    assert.equal(calls.length, 2);
+    assert.equal(outgoingHeaders(calls[0].init).get("idempotency-key"), IDEMPOTENCY);
+    assert.equal(outgoingHeaders(calls[1].init).get("idempotency-key"), IDEMPOTENCY);
+    assert.equal(String(calls[0].init.body), String(calls[1].init.body));
+  });
+
+  it("does not retry when Retry-After does not fit under the 50s deadline", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ error: "rate_limit_unavailable", detail: EMAIL, redis: "down" }), {
         status: 503,
-        headers: {
-          "Content-Type": "application/json",
-          "Retry-After": "30",
-          "X-Should-Not-Leak": EMAIL,
-        },
+        headers: { "Content-Type": "application/json", "Retry-After": "60" },
       });
     }) as typeof fetch;
 
-    const before = storedCopies(EMAIL);
     const res = await POST(leadRequest(PROD));
+    assert.equal(calls, 1);
     assert.equal(res.status, 503);
+    const payload = await res.text();
+    assert.equal(payload.includes("rate_limit_unavailable"), false);
+    assert.equal(payload.includes("redis"), false);
+    assert.equal(payload.includes(EMAIL), false);
+    assert.deepEqual(JSON.parse(payload), { error: "unavailable" });
+    assert.equal(res.headers.get("retry-after"), "60");
+  });
+
+  it("does not retry parser 401, 413, or 429", async () => {
+    for (const status of [401, 413, 429]) {
+      let calls = 0;
+      globalThis.fetch = (async () => {
+        calls += 1;
+        return new Response("{}", {
+          status,
+          headers: { "Content-Type": "application/json", "Retry-After": "1" },
+        });
+      }) as typeof fetch;
+      const res = await POST(leadRequest(PROD));
+      assert.equal(calls, 1, String(status));
+      assert.equal(res.ok, false, String(status));
+      if (status === 413) assert.equal(res.status, 413);
+      if (status === 429) assert.equal(res.status, 429);
+      if (status === 401) assert.equal(res.status, 502);
+      assert.equal((await res.text()).includes(EMAIL), false);
+    }
+  });
+
+  it("rejects an outgoing body over 16384 bytes before signing and accepts 16384", async () => {
+    const headers = new Headers({ "x-real-ip": RAW_IP });
+    let calls = 0;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls += 1;
+      assert.equal(Buffer.byteLength(String(init?.body), "utf8"), 16384);
+      assert.equal(new Headers(init?.headers).get("x-pd-sig") == null, false);
+      return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    const allowed = leadOfBytes(16384);
+    assert.equal(Buffer.byteLength(JSON.stringify(allowed), "utf8"), 16384);
+    const ok = await postLeadToParser(allowed, headers, IDEMPOTENCY);
+    assert.equal(ok.status, 201);
+    assert.equal(calls, 1);
+
+    calls = 0;
+    const oversized = leadOfBytes(16385);
+    assert.equal(Buffer.byteLength(JSON.stringify(oversized), "utf8"), 16385);
+    const upstream = await postLeadToParser(oversized, headers, IDEMPOTENCY);
+    assert.equal(calls, 0);
+    assert.equal(upstream.status, 413);
+    const classified = await classifyLeadUpstream(upstream);
+    assert.equal(classified.kind, "response");
+    if (classified.kind === "response") {
+      assert.equal(classified.response.status, 413);
+      assert.deepEqual(await classified.response.json(), { error: "payload_too_large" });
+    }
+  });
+
+  it("does not let a client x-real-ip or x-forwarded-for replace the signed Vercel IP", async () => {
+    const vercelIp = "192.0.2.44";
+    const clientRealIp = "198.51.100.21";
+    const clientForwarded = "198.51.100.8, 203.0.113.99";
+    const calls: Array<{ init: RequestInit }> = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ init: init ?? {} });
+      return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    const res = await POST(
+      leadRequest(PROD, {
+        "x-real-ip": clientRealIp,
+        "x-forwarded-for": clientForwarded,
+        "x-vercel-forwarded-for": vercelIp,
+      })
+    );
+    assert.equal(res.status, 201);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, "https://parser.example/public/lead");
-    assert.equal(calls[0].url.includes("/api/leads"), false);
-    const headers = outgoingHeaders(calls[0].init);
-    assert.equal(headers.get("idempotency-key"), IDEMPOTENCY);
-    assert.equal(res.headers.get("retry-after"), "30");
-    assert.equal(res.headers.get("x-should-not-leak"), null);
-    assert.deepEqual(await res.json(), { error: "rate_limit_unavailable" });
-    assert.equal(storedCopies(EMAIL), before);
-    assertLogsMasked();
+    const sent = outgoingHeaders(calls[0].init);
+    const body = String(calls[0].init.body);
+    assert.equal(sent.get("x-pd-client-ip"), vercelIp);
+    assert.equal(sent.get("x-pd-sig"), signature(sent.get("x-pd-ts") || "", vercelIp, body));
+    assert.equal(sent.get("x-pd-client-ip") === clientRealIp, false);
+    assert.equal(body.includes(clientForwarded), false);
+  });
+
+  it("does not log the signing key, X-PD-Sig, or the client IP", async () => {
+    const calls: Array<{ init: RequestInit }> = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ init: init ?? {} });
+      return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    const res = await POST(leadRequest(PROD));
+    assert.equal(res.status, 201);
+    const sent = outgoingHeaders(calls[0].init);
+    const sig = sent.get("x-pd-sig") || "";
+    assert.match(sig, /^[0-9a-f]{64}$/);
+    const text = logs.join("\n");
+    assert.equal(text.includes(SECRET), false);
+    assert.equal(text.includes(sig), false);
+    assert.equal(text.includes(RAW_IP), false);
+    assert.equal(text.includes(FORGED_IP), false);
+    assert.equal(text.includes(FORWARDED_FOR), false);
+    assert.equal(text.toLowerCase().includes("x-pd-sig"), false);
   });
 
   it("rejects a lead body larger than 16KB", async () => {
