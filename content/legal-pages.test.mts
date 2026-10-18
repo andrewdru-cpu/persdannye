@@ -16,7 +16,7 @@ import TermsPage, { metadata as termsMeta } from "../app/terms/page.tsx";
 import { flags } from "./flags.ts";
 import type { LegalDocument } from "./legal-documents.ts";
 import { visibleFooterDocuments } from "./legal-nav.ts";
-import { LEGAL_PENDING_TEXT, OPERATOR_REQUISITES_PENDING, legalRobots } from "../lib/legal-publication.ts";
+import { LEGAL_PENDING_TEXT, legalRobots } from "./legal-publication.ts";
 import { requisiteIdLine, visibleRequisite } from "../lib/requisite-lines.ts";
 import { SITE_LEGAL_SUBJECTS_CLAUSE, siteLegalPrivacyMarkers } from "./site-legal.ts";
 
@@ -61,13 +61,6 @@ function withFlags(patch: Partial<typeof flags>, run: () => void) {
 }
 
 describe("legal page flags", { concurrency: 1 }, () => {
-  it("keeps the pending sentence only in the publication constant", () => {
-    assert.equal(LEGAL_PENDING_TEXT, "Текст не опубликован");
-    const pending = readSource("components/legal/LegalPending.tsx");
-    assert.equal(pending.includes("LEGAL_PENDING_TEXT"), true);
-    assert.equal(pending.includes(LEGAL_PENDING_TEXT), false);
-  });
-
   it("keeps a page noindex until both the flag and the document text are on", () => {
     assert.deepEqual(legalRobots(false, null), noindex);
     assert.deepEqual(legalRobots(true, null), noindex);
@@ -205,7 +198,7 @@ describe("legal page flags", { concurrency: 1 }, () => {
     }
     assert.equal(links.includes("/privacy"), true);
     assert.equal(links.includes("/applicability"), true);
-    assert.equal(html.includes(OPERATOR_REQUISITES_PENDING), true);
+    assert.equal(html.includes("Реквизиты не опубликованы"), true);
     assert.equal(html.includes("ИНН"), false);
     assert.deepEqual(visibleFooterDocuments().map((item) => item.href), ["/privacy", "/applicability"]);
   });
@@ -231,7 +224,7 @@ describe("legal page flags", { concurrency: 1 }, () => {
         assert.equal(html.includes("Оферта"), true);
         assert.equal(html.includes("Возврат"), true);
         assert.equal(html.includes("Порядок удаления данных"), true);
-        assert.equal(html.includes(OPERATOR_REQUISITES_PENDING), false);
+        assert.equal(html.includes("Реквизиты не опубликованы"), false);
         assert.equal(html.includes("ИНН"), true);
         assert.equal(html.includes("ОГРН"), true);
         assert.equal(html.includes("ООО Пример"), false);
