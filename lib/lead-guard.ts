@@ -63,12 +63,17 @@ function firstAddress(value: string | null): string | null {
  *
  * Those two headers are read only when `VERCEL=1`, `x-vercel-forwarded-for`
  * first and then `x-real-ip`. A client `x-forwarded-for` is never read. When
- * `VERCEL` is not `1`, the signed address is the fixed {@link DEV_CLIENT_IP}
- * and the request headers are ignored. If both Vercel headers are missing or
- * not addresses, the result is null and the parser must not be called.
+ * `VERCEL` is not `1` and this is not a prod deploy, the signed address is the
+ * fixed {@link DEV_CLIENT_IP} and the request headers are ignored. On
+ * `PD_DEPLOY_ENV=prod` without `VERCEL=1` the result is null: the fixed
+ * address is not signed and the parser must not be called. If both Vercel
+ * headers are missing or not addresses, the result is null as well.
  */
 export function trustedClientIp(headers: Headers, env: NodeJS.ProcessEnv = process.env): string | null {
-  if (env.VERCEL !== "1") return DEV_CLIENT_IP;
+  if (env.VERCEL !== "1") {
+    if (env.PD_DEPLOY_ENV === "prod") return null;
+    return DEV_CLIENT_IP;
+  }
   return firstAddress(headers.get("x-vercel-forwarded-for")) ?? firstAddress(headers.get("x-real-ip"));
 }
 

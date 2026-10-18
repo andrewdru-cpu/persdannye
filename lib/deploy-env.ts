@@ -1,8 +1,8 @@
 /** Keep in sync with scripts/reject-production-mocks.mjs. NODE_ENV is not a deploy flag. */
 export const MIN_SIGNING_SECRET_BYTES = 32;
 
-/** Space, tab, or newline at either end. The value is never trimmed and never logged. */
-const SIGNING_SECRET_EDGE = /^[ \t\n]|[ \t\n]$/;
+/** Space, tab, CR, LF, NBSP, or BOM at either end. The value is never trimmed and never logged. */
+const SIGNING_SECRET_EDGE = /^[ \t\r\n\u00A0\uFEFF]|[ \t\r\n\u00A0\uFEFF]$/;
 
 export const SIGNING_SECRET_NAMES = ["PD_BFF_SIGNING_SECRET", "PD_BFF_SIGNING_SECRET_PREV"] as const;
 

@@ -6,7 +6,7 @@
  * AbortError and TimeoutError become 503 with no parser detail.
  */
 
-/** Platform handler limit. Matches `maxDuration` on POST /api/leads. */
+/** Platform handler limit. Matches `maxDuration` on POST /api/leads and on /api/checks. */
 export const HANDLER_LIMIT_MS = 60_000;
 
 /** Left unused before {@link HANDLER_LIMIT_MS}. A retry needs at least this much after the wait and the second attempt. */

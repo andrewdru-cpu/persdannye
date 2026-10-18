@@ -393,6 +393,16 @@ describe("parser request signatures", { concurrency: 1 }, () => {
       () => assertSigningSecrets({ PD_BFF_SIGNING_SECRET: `\t${"k".repeat(32)}` } as NodeJS.ProcessEnv),
       (err: unknown) => err instanceof Error && err.message === "PD_BFF_SIGNING_SECRET" && err.message.includes("k") === false
     );
+    const cr = `${"k".repeat(32)}\r`;
+    assert.equal(signingSecret({ PD_BFF_SIGNING_SECRET: cr } as NodeJS.ProcessEnv), null);
+    assert.throws(
+      () => assertSigningSecrets({ PD_BFF_SIGNING_SECRET: cr } as NodeJS.ProcessEnv),
+      (err: unknown) => err instanceof Error && err.message === "PD_BFF_SIGNING_SECRET" && err.message.includes("k") === false
+    );
+    assert.equal(
+      trustedClientIp(new Headers({ "x-real-ip": "203.0.113.10" }), { PD_DEPLOY_ENV: "prod" }),
+      null
+    );
     assert.equal(
       trustedClientIp(new Headers({ "x-vercel-forwarded-for": "203.0.113.10:443" }), { VERCEL: "1" }),
       "203.0.113.10"

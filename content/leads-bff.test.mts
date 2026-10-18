@@ -831,7 +831,26 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(sent.get("x-pd-client-ip") === "203.0.113.10", false);
   });
 
-  it("does not retry when Retry-After does not fit under the 50s deadline", async () => {
+  it("returns 503 and does not sign the dev address when PD_DEPLOY_ENV=prod and VERCEL is not 1", async () => {
+    delete process.env.VERCEL;
+    process.env.PD_DEPLOY_ENV = "prod";
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    const headers = new Headers({
+      "x-vercel-forwarded-for": "192.0.2.44",
+      "x-real-ip": RAW_IP,
+    });
+    assert.equal(trustedClientIp(headers), null);
+    const res = await POST(leadRequest(PROD, { "x-vercel-forwarded-for": "192.0.2.44" }));
+    assert.equal(calls, 0);
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { error: "unavailable" });
+  });
+
+  it("does not retry when Retry-After is 60 seconds and the 60s handler limit has no room", async () => {
     let calls = 0;
     globalThis.fetch = (async () => {
       calls += 1;

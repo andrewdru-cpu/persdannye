@@ -111,6 +111,7 @@ describe("production mock env", () => {
       ["PD_BFF_SIGNING_SECRET", ` ${body}`],
       ["PD_BFF_SIGNING_SECRET", `${body}\t`],
       ["PD_BFF_SIGNING_SECRET", `${body}\n`],
+      ["PD_BFF_SIGNING_SECRET", `${body}\r`],
       ["PD_BFF_SIGNING_SECRET_PREV", `\n${body}`],
     ];
     for (const [name, value] of cases) {

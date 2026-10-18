@@ -5,6 +5,7 @@ import { getCheckPdf } from "@/lib/parser-client";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /**
  * Proxies parser GET /api/scans/{id}/pdf with server Bearer.

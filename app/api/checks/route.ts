@@ -7,6 +7,7 @@ import { createCheck, publicCheckJob } from "@/lib/parser-client";
 import { normalizeUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const bodySchema = z.object({
   url: z.string().min(3, "Укажите URL сайта"),

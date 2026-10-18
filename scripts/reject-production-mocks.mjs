@@ -20,8 +20,8 @@ export function productionMockKeys(env = process.env) {
   });
 }
 
-/** Space, tab, or newline at either end. Keep in sync with lib/deploy-env.ts. The value is not trimmed. */
-const SIGNING_SECRET_EDGE = /^[ \t\n]|[ \t\n]$/;
+/** Space, tab, CR, LF, NBSP, or BOM at either end. Keep in sync with lib/deploy-env.ts. The value is not trimmed. */
+const SIGNING_SECRET_EDGE = /^[ \t\r\n\u00A0\uFEFF]|[ \t\r\n\u00A0\uFEFF]$/;
 const SIGNING_SECRET_NAMES = ["PD_BFF_SIGNING_SECRET", "PD_BFF_SIGNING_SECRET_PREV"];
 
 /** Variable name when a signing secret has edge whitespace, otherwise null. */
