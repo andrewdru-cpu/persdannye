@@ -4,6 +4,12 @@ import http from "node:http";
 import path from "node:path";
 import test from "node:test";
 import { CONSENT_POLICY_LABEL, CONSENT_TEXT, CONSENT_TEXT_VERSION } from "../content/consent";
+import { formCopy } from "../content/blocks";
+import {
+  DIRECT_LEAD_CONSENT_TEXT_VERSION,
+  DIRECT_MARKETING_CONSENT_TEXT_VERSION,
+  LEAD_CONSENT_TEXT_VERSION,
+} from "../lib/consent";
 import { createMockPublicApi } from "../scripts/mock-public-api.mjs";
 import { rejectDirectModeBff } from "../lib/bff-guard";
 import { checkForDisplay } from "../lib/check-view";
@@ -46,12 +52,16 @@ test("consent version stays the persdannye#4 string and the client cannot replac
     "Я даю согласие на обработку персональных данных в соответствии с Политикой обработки персональных данных"
   );
   assert.equal(CONSENT_TEXT.endsWith(CONSENT_POLICY_LABEL), true);
-  const libConsent = fs.readFileSync(path.join(root, "lib/consent.ts"), "utf8");
-  assert.equal(libConsent.includes("2026-10-11"), false);
+  assert.equal(LEAD_CONSENT_TEXT_VERSION, CONSENT_TEXT_VERSION);
+  assert.equal(DIRECT_LEAD_CONSENT_TEXT_VERSION, "2026-10-11-lead");
+  assert.equal(DIRECT_MARKETING_CONSENT_TEXT_VERSION, "2026-10-11-marketing");
+  assert.notEqual(DIRECT_LEAD_CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION);
   const checker = fs.readFileSync(path.join(root, "components/check/UrlChecker.tsx"), "utf8");
   const leadForm = fs.readFileSync(path.join(root, "components/landing/LeadForm.tsx"), "utf8");
-  assert.equal(checker.includes("CONSENT_TEXT"), true);
-  assert.equal(leadForm.includes("CONSENT_TEXT"), true);
+  assert.equal(checker.includes("runCheck"), true);
+  assert.equal(leadForm.includes('consentHref="/consent-lead"'), true);
+  assert.equal(leadForm.includes("leadConsentTail"), true);
+  assert.equal(formCopy.leadConsentTail, "для ответа на мою заявку");
   assert.equal(checker.includes("textVersion"), false);
   assert.equal(leadForm.includes("textVersion"), false);
 
@@ -73,7 +83,9 @@ test("consent version stays the persdannye#4 string and the client cannot replac
     textVersion: forged,
     smartToken: "tok",
   });
-  assert.equal((lead.consent as { text_version: string }).text_version, CONSENT_TEXT_VERSION);
+  assert.equal((lead.consent as { text_version: string }).text_version, DIRECT_LEAD_CONSENT_TEXT_VERSION);
+  assert.equal("marketing_consent" in lead, false);
+  assert.equal("company" in lead, false);
 
   const stored = normalizeScanContact({
     email: "a@b.c",
@@ -299,6 +311,10 @@ test("direct mode sends PD only to /public/* and keeps report_url", async () => 
     assert.equal(leadBody.email, email);
     assert.equal(leadBody.check_id, created.id);
     assert.equal(leadBody.consent.accepted, true);
+    assert.equal(leadBody.consent.text_version, "2026-10-11-lead");
+    assert.equal("company" in leadBody, false);
+    assert.equal("marketing_consent" in leadBody, false);
+    assert.match(mock.requests[3].idempotencyKey, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   } finally {
     restore();
     await mock.close();

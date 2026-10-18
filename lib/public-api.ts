@@ -12,16 +12,30 @@ import { domainFromUrl, normalizeUrl } from "./utils";
 import { getPublicApiBase } from "./forms-mode";
 import { publicCheckRecord } from "./public-check-schema";
 import { CONSENT_TEXT_VERSION } from "../content/consent";
+import {
+  DIRECT_LEAD_CONSENT_TEXT_VERSION,
+  DIRECT_MARKETING_CONSENT_TEXT_VERSION,
+} from "./consent";
 
 export class PublicApiError extends Error {
   status: number;
   code?: string;
+  fields?: string[];
+  retryAfter?: number;
 
-  constructor(message: string, status = 0, code?: string) {
+  constructor(
+    message: string,
+    status = 0,
+    code?: string,
+    fields?: string[],
+    retryAfter?: number
+  ) {
     super(message);
     this.name = "PublicApiError";
     this.status = status;
     this.code = code;
+    this.fields = fields;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -34,20 +48,41 @@ export type PublicContactInput = {
 export type PublicCheckInput = PublicContactInput & {
   url: string;
   consentAccepted?: boolean;
+  marketingConsent?: boolean;
   textVersion?: string;
   smartToken?: string;
 };
 
 export type PublicLeadInput = PublicContactInput & {
+  /** Ignored on the direct wire: the lead consent does not list a company. */
   company?: string;
   url?: string;
   checkId?: string;
   message?: string;
   source?: string;
   consentAccepted?: boolean;
+  /**
+   * Direct mode sends marketing_consent only when this is true and email is set.
+   * `false` and a missing email omit the key. `accepted: false` is never sent.
+   */
+  marketingAccepted?: boolean;
+  /** Ignored. Direct lead consent version is fixed in the client. */
   textVersion?: string;
   smartToken?: string;
+  /** UUID v4. Reused for retries of the same payload. */
+  idempotencyKey?: string;
 };
+
+const LEAD_BODY_LIMIT = 16 * 1024;
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function createIdempotencyKey(): string {
+  return crypto.randomUUID();
+}
+
+export function isIdempotencyKey(value: string): boolean {
+  return UUID_V4.test(value);
+}
 
 type FetchLike = typeof fetch;
 
@@ -129,33 +164,74 @@ export function buildPublicCheckBody(input: PublicCheckInput): Record<string, un
   return body;
 }
 
+function leadSiteUrl(value: string | undefined): string | undefined {
+  const raw = value?.trim() || "";
+  if (!raw) return undefined;
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(withScheme);
+  } catch {
+    throw new PublicApiError("Некорректный URL", 400, "validation_failed", ["url"]);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new PublicApiError("Некорректный URL", 400, "validation_failed", ["url"]);
+  }
+  return parsed.toString();
+}
+
+function requireLeadConsent(accepted: boolean | undefined): {
+  accepted: true;
+  text_version: string;
+} {
+  if (accepted !== true) {
+    throw new PublicApiError(
+      "Нужно согласие на обработку персональных данных",
+      422,
+      "consent_required"
+    );
+  }
+  return { accepted: true, text_version: DIRECT_LEAD_CONSENT_TEXT_VERSION };
+}
+
 export function buildPublicLeadBody(input: PublicLeadInput): Record<string, unknown> {
   const name = input.name?.trim() || "";
   const email = input.email?.trim() || "";
-  if (name.length < 2) {
-    throw new PublicApiError("Укажите имя", 400, "bad_name");
+  const phone = input.phone?.trim() || "";
+  if (name.length < 2 || name.length > 120) {
+    throw new PublicApiError("Укажите имя", 400, "validation_failed", ["name"]);
   }
-  if (!email.includes("@")) {
-    throw new PublicApiError("Некорректный email", 400, "bad_email");
+  if (!email && !phone) {
+    throw new PublicApiError("Укажите телефон или e-mail", 400, "validation_failed", ["email", "phone"]);
   }
-  const phone = input.phone?.trim() || undefined;
-  const company = input.company?.trim() || undefined;
-  const site = input.url?.trim() || undefined;
+  if (email && (email.length > 200 || !email.includes("@"))) {
+    throw new PublicApiError("Некорректный email", 400, "validation_failed", ["email"]);
+  }
+  if (phone.length > 40) {
+    throw new PublicApiError("Некорректный телефон", 400, "validation_failed", ["phone"]);
+  }
+  const site = leadSiteUrl(input.url);
   const message = input.message?.trim() || undefined;
   const source = input.source?.trim() || undefined;
   const checkId = input.checkId?.trim() || undefined;
-  return {
+  const body: Record<string, unknown> = {
     name,
-    email,
+    ...(email ? { email } : {}),
     ...(phone ? { phone } : {}),
-    ...(company ? { company } : {}),
     ...(site ? { url: site } : {}),
     ...(checkId ? { check_id: checkId } : {}),
     ...(message ? { message } : {}),
     ...(source ? { source } : {}),
     [SMARTCAPTCHA_TOKEN_FIELD]: requireCaptcha(input.smartToken),
-    consent: requireConsent(input.consentAccepted),
+    consent: requireLeadConsent(input.consentAccepted),
   };
+  if (email && input.marketingAccepted === true) {
+    body.marketing_consent = {
+      accepted: true,
+      text_version: DIRECT_MARKETING_CONSENT_TEXT_VERSION,
+    };
+  }
+  return body;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -177,6 +253,13 @@ export function publicErrorCode(body: unknown): string | undefined {
   return undefined;
 }
 
+export function publicErrorFields(body: unknown): string[] {
+  const record = asRecord(body);
+  const fields = record?.fields;
+  if (!Array.isArray(fields)) return [];
+  return fields.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
 export function publicErrorMessage(status: number, body: unknown): string {
   const code = publicErrorCode(body);
   if (code === "consent_required") {
@@ -185,6 +268,12 @@ export function publicErrorMessage(status: number, body: unknown): string {
   if (code === "consent_version_unknown") {
     return "Обновите страницу и повторите";
   }
+  if (code === "validation_failed") return "Проверьте поля формы";
+  if (code === "idempotency_key_invalid") return "Не удалось отправить заявку. Обновите страницу и повторите.";
+  if (code === "idempotency_key_reused") return "Данные заявки изменились. Отправьте форму ещё раз.";
+  if (code === "idempotency_in_progress") return "Заявка ещё отправляется. Повторите через несколько секунд.";
+  if (code === "origin_forbidden") return "Отправка с этого адреса недоступна";
+  if (code === "captcha_unavailable") return "Проверка временно недоступна. Попробуйте ещё раз.";
   if (status === 429 || code === "rate_limited" || code === "too_many_requests") {
     return "Слишком много запросов. Попробуйте чуть позже.";
   }
@@ -329,24 +418,47 @@ export function mergeReportUrl(previous: CheckJob | null | undefined, next: Chec
   return next;
 }
 
+function retryAfterSeconds(header: string | null): number | undefined {
+  if (!header) return undefined;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds;
+  const date = Date.parse(header);
+  if (Number.isNaN(date)) return undefined;
+  return Math.max(0, Math.ceil((date - Date.now()) / 1000));
+}
+
+function retryDelayMs(header: string | null, attempt: number): number {
+  const seconds = retryAfterSeconds(header);
+  if (seconds !== undefined) return Math.min(seconds * 1000, 1500);
+  return Math.min(200 * 2 ** attempt, 800);
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function postPublic(
   path: string,
   body: Record<string, unknown>,
-  fetchImpl: FetchLike
-): Promise<{ status: number; json: unknown }> {
+  fetchImpl: FetchLike,
+  headers: Record<string, string> = {}
+): Promise<{ status: number; json: unknown; retryAfter: string | null }> {
+  const payload = JSON.stringify(body);
   const res = await fetchImpl(joinPublicApi(path), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...headers,
     },
-    body: JSON.stringify(body),
+    body: payload,
     cache: "no-store",
     mode: "cors",
     credentials: "omit",
   });
   const json = await readJson(res);
-  return { status: res.status, json };
+  return { status: res.status, json, retryAfter: res.headers.get("retry-after") };
 }
 
 export async function createPublicCheck(
@@ -384,11 +496,54 @@ export async function getPublicCheck(
 export async function createPublicLead(
   input: PublicLeadInput,
   fetchImpl: FetchLike = fetch
-): Promise<{ ok: true }> {
-  const body = buildPublicLeadBody(input);
-  const { status, json } = await postPublic("/public/lead", body, fetchImpl);
-  if (status !== 201) {
-    throw new PublicApiError(publicErrorMessage(status, json), status, publicErrorCode(json));
+): Promise<{ ok: true; id: string }> {
+  const key = input.idempotencyKey?.trim() || createIdempotencyKey();
+  if (!isIdempotencyKey(key)) {
+    throw new PublicApiError(
+      publicErrorMessage(400, { error: "idempotency_key_invalid" }),
+      400,
+      "idempotency_key_invalid"
+    );
   }
-  return { ok: true };
+  const body = buildPublicLeadBody(input);
+  const raw = JSON.stringify(body);
+  if (new TextEncoder().encode(raw).length > LEAD_BODY_LIMIT) {
+    throw new PublicApiError("Сообщение слишком длинное", 400, "validation_failed", ["message"]);
+  }
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    let status = 0;
+    let json: unknown = null;
+    let retryAfter: string | null = null;
+    try {
+      const response = await postPublic("/public/lead", body, fetchImpl, { "Idempotency-Key": key });
+      status = response.status;
+      json = response.json;
+      retryAfter = response.retryAfter;
+    } catch (err) {
+      if (attempt === maxAttempts - 1) throw err;
+      await sleep(retryDelayMs(null, attempt));
+      continue;
+    }
+    if (status === 201) {
+      const record = asRecord(json);
+      const id = record && typeof record.id === "string" ? record.id : "";
+      return { ok: true, id };
+    }
+    const code = publicErrorCode(json);
+    const fields = publicErrorFields(json);
+    const retry = (status === 409 && code === "idempotency_in_progress") || (status === 503 && code === "captcha_unavailable");
+    if (retry && attempt < maxAttempts - 1) {
+      await sleep(retryDelayMs(retryAfter, attempt));
+      continue;
+    }
+    throw new PublicApiError(
+      publicErrorMessage(status, json),
+      status,
+      code,
+      fields,
+      retryAfterSeconds(retryAfter)
+    );
+  }
+  throw new PublicApiError("Сервис проверки временно недоступен", 0);
 }

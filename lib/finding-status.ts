@@ -197,6 +197,11 @@ export function normalizeFindings(value: unknown, showAmounts?: unknown): Findin
     if (reason) finding.reason = reason;
     const basis = readStatusBasis(record.status_basis);
     if (basis) finding.statusBasis = basis;
+    const rawBasis = textField(record.status_basis, 40);
+    if (rawBasis) finding.status_basis = rawBasis;
+    const remediation = textField(record.remediation, 2000);
+    if (remediation) finding.remediation = remediation;
+    if (record.fine === null || typeof record.fine === "number") finding.fine = record.fine as number | null;
     const meta = asRecord(record.meta);
     const disclaimer = textField(meta?.disclaimer, 1000);
     if (disclaimer) finding.disclaimer = disclaimer;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
@@ -35,16 +35,33 @@ export function hasAnalyticsConsent(): boolean {
   return loadConsent()?.analytics === true;
 }
 
+const choiceClass = "min-h-11 w-full flex-1";
+
 export function CookieBanner() {
   const [visible, setVisible] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [analytics, setAnalytics] = useState(false);
   const [marketing, setMarketing] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const existing = loadConsent();
     if (!existing) setVisible(true);
   }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    dialogRef.current?.focus();
+  }, [visible]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (visible) root.dataset.cookieOpen = "true";
+    else delete root.dataset.cookieOpen;
+    return () => {
+      delete root.dataset.cookieOpen;
+    };
+  }, [visible]);
 
   function acceptAll() {
     const c: CookieConsent = {
@@ -83,14 +100,16 @@ export function CookieBanner() {
     <AnimatePresence>
       {visible && (
         <motion.div
+          ref={dialogRef}
+          tabIndex={-1}
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 40, opacity: 0 }}
-          className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-3xl rounded-2xl border border-white/10 bg-ink-900/95 p-4 shadow-2xl backdrop-blur-xl md:inset-x-auto md:bottom-6 md:p-5"
+          className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-3xl rounded-2xl border border-white/10 bg-ink-900/95 p-4 shadow-2xl backdrop-blur-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200 md:inset-x-auto md:bottom-6 md:p-5"
           role="dialog"
           aria-label="Настройки cookie"
         >
-          <p className="text-sm leading-relaxed text-white/80">
+          <p className="text-sm leading-relaxed text-white/85">
             Мы используем необходимые cookie для работы сайта. Аналитические и
             маркетинговые cookie включаем только после вашего согласия. Подробнее — в{" "}
             <Link href="/cookies" className="text-amber-300 underline-offset-2 hover:underline">
@@ -103,7 +122,7 @@ export function CookieBanner() {
             .
           </p>
           {advanced && (
-            <div className="mt-3 space-y-2 rounded-xl bg-black/30 p-3 text-sm text-white/75">
+            <div className="mt-3 space-y-2 rounded-xl bg-black/30 p-3 text-sm text-white/85">
               <label className="flex items-center justify-between gap-3">
                 <span>Необходимые (всегда активны)</span>
                 <input type="checkbox" checked disabled className="accent-amber-400" />
@@ -128,19 +147,22 @@ export function CookieBanner() {
               </label>
             </div>
           )}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" onClick={acceptAll}>
-              Принять все
+          {/* «Отклонить» = только необходимые (analytics и marketing false). Обе кнопки одного размера и веса. Необязательные категории по умолчанию не отмечены. */}
+          <div className="mt-4 flex gap-2">
+            <Button size="md" variant="secondary" className={choiceClass} onClick={acceptAll}>
+              Принять
             </Button>
-            <Button size="sm" variant="secondary" onClick={necessaryOnly}>
-              Только необходимые
+            <Button size="md" variant="secondary" className={choiceClass} onClick={necessaryOnly}>
+              Отклонить
             </Button>
+          </div>
+          <div className="mt-2">
             {!advanced ? (
-              <Button size="sm" variant="ghost" onClick={() => setAdvanced(true)}>
+              <Button size="md" variant="secondary" className="min-h-11 w-full" onClick={() => setAdvanced(true)}>
                 Настроить
               </Button>
             ) : (
-              <Button size="sm" variant="secondary" onClick={saveCustom}>
+              <Button size="md" variant="secondary" className="min-h-11 w-full" onClick={saveCustom}>
                 Сохранить выбор
               </Button>
             )}

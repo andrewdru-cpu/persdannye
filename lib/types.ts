@@ -5,6 +5,12 @@ export type FindingSeverity = "critical" | "high" | "medium" | "low" | "info";
 /** How firmly the parser states a violation. */
 export type StatusBasis = "proven" | "likely";
 
+export interface FindingEvidence {
+  url?: string;
+  selector?: string;
+  note?: string;
+}
+
 export interface Finding {
   rule_id: string;
   /**
@@ -27,6 +33,8 @@ export interface Finding {
   reason?: string;
   /** `proven` or `likely`. Only `likely` gets the lawyer sentence. */
   statusBasis?: StatusBasis;
+  /** confirmed | likely | interpretation. Чужое значение на экране нейтральное. */
+  status_basis?: string;
   /** `meta.disclaimer`, shown under the finding when the parser sent one. */
   disclaimer?: string;
   /** Norm reference, for example «ч. 3 ст. 13.11 КоАП». Shown whenever present. */
@@ -38,6 +46,11 @@ export interface Finding {
    * has show_amounts true, and fine_amount_text is a non-empty string.
    */
   fineAmount?: string;
+  /** null — сумму не показываем. Число — только при включённом флаге штрафов. */
+  fine?: number | null;
+  remediation?: string | null;
+  /** Хранится на сервере. В браузер и на экран не попадает. */
+  collects_pd?: boolean;
 }
 
 /**
@@ -50,6 +63,17 @@ export interface InventoryItem {
   detail?: string;
 }
 
+export interface Recommendation {
+  id: string;
+  category?: string;
+  title: string;
+  text: string;
+  evidence?: FindingEvidence[];
+  /** Не показываем как счётчик. */
+  count?: number;
+  priority?: string;
+}
+
 /** Contacts captured on the landing at the moment a scan is created. */
 export interface ScanContact {
   name?: string;
@@ -58,6 +82,8 @@ export interface ScanContact {
   source?: string;
   consent?: boolean;
   consent_text_version?: string;
+  marketing_consent?: boolean;
+  marketing_consent_text_version?: string;
 }
 
 export interface CheckJob {
@@ -75,6 +101,7 @@ export interface CheckJob {
    * block is hidden. These never count as violations.
    */
   inventory?: InventoryItem[];
+  recommendations?: Recommendation[];
   /**
    * Done scan: at least one legacy finding (no status) or an explicit
    * violation status. `needs_check`, `not_checked`, and unknown statuses
@@ -109,13 +136,16 @@ export interface CheckJob {
 export interface Lead {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone?: string;
   company?: string;
   url?: string;
   checkId?: string;
   message?: string;
   consent: boolean;
+  consent_text_version?: string;
+  marketing_consent?: boolean;
+  marketing_consent_text_version?: string;
   createdAt: string;
   source: string;
 }

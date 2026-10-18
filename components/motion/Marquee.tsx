@@ -1,23 +1,14 @@
 "use client";
 
 import { useReducedMotion } from "framer-motion";
+import { marqueeItems } from "@/content/landing";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_ITEMS = [
-  "1000+ компаний",
-  "правила РКН — каждый день",
-  "аудит 152-ФЗ",
-  "cookie · формы · политики",
-  "устраняем вместе с юристами",
-  "экспресс-скан за минуты",
-  "закрытый контур проверки",
-];
-
 export function TrustMarquee({
-  items = DEFAULT_ITEMS,
+  items = marqueeItems,
   className,
 }: {
-  items?: string[];
+  items?: readonly string[];
   className?: string;
 }) {
   const reduce = useReducedMotion();
@@ -29,7 +20,7 @@ export function TrustMarquee({
         "relative overflow-hidden border-y border-amber-200/15 bg-gradient-to-r from-amber-400/[0.07] via-[#14110c]/40 to-amber-400/[0.07] py-4 md:py-5",
         className
       )}
-      aria-label="Доверие и факты"
+      aria-label="Коротко о проверке"
     >
       <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 bg-gradient-to-r from-ink-950 to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 bg-gradient-to-l from-ink-950 to-transparent" />

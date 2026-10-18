@@ -7,7 +7,8 @@ import {
   normalizePhase,
   type ParserPhase,
 } from "./phases";
-import type { CheckJob, ScanContact } from "./types";
+import type { CheckJob, Recommendation, ScanContact } from "./types";
+import { findingsForClient } from "./check-report";
 import {
   jobHasRisks,
   normalizeFindings,
@@ -24,7 +25,7 @@ import {
   saveScanContact,
 } from "./scan-contacts";
 import { randomUUID } from "crypto";
-import { CONSENT_TEXT_VERSION, ScanConsentRequiredError } from "./consent";
+import { CONSENT_TEXT_VERSION, marketingConsentForParser, ScanConsentRequiredError } from "./consent";
 
 export { isParserConfigured, getParserBase };
 
@@ -45,6 +46,7 @@ interface UpstreamScan {
   score?: number | null;
   findings?: unknown;
   inventory?: unknown;
+  recommendations?: Recommendation[];
   push?: boolean;
   mode?: unknown;
   rules_version?: unknown;
@@ -81,6 +83,8 @@ export type CreateScanLead = {
   phone?: string | null;
   consent?: boolean | null;
   consent_text_version?: string | null;
+  marketing_consent?: boolean | null;
+  marketing_consent_text_version?: string | null;
 };
 
 /**
@@ -88,7 +92,7 @@ export type CreateScanLead = {
  * role-based or empty — those fields are not part of the UI.
  */
 export function publicCheckJob(job: CheckJob): Omit<CheckJob, "contact"> {
-  const view = { ...job } as CheckJob & {
+  const view = { ...job, findings: findingsForClient(job.findings) } as CheckJob & {
     phone?: unknown;
     email?: unknown;
     lead?: unknown;
@@ -143,6 +147,7 @@ function mapUpstream(
   const domain = domainFromUrl(url);
   const phase = normalizePhase(data.phase || data.status || "queued") as ParserPhase | string;
   const findings = normalizeFindings(data.findings, data.show_amounts);
+  const recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
   const push = Boolean(data.push);
   const hasRisks = jobHasRisks({ phase, push: data.push, findings });
 
@@ -160,6 +165,7 @@ function mapUpstream(
     score: data.score ?? null,
     findings,
     inventory: normalizeInventory(data.inventory),
+    recommendations,
     hasRisks,
     push,
     staticFallback: readStaticFallback(data.mode),
@@ -183,6 +189,24 @@ export function mapUpstreamScan(data: UpstreamScan, url = "https://example.com")
 
 export const SITE_FORM_ORIGIN = "site_form";
 
+/**
+ * Лид для парсера. Согласие на рассылку — явное поле со своей версией текста.
+ * marketing_consent_at не шлём: время проставляет парсер.
+ * Свой стоп-лист не пишем: отписка — flow /u/ парсера и тот же стоп-лист.
+ * Версию согласия подменяет сайт: клиент не может прислать свою.
+ */
+export function leadForParser(contact: ScanContact): Record<string, unknown> {
+  return {
+    ...(contact.name ? { name: contact.name } : {}),
+    ...(contact.email ? { email: contact.email } : {}),
+    ...(contact.phone ? { phone: contact.phone } : {}),
+    consent: true,
+    consent_text_version: CONSENT_TEXT_VERSION,
+    source: "landing",
+    ...marketingConsentForParser(contact.marketing_consent === true),
+  };
+}
+
 function scanCreateBody(
   url: string,
   contact: ScanContact | null,
@@ -191,16 +215,7 @@ function scanCreateBody(
   const body: Record<string, unknown> = { url };
   if (opts.origin) body.origin = SITE_FORM_ORIGIN;
   if (opts.mode) body.mode = "quick";
-  if (opts.lead && contact) {
-    body.lead = {
-      ...(contact.name ? { name: contact.name } : {}),
-      ...(contact.email ? { email: contact.email } : {}),
-      ...(contact.phone ? { phone: contact.phone } : {}),
-      consent: true,
-      consent_text_version: CONSENT_TEXT_VERSION,
-      source: "landing",
-    };
-  }
+  if (opts.lead && contact) body.lead = leadForParser(contact);
   return body;
 }
 
@@ -344,6 +359,7 @@ export async function createCheck(
     phaseMessage: friendlyPhaseMessage("queued", domain),
     score: null,
     findings: [],
+    recommendations: [],
     hasRisks: false,
     pdfReady: false,
     warning: data.warning ?? null,

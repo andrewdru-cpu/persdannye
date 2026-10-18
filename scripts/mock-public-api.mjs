@@ -17,14 +17,15 @@ import http from "node:http";
 import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
-function send(res, status, body, contentType = "application/json; charset=utf-8") {
+function send(res, status, body, contentType = "application/json; charset=utf-8", extraHeaders = {}) {
   const payload = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
   res.writeHead(status, {
     "Content-Type": contentType,
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, Accept",
+    "Access-Control-Allow-Headers": "Content-Type, Accept, Idempotency-Key",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Cache-Control": "no-store",
+    ...extraHeaders,
   });
   res.end(payload);
 }
@@ -49,8 +50,10 @@ function hasContacts(body) {
 export function createMockPublicApi() {
   /** @type {Map<string, { url: string, reportUrl: string }>} */
   const checks = new Map();
-  /** @type {{ method: string, path: string, body: unknown }[]} */
+  /** @type {{ method: string, path: string, body: unknown, idempotencyKey: string }[]} */
   const requests = [];
+  /** @type {Map<string, { hash: string, id: string, tries: number }>} */
+  const leadKeys = new Map();
 
   const server = http.createServer(async (req, res) => {
     if (!req.url || !req.method) {
@@ -73,7 +76,12 @@ export function createMockPublicApi() {
         body = null;
       }
     }
-    requests.push({ method: req.method, path: url.pathname, body });
+    requests.push({
+      method: req.method,
+      path: url.pathname,
+      body,
+      idempotencyKey: typeof req.headers["idempotency-key"] === "string" ? req.headers["idempotency-key"] : "",
+    });
 
     if (req.method === "POST" && url.pathname === "/public/check") {
       if (!body || typeof body.smart_token !== "string" || !body.smart_token.trim()) {
@@ -212,16 +220,107 @@ export function createMockPublicApi() {
     }
 
     if (req.method === "POST" && url.pathname === "/public/lead") {
-      const consentCode = consentError(body);
-      if (consentCode) {
-        send(res, 422, { error: consentCode });
+      if (Buffer.byteLength(raw) > 16 * 1024) {
+        send(res, 400, { error: "validation_failed", fields: ["message"] });
         return;
       }
-      if (typeof body?.smart_token !== "string" || !body.smart_token.trim()) {
+      const idempotencyKey = req.headers["idempotency-key"];
+      const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (typeof idempotencyKey !== "string" || !uuidV4.test(idempotencyKey)) {
+        send(res, 400, { error: "idempotency_key_invalid" });
+        return;
+      }
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        send(res, 400, { error: "validation_failed", fields: ["name"] });
+        return;
+      }
+      const allowed = new Set([
+        "name",
+        "email",
+        "phone",
+        "url",
+        "check_id",
+        "message",
+        "source",
+        "consent",
+        "marketing_consent",
+        "smart_token",
+      ]);
+      const extra = Object.keys(body).filter((key) => !allowed.has(key));
+      if (extra.length) {
+        send(res, 400, { error: "validation_failed", fields: extra });
+        return;
+      }
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const email = typeof body.email === "string" ? body.email.trim() : "";
+      const phone = typeof body.phone === "string" ? body.phone.trim() : "";
+      const fields = [];
+      if (name.length < 2 || name.length > 120) fields.push("name");
+      if (!email && !phone) fields.push("email", "phone");
+      if (email && (email.length > 200 || !email.includes("@"))) fields.push("email");
+      if (phone.length > 40) fields.push("phone");
+      if (typeof body.url === "string" && body.url && !/^https?:\/\//i.test(body.url)) fields.push("url");
+      if (fields.length) {
+        send(res, 400, { error: "validation_failed", fields });
+        return;
+      }
+      const consent = body.consent;
+      if (!consent || consent.accepted !== true) {
+        send(res, 422, { error: "consent_required" });
+        return;
+      }
+      if (consent.text_version !== "2026-10-11-lead") {
+        send(res, 422, { error: "consent_version_unknown" });
+        return;
+      }
+      if ("marketing_consent" in body) {
+        const marketing = body.marketing_consent;
+        if (!email || !marketing || marketing.accepted !== true || marketing.text_version !== "2026-10-11-marketing") {
+          send(res, 400, { error: "validation_failed", fields: ["marketing_consent"] });
+          return;
+        }
+      }
+      if (typeof body.smart_token !== "string" || !body.smart_token.trim()) {
         send(res, 400, { error: "captcha_required" });
         return;
       }
-      send(res, 201, { id: randomBytes(16).toString("hex") });
+      const hash = JSON.stringify(body);
+      const previous = leadKeys.get(idempotencyKey);
+      if (previous && previous.hash !== hash) {
+        send(res, 422, { error: "idempotency_key_reused" });
+        return;
+      }
+      if (previous?.id) {
+        send(res, 201, { ok: true, id: previous.id });
+        return;
+      }
+      const token = body.smart_token;
+      const tries = previous?.tries || 0;
+      if (token === "busy" && tries < 1) {
+        leadKeys.set(idempotencyKey, { hash, id: "", tries: tries + 1 });
+        send(res, 409, { error: "idempotency_in_progress" });
+        return;
+      }
+      if (token === "unavailable" && tries < 1) {
+        leadKeys.set(idempotencyKey, { hash, id: "", tries: tries + 1 });
+        send(res, 503, { error: "captcha_unavailable" }, "application/json; charset=utf-8", { "Retry-After": "0" });
+        return;
+      }
+      if (token === "limit") {
+        send(res, 429, { error: "rate_limited" }, "application/json; charset=utf-8", { "Retry-After": "1" });
+        return;
+      }
+      if (token === "bad") {
+        send(res, 403, { error: "captcha_failed" });
+        return;
+      }
+      if (token === "origin") {
+        send(res, 403, { error: "origin_forbidden" });
+        return;
+      }
+      const id = randomBytes(16).toString("hex");
+      leadKeys.set(idempotencyKey, { hash, id, tries: tries + 1 });
+      send(res, 201, { ok: true, id });
       return;
     }
 

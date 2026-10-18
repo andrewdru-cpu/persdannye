@@ -6,7 +6,11 @@ export const company = {
   inn: "7700000000",
   ogrn: "1207700000000",
   address: "123112, г. Москва, Пресненская наб., д. 12, этаж 1, офис 1",
-  email: "info@persdannye.ru",
+  /**
+   * Временный общий ящик. Конкретного адреса нет, поле пустое и на сайт не выводится.
+   * Запросы субъектов — только privacy_contact_email.
+   */
+  email: "",
   /**
    * Contact for subject requests. Keep empty until the mailbox domain is owned.
    * Empty: nothing in production, `TODO: privacy_contact_email` on Vercel preview.

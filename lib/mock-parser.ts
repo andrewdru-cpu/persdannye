@@ -1,5 +1,5 @@
 import { jobHasRisks, normalizeFindings, normalizeInventory } from "./finding-status";
-import type { CheckJob, Finding } from "./types";
+import type { CheckJob, Finding, Recommendation } from "./types";
 import { friendlyPhaseMessage, LIMITED_SCAN_MESSAGE, phaseIndex, PHASE_STEPS } from "./phases";
 import { domainFromUrl } from "./utils";
 
@@ -7,26 +7,110 @@ const MOCK_FINDINGS: Finding[] = [
   {
     rule_id: "P01",
     title: "Отсутствует политика обработки ПДн",
-    fact: "На сайте не найдена политика / документ с обязательными сведениями по ст. 18.1 152-ФЗ.",
+    fact: "На сайте не найден документ со сведениями по ст. 18.1 152-ФЗ.",
     severity: "critical",
+    status: "fail",
+    status_basis: "confirmed",
+    fine: 150000,
+    remediation: "Опубликуйте политику и ссылку на неё с каждой страницы.",
+    collects_pd: true,
   },
   {
     rule_id: "C02",
     title: "Cookie без раздельного согласия",
-    fact: "Аналитические и маркетинговые cookie включаются до получения согласия пользователя.",
+    fact: "Аналитические cookie включаются до выбора пользователя.",
     severity: "high",
+    status: "fail",
+    status_basis: "likely",
+    fine: null,
+    remediation: "Держите аналитику выключенной, пока человек не примет её.",
   },
   {
     rule_id: "F03",
-    title: "Форма без явного согласия",
-    fact: "Лид-форма отправляет ПДн без отдельной отметки согласия на обработку.",
+    title: "Форма без отдельной отметки",
+    fact: "Поле согласия не отделено от отправки формы.",
     severity: "high",
+    status: "fail",
+    status_basis: "interpretation",
+    fine: null,
   },
   {
-    rule_id: "T04",
-    title: "Нет сведений об операторе",
-    fact: "В подвале / политике не указаны наименование, ИНН/ОГРН и контакты оператора.",
+    rule_id: "I05",
+    title: "Справочная отметка о счётчике",
+    fact: "На странице есть упоминание счётчика. Это справочная строка.",
+    severity: "info",
+    status: "info",
+    status_basis: "confirmed",
+    fine: 50000,
+  },
+  {
+    rule_id: "N06",
+    title: "Блок не открылся",
+    fact: "Страница отдала ошибку, пункт остался без результата.",
     severity: "medium",
+    status: "not_checked",
+    status_basis: "confirmed",
+    fine: 10000,
+  },
+  {
+    rule_id: "X07",
+    title: "Пункт к этому сайту не относится",
+    fact: "Правило про витрину комиссий на этом типе сайта не применяется.",
+    severity: "low",
+    status: "not_applicable",
+    status_basis: "confirmed",
+    fine: 1000,
+    collects_pd: false,
+  },
+  {
+    rule_id: "U08",
+    title: "Незнакомая пометка источника",
+    fact: "Источник прислал основание, которого нет в списке.",
+    severity: "low",
+    status: "fail",
+    status_basis: "needs_review",
+    fine: null,
+  },
+];
+
+const MOCK_RECOMMENDATIONS: Recommendation[] = [
+  {
+    id: "r-low",
+    category: "docs",
+    title: "Уточнить подпись у формы",
+    text: "Короткая подпись рядом с полем. Письмо на ivan@example.ru не копируйте в отчёт.",
+    evidence: [
+      { url: "https://example.com/form", selector: "form .hint", note: "Черновик: +7 (999) 111-22-33" },
+    ],
+    count: 2,
+    priority: "low",
+  },
+  {
+    id: "r-high",
+    category: "policy",
+    title: "Добавить ссылку на политику",
+    text: "Ссылка в подвале на опубликованный документ.",
+    evidence: [{ url: "https://example.com/", selector: "footer", note: "[контактные данные скрыты]" }],
+    count: 5,
+    priority: "high",
+  },
+  {
+    id: "r-unknown",
+    category: "other",
+    title: "Проверить вложение",
+    text: "Файл политики не разобран.",
+    priority: "urgent",
+    count: 1,
+    evidence: [],
+  },
+  {
+    id: "r-med",
+    category: "cookie",
+    title: "Разделить категории cookie",
+    text: "Необходимые cookie оставьте, остальные — по выбору.",
+    priority: "medium",
+    count: 3,
+    evidence: [{ selector: "input[name=email]", note: "owner@site.ru" }],
   },
 ];
 
@@ -251,6 +335,7 @@ export function mockGetScan(id: string): CheckJob | null {
           : state.variant === "review"
             ? REVIEW_FINDINGS
             : MOCK_FINDINGS;
+    const recommendations = state.variant === "ok" ? [] : MOCK_RECOMMENDATIONS;
     const score = state.variant === "ok" ? 96 : state.variant === "partial" ? 71 : state.variant === "review" ? 90 : 42;
     const partialNotice = state.variant === "partial" || state.variant === "review";
     return {
@@ -261,6 +346,7 @@ export function mockGetScan(id: string): CheckJob | null {
       phaseMessage: friendlyPhaseMessage("done", domain),
       score,
       findings,
+      recommendations,
       hasRisks: jobHasRisks({ phase: "done", push: state.variant === "risks", findings }),
       push: state.variant === "risks",
       staticFallback: partialNotice,

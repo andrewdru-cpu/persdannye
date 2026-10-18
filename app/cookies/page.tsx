@@ -1,18 +1,24 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { flags } from "@/content/flags";
+import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
 
 export const metadata: Metadata = {
   title: "Политика cookie",
+  robots: flags.show_cookie_policy ? undefined : { index: false, follow: false },
 };
 
 export default function CookiesPage() {
+  if (!flags.show_cookie_policy) {
+    return <LegalPending title="Политика cookie" />;
+  }
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">Политика cookie</h1>
-      <p className="mt-2 text-sm text-white/45">
+      <p className="mt-2 text-sm text-white/80">
         Редакция от 21.09.2026 · {company.legalName}
       </p>
 
@@ -75,13 +81,13 @@ export default function CookiesPage() {
 
       <Sec title="7. Контакты">
         <p>
-          {company.email}
           {privacyContactLabel() ? (
             <>
-              , ДПО: <PrivacyContactLink />
+              <PrivacyContactLink />
+              {", "}
             </>
           ) : null}
-          , тел. {company.phone}.
+          тел. {company.phone}.
         </p>
       </Sec>
     </article>

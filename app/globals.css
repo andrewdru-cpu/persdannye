@@ -33,12 +33,42 @@ html {
   scroll-behavior: smooth;
 }
 
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  z-index: 80;
+  transform: translateY(-150%);
+  border-radius: 0.75rem;
+  background: #f3e6c4;
+  color: #1a140c;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+}
+
+.skip-link:focus {
+  transform: none;
+  outline: 2px solid #f7f1e6;
+  outline-offset: 2px;
+}
+
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #e7d3a1;
+  outline-offset: 2px;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   min-height: 100vh;
   position: relative;
+}
+
+body.has-sticky-cta {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom));
 }
 
 h1,

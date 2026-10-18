@@ -1,4 +1,5 @@
 import { CONSENT_TEXT_VERSION } from "../content/consent";
+import { MARKETING_CONSENT_TEXT_VERSION } from "./consent";
 import { checkForDisplay } from "./check-view";
 import { isDirectForms } from "./forms-mode";
 import {
@@ -29,6 +30,12 @@ function bffCheckBody(input: CheckFormInput): Record<string, unknown> {
         phone,
         consent: true,
         consent_text_version: CONSENT_TEXT_VERSION,
+        ...(input.marketingConsent
+          ? {
+              marketing_consent: true,
+              marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
+            }
+          : {}),
       },
     };
   }
@@ -99,9 +106,11 @@ export async function runLead(
     await createPublicLead(input, fetchImpl);
     return;
   }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (input.idempotencyKey) headers["Idempotency-Key"] = input.idempotencyKey;
   const res = await fetchImpl("/api/leads", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(bffLeadBody(input)),
   });
   if (!res.ok) throw new Error(await readError(res, "Ошибка отправки"));
