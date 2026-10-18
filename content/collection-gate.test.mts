@@ -305,9 +305,21 @@ describe("personal data collection gate", { concurrency: false }, () => {
     delete process.env.PARSER_API_BASE;
     delete process.env.PARSER_API_URL;
 
+    const previousOrigins = process.env.ALLOWED_ORIGINS;
+    process.env.ALLOWED_ORIGINS = "http://localhost:3000";
     const leadRes = await postLead(
-      post("/api/leads", { name: "Анна", email: PROBE_EMAIL, consent: false }),
+      new Request("http://localhost:3000/api/leads", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+          "idempotency-key": "22222222-2222-4222-8222-222222222222",
+        },
+        body: JSON.stringify({ name: "Анна", email: PROBE_EMAIL, consent: false }),
+      }),
     );
+    if (previousOrigins === undefined) delete process.env.ALLOWED_ORIGINS;
+    else process.env.ALLOWED_ORIGINS = previousOrigins;
     assert.equal(leadRes.status, 400);
     const leadBody = (await leadRes.json()) as { error?: string };
     assert.equal(leadBody.error, "Нужно согласие на обработку персональных данных");

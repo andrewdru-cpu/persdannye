@@ -178,11 +178,16 @@ function scanCreateBody(
   return body;
 }
 
-async function postScan(body: Record<string, unknown>): Promise<Response> {
-  return parserFetch("/api/scans", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+async function postScan(body: Record<string, unknown>, client?: Headers): Promise<Response> {
+  return parserFetch(
+    "/api/scans",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+    true,
+    client
+  );
 }
 
 /**
@@ -192,7 +197,8 @@ async function postScan(body: Record<string, unknown>): Promise<Response> {
  */
 async function createUpstreamScan(
   url: string,
-  contact: ScanContact | null
+  contact: ScanContact | null,
+  client?: Headers
 ): Promise<UpstreamCreate> {
   const attempts: Record<string, unknown>[] = [
     scanCreateBody(url, contact, { mode: true, lead: Boolean(contact) }),
@@ -205,7 +211,7 @@ async function createUpstreamScan(
   let lastStatus = 0;
   let lastText = "";
   for (let i = 0; i < attempts.length; i++) {
-    const res = await postScan(attempts[i]);
+    const res = await postScan(attempts[i], client);
     if (res.ok) return parserJson<UpstreamCreate>(res);
 
     const text = await readParserBody(res);
@@ -258,7 +264,8 @@ function remember(checkId: string, meta: JobMeta) {
 
 export async function createCheck(
   url: string,
-  lead?: CreateScanLead | null
+  lead?: CreateScanLead | null,
+  client?: Headers
 ): Promise<CheckJob> {
   const createdAt = new Date().toISOString();
   const domain = domainFromUrl(url);
@@ -273,7 +280,7 @@ export async function createCheck(
     return { ...job, id, createdAt, contact };
   }
 
-  const data = await createUpstreamScan(url, contact);
+  const data = await createUpstreamScan(url, contact, client);
   const scanId = data.scan_id || data.id;
   if (!scanId) {
     throw new Error("Parser API не вернул scan_id");
@@ -311,7 +318,7 @@ export async function createCheck(
   };
 }
 
-export async function getCheck(id: string): Promise<CheckJob | null> {
+export async function getCheck(id: string, client?: Headers): Promise<CheckJob | null> {
   const meta = jobMeta.get(id);
 
   if (meta?.mock || !isParserConfigured()) {
@@ -322,7 +329,7 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
   }
 
   const scanId = meta?.scanId || id;
-  const res = await parserFetch(`/api/scans/${scanId}`, { method: "GET" });
+  const res = await parserFetch(`/api/scans/${scanId}`, { method: "GET" }, true, client);
   if (res.status === 404) {
     const text = await res.text().catch(() => "");
     throwIfNgrok(res, text);
@@ -350,17 +357,23 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
 }
 
 export async function getCheckPdf(
-  id: string
+  id: string,
+  client?: Headers
 ): Promise<{ buffer: Buffer; filename: string; contentType: string } | null> {
   if (!isParserConfigured()) return null;
   const meta = jobMeta.get(id);
   if (meta?.mock) return null;
 
   const scanId = meta?.scanId || id;
-  const res = await parserFetch(`/api/scans/${scanId}/pdf`, {
-    method: "GET",
-    headers: { Accept: "application/pdf" },
-  });
+  const res = await parserFetch(
+    `/api/scans/${scanId}/pdf`,
+    {
+      method: "GET",
+      headers: { Accept: "application/pdf" },
+    },
+    true,
+    client
+  );
   if (res.status === 404 || res.status === 409) {
     const text = await res.text().catch(() => "");
     throwIfNgrok(res, text);

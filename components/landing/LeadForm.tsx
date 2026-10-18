@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
 import { LEAD_CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { idempotencyKeyForBody, submitLeadOnce } from "@/lib/lead-submit";
 
 export function LeadForm({
   defaultUrl = "",
@@ -28,6 +29,7 @@ export function LeadForm({
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const attempt = useRef<{ key: string; body: string } | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -40,32 +42,34 @@ export function LeadForm({
       return;
     }
     setStatus("loading");
+    const leadBody = {
+      name,
+      email: mail || undefined,
+      phone: tel || undefined,
+      url: url.trim() || undefined,
+      checkId,
+      message: message.trim() || undefined,
+      consent: true,
+      consent_text_version: LEAD_CONSENT_TEXT_VERSION,
+      source,
+      marketing_consent: marketingConsent && marketingOptIn ? true : false,
+      ...(marketingConsent && marketingOptIn
+        ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
+        : {}),
+    };
+    const nextAttempt = idempotencyKeyForBody(attempt.current, JSON.stringify(leadBody));
+    attempt.current = nextAttempt;
     try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email: mail || undefined,
-          phone: tel || undefined,
-          url: url.trim() || undefined,
-          checkId,
-          message: message.trim() || undefined,
-          consent: true,
-          consent_text_version: LEAD_CONSENT_TEXT_VERSION,
-          source,
-          marketing_consent: marketingConsent && marketingOptIn ? true : false,
-          ...(marketingConsent && marketingOptIn
-            ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
-            : {}),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Ошибка отправки");
+      const result = await submitLeadOnce(leadBody, nextAttempt.key);
+      if (!result.ok) {
+        setStatus("error");
+        setError(result.message);
+        return;
+      }
       setStatus("ok");
-    } catch (err) {
+    } catch {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError("Ошибка отправки");
     }
   }
 

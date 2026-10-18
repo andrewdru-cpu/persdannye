@@ -33,7 +33,7 @@ Client never sees tokens. Browser calls only:
 - `POST /api/checks` `{ "url": "https://…", "lead?": { "name", "email", "phone", "consent", "consent_text_version" } }` → check job. Any contact without `consent: true` is rejected with 400
 - `GET /api/checks/[id]` → status / findings (poll every 1.5s while active); on every `phase=done`, BFF notifies Telegram
 - `GET /api/checks/[id]/pdf` → server-side PDF proxy (parser Bearer never reaches the browser)
-- `POST /api/leads` → lead with required consent + Telegram notify
+- `POST /api/leads` → lead with required consent + Telegram notify. `Origin` must exactly match one entry in `ALLOWED_ORIGINS`
 
 When `PARSER_API_BASE` is set, the BFF:
 
@@ -50,7 +50,34 @@ Without a public `PARSER_API_BASE` the site uses a polished mock parser.
 
 Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`): every finished landing scan («Новый клиент с лендинга»: domain, score, risks yes/no, findings, contacts, link) plus new-lead alerts. PDF `sendDocument` only when `pdf_ready` and the scan has risks. Missing Telegram env is a logged skip, not a crash.
 
-Public without auth on parser: `GET {BASE}/api/health` only.
+Public without the service bearer: `GET {BASE}/api/health` and `POST {BASE}/public/lead`. The browser never calls the parser.
+
+### `POST /api/leads` origin and client IP
+
+`ALLOWED_ORIGINS` is a comma-separated list of exact `Origin` values: the production site and each Vercel preview origin (`https://persdannye.ru,https://<preview>.vercel.app`). There is no wildcard. A missing `Origin`, the value `null`, any other host, and a lookalike such as `https://persdannye.vercel.app.evil.com` get **403**. Local dev needs `http://localhost:3000` in that list.
+
+When `PARSER_API_BASE` is set, an accepted lead is forwarded **once** to `POST {BASE}/public/lead` (contract v1.1, no service bearer, no `smart_token`). The JSON body is at most 16 KB (16384 bytes): `name` (2–120), `email` (≤200) and/or `phone` (≤40), optional `url`, `check_id`, `message`, `source`, and `consent: { accepted: true, text_version: "2026-10-11-lead" }`. `marketing_consent: { accepted: true, text_version: "2026-10-11-marketing" }` is included only when the lead has an email and the checkbox is on. A larger outgoing body is answered with **413** before it is signed, and the parser is not called. The browser sends an `Idempotency-Key` (UUID) that changes with the body; the same key is reused only when that body is unchanged. The BFF forwards it unchanged. The parser currently ignores that header and will honor it in a later change; the BFF still sends it. A missing or invalid key is **400** `idempotency_key_invalid`. A manual resubmit of the same body reuses the same key. The browser does not retry. The BFF retries once when the parser answers **503** with `Retry-After` and the wait plus a 30s second attempt still leaves 5 seconds before the 60s handler limit. `Retry-After: 30` does not fit. A timed-out attempt is **503** without parser details. The retry uses a new `ts`, a new `X-PD-Sig`, the same body bytes, and the same `Idempotency-Key`. It does not retry **401**, **413**, or **429**. If the wait does not fit, the client gets **503** `{error:"unavailable"}` and no parser detail. The parser's old `POST /api/leads` is gone (404); the BFF calls only `/public/lead`.
+
+Parser statuses are returned with the same `error`: **201**; **400** `validation_failed` plus `fields`; **409** `idempotency_in_progress`; **422** `idempotency_key_reused`, `consent_required`, or `consent_version_unknown`; **429** with `Retry-After`; **503** (any `error`, including `rate_limit_unavailable`) with `Retry-After` when the parser sent it. When Redis is down the parser answers **503** `rate_limit_unavailable` and `Retry-After: 30`. That wait does not fit, so the BFF does not call the parser again. A 503 that is still failing, or a wait that does not fit the deadline, leaves the typed fields in the form and shows «Не удалось отправить заявку, попробуйте через несколько минут». When `Retry-After` is delay-seconds or an HTTP-date, that sentence uses «попробуйте через ~N мин» (`30` seconds is «через ~1 мин»). The form does not submit again by itself.
+
+Vercel overwrites incoming `X-Forwarded-For` and sets `x-real-ip` to that same address. `x-vercel-forwarded-for` is Vercel's copy and stays in place when a proxy in front of Vercel replaces `X-Forwarded-For`. Those headers are read only when `VERCEL=1`: `x-vercel-forwarded-for`, then `x-real-ip`. The address is trimmed, a port and an IPv6 zone id are removed, and what remains must pass `net.isIP`. If both headers are invalid the BFF returns **503** and does not call the parser. When `VERCEL` is not `1` and `PD_DEPLOY_ENV` is not `prod`, the signed address is the fixed dev address `192.0.2.1` and client IP headers are ignored. `PD_DEPLOY_ENV=prod` without `VERCEL=1` does not sign that address: the IP is null and the response is **503**. `x-forwarded-for`, `Forwarded`, and `X-PD-Client-IP` are never read. Every client-supplied `X-PD-*` header is removed before the parser request is built.
+
+`PD_BFF_SIGNING_SECRET` (at least 32 bytes) is the HMAC key. Optional `PD_BFF_SIGNING_SECRET_PREV` (also at least 32 bytes; a shorter value is ignored) is the previous key during rotation. The BFF signs with the current key only. The parser may accept either key while both are set. The same signature is attached to **every** BFF call to the parser that has a Vercel client address (lead, login, scan, PDF). The headers are:
+
+- `X-PD-Client-IP` — the raw Vercel address
+- `X-PD-Ts` — unix seconds, `Math.floor(Date.now() / 1000)`, read immediately before that fetch and not cached. The parser accepts the signature only within ±60 seconds
+- `X-PD-Sig` — hex HMAC-SHA256 (`node:crypto`) of `ts\nMETHOD\npathname\nip\nsha256hex(raw body)`. Hex is the final encoding. METHOD is uppercased. The path is the pathname of the URL passed to fetch, not the Vercel route: a lead whose base has no prefix signs `/public/lead`, never `/api/leads`. `PARSER_API_BASE=https://host/api` signs `/api/public/lead`, the fetch URL path. Query, fragment, and a trailing slash are omitted, so `/public/lead/` and `/public/lead?x=1` both sign as `/public/lead`. The hash is SHA-256 of the exact bytes passed to fetch. A request with no body hashes the empty string. Published vectors, key `test-key-0123456789abcdef0123456789abcdef`, `ts` `1700000000`, `POST` `/public/lead`, ip `203.0.113.10`: an empty body signs `7e6b604153f10ada26d35f39a4b91cf2b16a5ceb55a0c9745f214e8f7b69e98a`; the 15-byte body `{"name":"Test"}` signs `1810e470f8492479571d2a4b9d324cf2e6a821bf2767390680925d048a40f0c9`
+
+A missing or shorter secret omits those three headers outside production. In production (`VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`) the BFF does not call the parser and responds **503** with no secret details. A parser **429** is returned unchanged, including `Retry-After`. Lead names, emails, and phones are not written into HTTP responses or server logs. An address that is logged has its last IPv4 octet (or IPv6 interface id) cleared.
+
+## Deploy
+
+Vercel Production (`VERCEL_ENV=production`):
+
+- Do not set `E2E`, `SUPPRESSION_MOCK`, or `OUTBOUND_MOCK` when `VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`. Any non-empty value stops that build. The check does not read `NODE_ENV`, so a local build and CI still succeed when `NODE_ENV=production` and neither flag is set. `E2E=1` alone is allowed.
+- `ALLOWED_ORIGINS` and `PD_BFF_SIGNING_SECRET` are required. The signing secret must be at least 32 bytes. An empty or shorter value stops that build the same way a mock variable does.
+
+Preview may keep the mock variables. They are not copied into Production. On the VPS, set `PD_DEPLOY_ENV=prod`.
 
 ## Сбор персональных данных
 
