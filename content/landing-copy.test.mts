@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { resolveCalculator, emptyAnswers } from "./calculator.ts";
 import { checkGroupsTitle, faqItems, footerParagraphs, formCopy, howSteps } from "./blocks.ts";
-import { leadConsent, marketingConsent, reportConsent } from "./consents.ts";
+import { leadConsent, reportConsent } from "./consents.ts";
 import { flags } from "./flags.ts";
 import { fillPlaceholders, placeholders } from "./placeholders.ts";
 import {
@@ -412,7 +412,7 @@ describe("publication flags", () => {
     assert.equal("dpoEmail" in company, false);
     assert.equal(privacyContactLabel("", "production"), null);
     assert.equal(privacyContactLabel("", "preview"), PRIVACY_CONTACT_TODO);
-    const consents = JSON.stringify({ reportConsent, marketingConsent, leadConsent });
+    const consents = JSON.stringify({ reportConsent, leadConsent });
     assert.equal(consents.includes("operator_email_pd"), false);
     assert.equal(consents.includes("{{privacy_contact_email}}"), true);
     const previous = process.env.VERCEL_ENV;
