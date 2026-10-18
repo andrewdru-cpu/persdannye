@@ -40,6 +40,7 @@ export function LeadForm({
   const payloadSig = useRef("");
   const mail = email.trim();
   const showMarketing = marketingConsent && mail.length > 0;
+  const marketingOn = showMarketing && marketingOptIn;
 
   useEffect(() => {
     if (!showMarketing) setMarketingOptIn(false);
@@ -52,7 +53,7 @@ export function LeadForm({
     url: url.trim(),
     message: message.trim(),
     consent,
-    marketing: showMarketing && marketingOptIn,
+    marketing: marketingOn,
     checkId: checkId || "",
     source,
   });
@@ -98,7 +99,7 @@ export function LeadForm({
           message: message.trim() || undefined,
           source,
           consentAccepted: true,
-          marketingAccepted: showMarketing && marketingOptIn,
+          marketingAccepted: marketingOn,
           smartToken: captchaRef.current?.getToken() || "",
           idempotencyKey: key,
         });
@@ -120,9 +121,11 @@ export function LeadForm({
             consent: true,
             consent_text_version: LEAD_CONSENT_TEXT_VERSION,
             source,
-            marketing_consent: marketingConsent && marketingOptIn ? true : false,
-            ...(marketingConsent && marketingOptIn
-              ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
+            ...(marketingOn
+              ? {
+                  marketing_consent: true,
+                  marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
+                }
               : {}),
           }),
         });

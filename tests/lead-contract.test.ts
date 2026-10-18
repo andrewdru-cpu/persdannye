@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { flags } from "../content/flags";
+import { marketingConsentEnabled } from "../lib/runtime-flags";
 import {
   DIRECT_LEAD_CONSENT_TEXT_VERSION,
   DIRECT_MARKETING_CONSENT_TEXT_VERSION,
@@ -222,9 +223,11 @@ test("lead form checkboxes start unchecked and marketing follows the flag and an
   assert.equal((form.match(/useState\(false\)/g) || []).length >= 2, true);
   assert.match(form, /disabled=\{!consent/);
   assert.match(form, /const showMarketing = marketingConsent && mail\.length > 0/);
+  assert.match(form, /const marketingOn = showMarketing && marketingOptIn/);
   assert.match(form, /if \(!showMarketing\) setMarketingOptIn\(false\)/);
-  assert.match(form, /marketingAccepted: showMarketing && marketingOptIn/);
-  assert.match(form, /marketing_consent: marketingConsent && marketingOptIn \? true : false/);
+  assert.match(form, /marketingAccepted: marketingOn/);
+  assert.equal(form.includes("marketing_consent: false"), false);
+  assert.equal(form.includes("? true : false"), false);
   assert.equal(form.includes("Хочу получать"), false);
   assert.equal(form.includes("formCopy.marketing"), false);
   assert.match(form, /Как мы обрабатываем данные — в/);
@@ -246,6 +249,50 @@ test("lead form checkboxes start unchecked and marketing follows the flag and an
     marketingAccepted: false,
   });
   assert.equal("marketing_consent" in hidden, false);
+});
+
+test("marketing checkbox and marketing_consent follow all four flag combinations", () => {
+  assert.equal(flags.show_site_legal, false);
+  assert.equal(flags.show_marketing_consent, false);
+  const cases = [
+    { legal: false, marketing: false },
+    { legal: false, marketing: true },
+    { legal: true, marketing: false },
+    { legal: true, marketing: true },
+  ] as const;
+  for (const item of cases) {
+    const allowed = marketingConsentEnabled(item.legal, item.marketing);
+    assert.equal(allowed, item.legal && item.marketing);
+    const checked = buildPublicLeadBody({
+      ...baseLead,
+      email: "anna@example.com",
+      marketingAccepted: allowed,
+    });
+    if (allowed) {
+      assert.deepEqual(checked.marketing_consent, {
+        accepted: true,
+        text_version: DIRECT_MARKETING_CONSENT_TEXT_VERSION,
+      });
+    } else {
+      assert.equal("marketing_consent" in checked, false);
+    }
+  }
+  const bothOnUnchecked = buildPublicLeadBody({
+    ...baseLead,
+    email: "anna@example.com",
+    marketingAccepted: marketingConsentEnabled(true, true) && false,
+  });
+  assert.equal("marketing_consent" in bothOnUnchecked, false);
+
+  const previous = process.env.NEXT_PUBLIC_MARKETING_CONSENT;
+  process.env.NEXT_PUBLIC_MARKETING_CONSENT = "true";
+  try {
+    assert.equal(marketingConsentEnabled(), false);
+    assert.equal(marketingConsentEnabled(true), true);
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_MARKETING_CONSENT;
+    else process.env.NEXT_PUBLIC_MARKETING_CONSENT = previous;
+  }
 });
 
 const LEAD_CONSENT_SHA256 = "43f4d7cfb76f6ea92e1a692c7ba31e30bc6d2b1032cffabfbfc6fda9d984ce80";
