@@ -65,7 +65,7 @@ The client address comes from the Vercel header `x-real-ip`, or from the first a
 `PD_BFF_SIGNING_SECRET` (at least 32 bytes) is the HMAC key. The same signature is attached to **every** BFF call to the parser that has a Vercel client address (lead, login, scan, PDF). The headers are:
 
 - `X-PD-Client-IP` — the raw Vercel address
-- `X-PD-Ts` — unix time in seconds
+- `X-PD-Ts` — unix seconds, `Math.floor(Date.now() / 1000)`, read immediately before that fetch and not cached. The parser accepts the signature only within ±60 seconds
 - `X-PD-Sig` — hex HMAC-SHA256 (`node:crypto`) of `<ts>.<METHOD>.<pathname>.<ip>`. METHOD is uppercased. The path is the parser request pathname, not the Vercel route: a lead signs `/public/lead`, never `/api/leads`. Query, fragment, and a trailing slash are omitted, so `/public/lead/` and `/public/lead?x=1` both sign as `/public/lead`. Example: `1760817600.POST./public/lead.203.0.113.7`
 
 A missing or shorter secret omits those three headers outside production. In production (`VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`) the BFF does not call the parser and responds **503** with no secret details. A parser **429** is returned unchanged, including `Retry-After`. Lead names, emails, and phones are not written into HTTP responses or server logs. An address that is logged has its last IPv4 octet (or IPv6 interface id) cleared.

@@ -239,6 +239,8 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
   });
 
   it("accepts a valid lead", async () => {
+    const frozen = 1_760_817_600_999;
+    Date.now = () => frozen;
     const calls: Array<{ url: string; init: RequestInit }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({ url: String(input), init: init ?? {} });
@@ -259,9 +261,10 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(calls[0].url, "https://parser.example/public/lead");
     const headers = outgoingHeaders(calls[0].init);
     const ts = headers.get("x-pd-ts") || "";
-    const tsNum = Number(ts);
-    assert.equal(Number.isInteger(tsNum), true);
-    assert.equal(Math.abs(tsNum - Math.floor(Date.now() / 1000)) <= 2, true);
+    assert.match(ts, /^\d+$/);
+    assert.equal(Number.isInteger(Number(ts)), true);
+    assert.equal(ts, String(Math.floor(frozen / 1000)));
+    assert.equal(ts, "1760817600");
     assert.equal(headers.get("x-pd-client-ip"), RAW_IP);
     assert.equal(headers.get("x-pd-sig"), signature(ts, RAW_IP));
     const vercelPath = createHmac("sha256", SECRET)

@@ -97,7 +97,13 @@ export function bffSignatureMaterial(ts: string, method: string, path: string, i
   return `${ts}.${method.toUpperCase()}.${signaturePathname(path)}.${ip}`;
 }
 
-/** Hex HMAC-SHA256 of {@link bffSignatureMaterial}. */
+/**
+ * Encoding of X-PD-Sig. This is the only place it is chosen.
+ * Hex until the parser sends its reference vector.
+ */
+const SIGNATURE_ENCODING = "hex" as const;
+
+/** HMAC-SHA256 of {@link bffSignatureMaterial}, encoded in {@link SIGNATURE_ENCODING}. */
 export function signClientPayload(
   ts: string,
   method: string,
@@ -105,9 +111,11 @@ export function signClientPayload(
   ip: string,
   secret: string
 ): string {
-  return createHmac("sha256", secret).update(bffSignatureMaterial(ts, method, path, ip)).digest("hex");
+  const material = bffSignatureMaterial(ts, method, path, ip);
+  return createHmac("sha256", secret).update(material).digest(SIGNATURE_ENCODING);
 }
 
+/** Unix seconds. Milliseconds are dropped: Math.floor(Date.now() / 1000). */
 export function unixSeconds(nowMs: number): string {
   return String(Math.floor(nowMs / 1000));
 }
@@ -132,20 +140,21 @@ export function isParserUnavailable(err: unknown): err is ParserUnavailableError
  * Remove any X-PD-* already on the outgoing headers, then set
  * X-PD-Client-IP, X-PD-Ts, and X-PD-Sig when a usable signing secret and a Vercel IP exist.
  * A missing or short secret leaves those headers unset.
+ * Call this immediately before fetch. The parser accepts ts only within ±60 seconds,
+ * so the clock is read here and the signature is not cached.
  */
 export function applySignedClientHeaders(
   headers: Headers,
   incoming: Headers,
   method: string,
-  path: string,
-  nowMs = Date.now()
+  path: string
 ): void {
   stripClientPdHeaders(headers);
   const secret = signingSecret();
   if (!secret) return;
   const ip = trustedClientIp(incoming);
   if (!ip) return;
-  const ts = unixSeconds(nowMs);
+  const ts = unixSeconds(Date.now());
   headers.set("X-PD-Client-IP", ip);
   headers.set("X-PD-Ts", ts);
   headers.set("X-PD-Sig", signClientPayload(ts, method, path, ip, secret));

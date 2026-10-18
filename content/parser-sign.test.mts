@@ -71,6 +71,44 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     restoreEnv();
   });
 
+  it("stamps a fresh integer unix second from the fake clock before each fetch", async () => {
+    process.env.PARSER_API_EMAIL = "svc@example.com";
+    process.env.PARSER_API_PASSWORD = "parser-password";
+    const realNow = Date.now;
+    let nowMs = 1_760_817_600_123;
+    Date.now = () => nowMs;
+    const seen: Array<{ url: string; ts: string }> = [];
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+        const ts = headers.get("x-pd-ts") ?? "";
+        seen.push({ url: String(input), ts });
+        assert.match(ts, /^\d+$/);
+        assert.equal(Number.isInteger(Number(ts)), true);
+        assert.equal(ts, String(Math.floor(nowMs / 1000)));
+        assert.equal(ts.includes("."), false);
+        if (String(input).endsWith("/api/auth/login")) {
+          nowMs += 61_000;
+          return new Response(JSON.stringify({ access_token: "jwt", expires_in: 3600 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+      }) as typeof fetch;
+
+      await parserFetch("/api/scans", { method: "POST", body: "{}" }, true, new Headers({ "x-real-ip": IP }));
+      assert.equal(seen.length, 2);
+      assert.equal(seen[0].url, "https://parser.example/api/auth/login");
+      assert.equal(seen[0].ts, "1760817600");
+      assert.equal(seen[1].url, "https://parser.example/api/scans");
+      assert.equal(seen[1].ts, "1760817661");
+      assert.notEqual(seen[0].ts, seen[1].ts);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
   it("uppercases a lowercase method in the signed string", async () => {
     process.env.PARSER_API_TOKEN = "parser-token";
     const calls: Array<{ headers: Headers }> = [];

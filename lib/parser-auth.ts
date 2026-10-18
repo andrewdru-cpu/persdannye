@@ -93,6 +93,7 @@ async function parserRequest(
     headers.set("Content-Type", "application/json");
   }
   const method = (init.method || "GET").toUpperCase();
+  // Fresh ts and signature for this attempt. Retries call parserRequest again.
   if (client) applySignedClientHeaders(headers, client, method, path);
 
   const controller = new AbortController();

@@ -9,8 +9,7 @@ import { PUBLIC_LEAD_PATH } from "./public-lead";
 export async function postLeadToParser(
   body: unknown,
   incoming: Headers,
-  idempotencyKey: string,
-  nowMs = Date.now()
+  idempotencyKey: string
 ): Promise<Response> {
   if (parserSigningBlocked()) throw new ParserUnavailableError();
 
@@ -22,7 +21,7 @@ export async function postLeadToParser(
   headers.set("Accept", "application/json");
   headers.set("Content-Type", "application/json");
   headers.set("Idempotency-Key", idempotencyKey);
-  applySignedClientHeaders(headers, incoming, "POST", PUBLIC_LEAD_PATH, nowMs);
+  applySignedClientHeaders(headers, incoming, "POST", PUBLIC_LEAD_PATH);
 
   return fetch(`${base}${PUBLIC_LEAD_PATH}`, {
     method: "POST",
