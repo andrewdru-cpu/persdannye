@@ -7,6 +7,7 @@ import { fillPlaceholders } from "@/content/placeholders";
 import { CookieSettingsLink } from "@/components/layout/CookieSettingsLink";
 import { DbipAttribution } from "@/components/layout/DbipAttribution";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
+import { collectionEnabled } from "@/lib/collection-gate";
 import { company, privacyContactLabel } from "@/lib/company";
 import { requisiteIdLine, visiblePhone, visibleRequisite } from "@/lib/requisite-lines";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
@@ -32,9 +33,11 @@ export function Footer() {
                 </Link>
               </li>
             ))}
-            <li>
-              <CookieSettingsLink />
-            </li>
+            {collectionEnabled() ? (
+              <li>
+                <CookieSettingsLink />
+              </li>
+            ) : null}
           </ul>
         </div>
         <div>

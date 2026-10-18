@@ -170,16 +170,19 @@ describe("cookie and terms copy", () => {
     );
   });
 
-  it("puts the cookie settings link in the footer outside the publication flags", () => {
+  it("puts the cookie settings link in the footer only while collection is enabled", () => {
     const footer = source("components/layout/Footer.tsx");
     const link = source("components/layout/CookieSettingsLink.tsx");
     const policy = source("content/cookies-policy.ts");
     assert.equal(footer.includes("<CookieSettingsLink />"), true);
+    assert.equal(footer.includes("collectionEnabled()"), true);
     assert.equal(link.includes("COOKIE_SETTINGS_LABEL"), true);
     assert.equal(policy.includes(COOKIE_SETTINGS_LABEL), true);
     assert.equal(link.includes("show_cookie_policy"), false);
     assert.equal(link.includes("flags"), false);
+    assert.equal(link.includes("collectionEnabled"), false);
     const documents = footer.slice(footer.indexOf("Документы"), footer.indexOf("Оператор"));
+    assert.equal(documents.includes("collectionEnabled() ? ("), true);
     assert.equal(documents.includes("<CookieSettingsLink />"), true);
     assert.equal(documents.includes("show_"), false);
   });
