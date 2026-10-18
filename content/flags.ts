@@ -30,7 +30,7 @@ export const flags = {
   show_offer: false as boolean,
   /** Страница возврата и ссылка в футере. Текст не выдумываем. */
   show_refund: false as boolean,
-  /** Юртекст политики cookie и ссылка в футере. Баннер может вести на /cookies и при выключенном флаге. */
+  /** Юртекст политики cookie. Ссылка в футере и FAQ — только при включённом флаге. */
   show_cookie_policy: false as boolean,
   /** Пользовательское соглашение и ссылка в футере. */
   show_terms: false as boolean,

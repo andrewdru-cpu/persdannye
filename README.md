@@ -79,6 +79,17 @@ Vercel Production (`VERCEL_ENV=production`):
 
 Preview may keep the mock variables. They are not copied into Production. On the VPS, set `PD_DEPLOY_ENV=prod`.
 
+## Сбор персональных данных
+
+Пока политика не опубликована, сайт не принимает заявки, не запускает проверку URL, не грузит Яндекс.Метрику и не ставит необязательные cookie.
+
+Включение — один шаг вместе с публикацией политики, затем redeploy:
+
+1. Опубликовать политику: `show_site_legal` в `content/flags.ts`.
+2. В Production задать серверную `PD_COLLECTION_ENABLED=true` (без `NEXT_PUBLIC_`).
+
+Любое другое значение или пустая переменная оставляет сбор выключенным. Без опубликованной политики переменная не включает сбор. Решение принимает сервер (`collectionEnabled()` в `lib/collection-gate.ts`); клиент получает только boolean.
+
 ## Company / legal
 
 Edit `lib/company.ts` (INN, OGRN, address, emails, phone).

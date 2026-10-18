@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { collectionGateResponse } from "@/lib/collection-gate";
 import { isParserUnavailable } from "@/lib/lead-guard";
 import { getCheckPdf } from "@/lib/parser-client";
 
@@ -13,6 +14,8 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const closed = collectionGateResponse();
+  if (closed) return closed;
   try {
     const { id } = await ctx.params;
     if (!id) {

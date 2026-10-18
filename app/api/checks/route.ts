@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { collectionGateResponse } from "@/lib/collection-gate";
 import { isScanConsentRequiredError } from "@/lib/consent";
 import { isParserUnavailable } from "@/lib/lead-guard";
 import { createCheck, publicCheckJob } from "@/lib/parser-client";
@@ -23,6 +24,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
+  const closed = collectionGateResponse();
+  if (closed) return closed;
   try {
     const json = await req.json();
     const parsed = bodySchema.safeParse(json);

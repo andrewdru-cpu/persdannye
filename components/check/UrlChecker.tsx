@@ -10,6 +10,7 @@ import type { CheckJob } from "@/lib/types";
 import { CheckReport } from "@/components/check/CheckReport";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
+import { CollectionClosed } from "@/components/collection/CollectionClosed";
 import { LeadForm } from "@/components/landing/LeadForm";
 
 type Status = "idle" | "running" | "done" | "error";
@@ -53,6 +54,7 @@ export function UrlChecker({
   ctaLabel = formCopy.button,
   heroSurface = false,
   marketingConsent = false,
+  collectionEnabled = false,
 }: {
   compact?: boolean;
   initialUrl?: string;
@@ -61,6 +63,8 @@ export function UrlChecker({
   /** Герой: без таймера и без слова «РКН» в ходе проверки. */
   heroSurface?: boolean;
   marketingConsent?: boolean;
+  /** Сервер передаёт boolean. При false нет поля e-mail и самой проверки. */
+  collectionEnabled?: boolean;
 }) {
   const reduce = useReducedMotion();
   const [url, setUrl] = useState(initialUrl);
@@ -179,6 +183,10 @@ export function UrlChecker({
       setError(err instanceof Error ? err.message : "Ошибка");
       setStatus("error");
     }
+  }
+
+  if (!collectionEnabled) {
+    return <CollectionClosed />;
   }
 
   const shownPhase = job?.phase || "queued";

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { collectionGateResponse } from "@/lib/collection-gate";
 import { LEAD_CONSENT_TEXT_VERSION, marketingConsentForParser } from "@/lib/consent";
 import {
   allowedOriginsFromEnv,
@@ -21,6 +22,9 @@ function unavailable() {
 }
 
 export async function POST(req: Request) {
+  const closed = collectionGateResponse();
+  if (closed) return closed;
+
   if (!isAllowedOrigin(req.headers.get("origin"), allowedOriginsFromEnv())) {
     logLeadIp("origin rejected", req.headers);
     return NextResponse.json({ error: "Запрос отклонён" }, { status: 403 });

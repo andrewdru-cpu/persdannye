@@ -3,6 +3,7 @@ import { createHash, createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { POST } from "../app/api/leads/route.ts";
+import { flags } from "./flags.ts";
 import { dataFilePath } from "../lib/data-dir.ts";
 import { previousSigningSecret } from "../lib/deploy-env.ts";
 import {
@@ -57,6 +58,7 @@ const ENV_KEYS = [
   "TELEGRAM_CHAT_ID",
   "VERCEL_ENV",
   "PD_DEPLOY_ENV",
+  "PD_COLLECTION_ENABLED",
 ] as const;
 
 const PII = [EMAIL, PHONE, NAME, MESSAGE];
@@ -176,6 +178,8 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     delete process.env.TELEGRAM_CHAT_ID;
     delete process.env.VERCEL_ENV;
     delete process.env.PD_DEPLOY_ENV;
+    process.env.PD_COLLECTION_ENABLED = "true";
+    flags.show_site_legal = true;
     restoreLogs = captureLogs();
     const prevFetch = globalThis.fetch;
     globalThis.fetch = (async () => {
@@ -191,6 +195,7 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
   });
 
   afterEach(() => {
+    flags.show_site_legal = false;
     restoreNow();
     restoreFetch();
     restoreLogs();
