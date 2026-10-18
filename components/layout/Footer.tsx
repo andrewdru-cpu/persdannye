@@ -7,7 +7,6 @@ import { fillPlaceholders } from "@/content/placeholders";
 import { DbipAttribution } from "@/components/layout/DbipAttribution";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
-import { OperatorRequisites } from "@/components/layout/OperatorRequisites";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export function Footer() {
@@ -38,16 +37,22 @@ export function Footer() {
             Оператор
           </div>
           {flags.show_requisites ? (
-            <OperatorRequisites
-              requisites={company}
-              contact={
-                privacyContactLabel() ? (
-                  <li>
-                    ДПО: <PrivacyContactLink className="hover:text-amber-300" />
-                  </li>
-                ) : null
-              }
-            />
+            <ul className="space-y-1 text-sm text-white/80">
+              <li>{company.legalName}</li>
+              <li>ИНН {company.inn}</li>
+              <li>ОГРН {company.ogrn}</li>
+              <li>{company.address}</li>
+              {privacyContactLabel() ? (
+                <li>
+                  ДПО: <PrivacyContactLink className="hover:text-amber-300" />
+                </li>
+              ) : null}
+              <li>
+                <a className="hover:text-amber-300" href={company.phoneHref}>
+                  {company.phone}
+                </a>
+              </li>
+            </ul>
           ) : (
             <ul className="space-y-1 text-sm text-white/80">
               {privacyContactLabel() ? (

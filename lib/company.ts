@@ -1,7 +1,4 @@
-/**
- * Реквизиты оператора. Пусто, пока Андрей не передал настоящие значения.
- * Наименование, ИНН, ОГРН, адрес и телефон сюда не подставляем.
- */
+/** Реквизиты оператора ПДн — замените перед продакшеном */
 export const company = {
   brand: "ПерсДанные",
   legalName: "",
@@ -25,38 +22,6 @@ export const company = {
   /** Часы обработки обращений */
   supportHours: "пн–пт, 10:00–19:00 (МСК)",
 } as const;
-
-export type PublishedRequisites = {
-  legalName: string;
-  inn: string;
-  ogrn: string;
-  address: string;
-  phone: string;
-  phoneHref: string;
-};
-
-/** Пустые поля, ИНН из нулей, 7700000000 и плейсхолдер {{ нельзя публиковать. */
-export function publishedRequisitesError(requisites: PublishedRequisites): string | null {
-  const fields = [
-    requisites.legalName,
-    requisites.inn,
-    requisites.ogrn,
-    requisites.address,
-    requisites.phone,
-    requisites.phoneHref,
-  ];
-  if (fields.some((value) => value.trim() === "")) return "Реквизиты пустые";
-  const inn = requisites.inn.replace(/\D/g, "");
-  if (inn === "7700000000" || /^0+$/.test(inn)) return "Тестовый ИНН";
-  if (fields.some((value) => value.includes("{{"))) return "Плейсхолдер в реквизитах";
-  return null;
-}
-
-export function assertPublishedRequisites(show: boolean, requisites: PublishedRequisites): void {
-  if (!show) return;
-  const error = publishedRequisitesError(requisites);
-  if (error) throw new Error(`${error}. Настоящие реквизиты даёт только Андрей.`);
-}
 
 export type Company = typeof company;
 
