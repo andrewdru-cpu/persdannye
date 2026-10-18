@@ -8,8 +8,12 @@ import { flags } from "./flags.ts";
 import { notApplicableItems } from "./not-applicable.ts";
 import { renderedLandingCopy } from "./landing.ts";
 import { siteDescription } from "./site-meta.ts";
-import { OPERATOR_REQUISITES_PENDING } from "../lib/company.ts";
-import { legalPublication, unpublishedRobots } from "../lib/legal-publication.ts";
+import {
+  LEGAL_PENDING_TEXT,
+  OPERATOR_REQUISITES_PENDING,
+  legalPublication,
+  unpublishedRobots,
+} from "../lib/legal-publication.ts";
 import { visiblePhaseCopy } from "../lib/phases.ts";
 import {
   SITE_URL_FALLBACK,
@@ -175,7 +179,8 @@ describe("unpublished legal pages", () => {
     assert.deepEqual(unpublishedRobots(), { index: false, follow: false });
     assert.equal(unpublishedRobots(true), undefined);
     const pending = readFileSync(join(root, "components/legal/LegalPending.tsx"), "utf8");
-    assert.equal(pending.includes("Текст не опубликован"), true);
+    assert.equal(pending.includes("LEGAL_PENDING_TEXT"), true);
+    assert.equal(pending.includes(LEGAL_PENDING_TEXT), false);
     for (const page of pages) {
       const source = readFileSync(join(root, page.file), "utf8");
       const pendingAt = source.indexOf('legalPublication() === "pending"');

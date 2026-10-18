@@ -6,7 +6,8 @@ import { visibleFooterDocuments } from "@/content/legal-nav";
 import { fillPlaceholders } from "@/content/placeholders";
 import { DbipAttribution } from "@/components/layout/DbipAttribution";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
-import { company, OPERATOR_REQUISITES_PENDING, privacyContactLabel } from "@/lib/company";
+import { company, privacyContactLabel } from "@/lib/company";
+import { OPERATOR_REQUISITES_PENDING } from "@/lib/legal-publication";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export function Footer() {
