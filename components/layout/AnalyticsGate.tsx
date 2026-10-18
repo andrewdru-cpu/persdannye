@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CookieConsent } from "@/components/layout/CookieBanner";
+import { COOKIE_CONSENT_TEXT_VERSION, loadCookieConsent } from "@/lib/cookie-consent";
 
 /**
  * Loads analytics only after cookie consent.analytics === true.
@@ -15,10 +16,7 @@ export function AnalyticsGate({ enabled }: { enabled: boolean }) {
     if (!enabled) return;
     function read() {
       try {
-        const raw = localStorage.getItem("pd_cookie_consent_v1");
-        if (!raw) return setAllowed(false);
-        const c = JSON.parse(raw) as CookieConsent;
-        setAllowed(c.analytics === true);
+        setAllowed(loadCookieConsent(localStorage).analyticsConsented);
       } catch {
         setAllowed(false);
       }
@@ -26,7 +24,7 @@ export function AnalyticsGate({ enabled }: { enabled: boolean }) {
     read();
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<CookieConsent>).detail;
-      setAllowed(detail?.analytics === true);
+      setAllowed(detail?.analytics === true && detail.textVersion === COOKIE_CONSENT_TEXT_VERSION);
     };
     window.addEventListener("pd-cookie-consent", handler);
     return () => window.removeEventListener("pd-cookie-consent", handler);

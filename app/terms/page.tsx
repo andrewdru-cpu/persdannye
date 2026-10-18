@@ -2,9 +2,13 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { flags } from "@/content/flags";
+import { editionCaption } from "@/content/placeholders";
+import { TERMS_LIABILITY, termsSubjectSentence } from "@/content/terms-copy";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { requisiteIdLine, visiblePhone, visibleRequisite } from "@/lib/requisite-lines";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение",
@@ -15,26 +19,36 @@ export default function TermsPage() {
   if (!flags.show_terms) {
     return <LegalPending title="Пользовательское соглашение" />;
   }
+  const requisites = assertPublishedRequisites(company) ? company : null;
+  const legalName = requisites ? visibleRequisite(requisites.legalName) : null;
+  const idLine = requisites
+    ? requisiteIdLine(requisites.inn, requisites.ogrn, requisites.legalForm)
+    : null;
+  const address = requisites ? visibleRequisite(requisites.address) : null;
+  const phone = requisites ? visiblePhone(requisites.phone, requisites.phoneHref) : null;
+  const contact = privacyContactLabel();
+  const edition = editionCaption("{{terms_edition_date}}");
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
-      <h1 className="text-3xl font-semibold text-white md:text-4xl">
-        Пользовательское соглашение (публичная оферта)
-      </h1>
-      <p className="mt-2 text-sm text-white/80">
-        Редакция от 21.09.2026 · {company.legalName}
-      </p>
+      <h1 className="text-3xl font-semibold text-white md:text-4xl">Пользовательское соглашение</h1>
+      {edition || legalName ? (
+        <p className="mt-2 text-sm text-white/80">
+          {edition}
+          {edition && legalName ? " · " : ""}
+          {legalName}
+        </p>
+      ) : null}
 
       <Sec title="1. Предмет соглашения">
         <p>
-          Настоящее соглашение является публичной офертой {company.legalName}
-          (ИНН {company.inn}, ОГРН {company.ogrn}) и регулирует использование сайта
-          {company.website} и сервиса экспресс-проверки сайтов на признаки
-          несоответствия требованиям 152-ФЗ и практике Роскомнадзора (далее — Сервис).
+          {/* «бесплатного» убрать, если экспресс-проверка перестанет быть бесплатной. */}
+          {termsSubjectSentence({
+            legalName,
+            idLine,
+            website: visibleRequisite(company.website),
+          })}
         </p>
-        <p>
-          Совершая акцепт (начало проверки, отправка заявки, иное использование
-          Сервиса), пользователь принимает условия соглашения.
-        </p>
+        <p>Начиная проверку сайта, пользователь принимает условия соглашения.</p>
       </Sec>
 
       <Sec title="2. Описание сервиса">
@@ -63,12 +77,7 @@ export default function TermsPage() {
       </Sec>
 
       <Sec title="5. Ограничение ответственности">
-        <p>
-          Сервис предоставляется «как есть». Оператор не отвечает за временную
-          недоступность, неполноту автоматической проверки, изменения на сайте
-          пользователя после сканирования, а также за убытки, возникшие вследствие
-          решений, принятых исключительно на основе экспресс-отчёта.
-        </p>
+        <p>{TERMS_LIABILITY}</p>
       </Sec>
 
       <Sec title="6. Персональные данные">
@@ -101,19 +110,25 @@ export default function TermsPage() {
         </p>
       </Sec>
 
-      <Sec title="9. Реквизиты">
-        <p>{company.legalName}</p>
-        <p>ИНН {company.inn}, ОГРН {company.ogrn}</p>
-        <p>{company.address}</p>
-        <p>
-          {privacyContactLabel() ? (
-            <>
-              <PrivacyContactLink /> ·{" "}
-            </>
+      {requisites ? (
+        <Sec title="9. Реквизиты">
+          {legalName ? <p>{legalName}</p> : null}
+          {idLine ? <p>{idLine}</p> : null}
+          {requisites.kpp ? <p>КПП {requisites.kpp}</p> : null}
+          {address ? <p>{address}</p> : null}
+          {phone || contact ? (
+            <p>
+              {contact ? (
+                <>
+                  <PrivacyContactLink />
+                  {phone ? " · " : null}
+                </>
+              ) : null}
+              {phone ? phone.text : null}
+            </p>
           ) : null}
-          {company.phone}
-        </p>
-      </Sec>
+        </Sec>
+      ) : null}
     </article>
   );
 }

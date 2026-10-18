@@ -1,10 +1,19 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import {
+  COOKIE_SECTION_CATEGORIES,
+  COOKIE_SECTION_CONSENT,
+  COOKIE_SECTION_RETENTION,
+  COOKIE_SECTION_WHAT,
+  cookieContactsText,
+} from "@/content/cookies-policy";
 import { flags } from "@/content/flags";
+import { editionCaption } from "@/content/placeholders";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 
 export const metadata: Metadata = {
   title: "Политика cookie",
@@ -15,51 +24,35 @@ export default function CookiesPage() {
   if (!flags.show_cookie_policy) {
     return <LegalPending title="Политика cookie" />;
   }
+  const legalName = assertPublishedRequisites(company) ? company.legalName.trim() : "";
+  const contact = privacyContactLabel();
+  const contacts = cookieContactsText(contact);
+  const edition = editionCaption("{{cookie_policy_edition_date}}");
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">Политика cookie</h1>
-      <p className="mt-2 text-sm text-white/80">
-        Редакция от 21.09.2026 · {company.legalName}
-      </p>
-
-      <Sec title="1. Что такое cookie">
-        <p>
-          Cookie — небольшие фрагменты данных, которые Сайт сохраняет в браузере
-          пользователя. Они помогают обеспечивать работу сервиса, запоминать выбор
-          согласия и (только после согласия) измерять аудиторию.
+      {edition || legalName ? (
+        <p className="mt-2 text-sm text-white/80">
+          {edition}
+          {edition && legalName ? " · " : ""}
+          {legalName}
         </p>
+      ) : null}
+
+      <Sec title="1. Что это">
+        <p>{COOKIE_SECTION_WHAT}</p>
       </Sec>
 
-      <Sec title="2. Какие категории мы используем">
-        <ul>
-          <li>
-            <strong className="text-white/90">Необходимые</strong> — базовые функции
-            (безопасность, сохранение выбора согласия). Включаются всегда.
-          </li>
-          <li>
-            <strong className="text-white/90">Аналитические</strong> — измерение
-            аудитории. Не включаются до согласия.
-          </li>
-          <li>
-            <strong className="text-white/90">Маркетинговые</strong> — оценка
-            рекламы. Не включаются до согласия.
-          </li>
-        </ul>
+      <Sec title="2. Категории">
+        <p>{COOKIE_SECTION_CATEGORIES}</p>
       </Sec>
 
-      <Sec title="3. Как мы получаем согласие">
-        <p>
-          При первом визите показывается баннер: «Принять все», «Только необходимые»
-          или настройка категорий. Выбор сохраняется локально. Скрипты аналитики и
-          маркетинга загружаются только после согласия на соответствующую категорию.
-        </p>
+      <Sec title="3. Согласие и отзыв">
+        <p>{COOKIE_SECTION_CONSENT}</p>
       </Sec>
 
       <Sec title="4. Срок хранения">
-        <p>
-          Сессионные cookie удаляются при закрытии браузера; постоянные — в пределах
-          срока поставщика либо до отзыва согласия / очистки браузера.
-        </p>
+        <p>{COOKIE_SECTION_RETENTION}</p>
       </Sec>
 
       <Sec title="5. Управление в браузере">
@@ -81,13 +74,13 @@ export default function CookiesPage() {
 
       <Sec title="7. Контакты">
         <p>
-          {privacyContactLabel() ? (
+          {contact && contacts.includes(contact) ? (
             <>
-              <PrivacyContactLink />
-              {", "}
+              Вопросы — <PrivacyContactLink />.
             </>
-          ) : null}
-          тел. {company.phone}.
+          ) : (
+            contacts
+          )}
         </p>
       </Sec>
     </article>
