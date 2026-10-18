@@ -275,7 +275,7 @@ export function createMockPublicApi() {
       }
       if ("marketing_consent" in body) {
         const marketing = body.marketing_consent;
-        if (!email || !marketing || marketing.accepted !== true || marketing.text_version !== "2026-10-11-marketing") {
+        if (!email || !marketing || marketing.accepted !== true || marketing.text_version !== "2026-10-18-marketing") {
           send(res, 400, { error: "validation_failed", fields: ["marketing_consent"] });
           return;
         }

@@ -72,14 +72,14 @@ test("direct lead sends marketing_consent only with email and a checked box", ()
   });
   assert.deepEqual(emailChecked.marketing_consent, {
     accepted: true,
-    text_version: "2026-10-11-marketing",
+    text_version: "2026-10-18-marketing",
   });
   assert.equal(
     (emailChecked.marketing_consent as { text_version: string }).text_version,
     DIRECT_MARKETING_CONSENT_TEXT_VERSION
   );
   assert.notEqual(DIRECT_MARKETING_CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION);
-  assert.equal(MARKETING_CONSENT_TEXT_VERSION, "2026-10-11-marketing");
+  assert.equal(MARKETING_CONSENT_TEXT_VERSION, "2026-10-18-marketing");
   assert.equal((emailChecked.consent as { text_version: string }).text_version, "2026-10-11-lead");
 });
 

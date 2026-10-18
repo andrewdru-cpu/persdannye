@@ -54,7 +54,7 @@ test("consent version stays the persdannye#4 string and the client cannot replac
   assert.equal(CONSENT_TEXT.endsWith(CONSENT_POLICY_LABEL), true);
   assert.equal(LEAD_CONSENT_TEXT_VERSION, CONSENT_TEXT_VERSION);
   assert.equal(DIRECT_LEAD_CONSENT_TEXT_VERSION, "2026-10-11-lead");
-  assert.equal(DIRECT_MARKETING_CONSENT_TEXT_VERSION, "2026-10-11-marketing");
+  assert.equal(DIRECT_MARKETING_CONSENT_TEXT_VERSION, "2026-10-18-marketing");
   assert.notEqual(DIRECT_LEAD_CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION);
   const checker = fs.readFileSync(path.join(root, "components/check/UrlChecker.tsx"), "utf8");
   const leadForm = fs.readFileSync(path.join(root, "components/landing/LeadForm.tsx"), "utf8");

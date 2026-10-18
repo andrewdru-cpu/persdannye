@@ -23,15 +23,15 @@ export const DIRECT_LEAD_CONSENT_FILE = "2026-10-11-lead.md";
 export const DIRECT_LEAD_CONSENT_TEXT_VERSION = consentVersionFromFile(DIRECT_LEAD_CONSENT_FILE);
 
 /** Canonical marketing consent. The file arrives in a separate PR. */
-export const DIRECT_MARKETING_CONSENT_FILE = "2026-10-11-marketing.md";
+export const DIRECT_MARKETING_CONSENT_FILE = "2026-10-18-marketing.md";
 
 /**
  * Version of the mailing-consent checkbox text on the BFF path.
  * Separate from the URL-check consent. The parser stores this in
  * marketing_consent_text_version, which is at most 32 characters.
- * "2026-10-11-marketing" is 20 characters.
+ * "2026-10-18-marketing" is 20 characters.
  */
-export const MARKETING_CONSENT_TEXT_VERSION = "2026-10-11-marketing";
+export const MARKETING_CONSENT_TEXT_VERSION = "2026-10-18-marketing";
 
 /**
  * Direct `POST /public/lead` marketing version. Kept separate from
