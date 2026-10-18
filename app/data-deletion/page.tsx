@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
-import { LegalPending } from "@/components/legal/LegalPending";
+import { flags } from "@/content/flags";
+import { dataDeletionDocument } from "@/content/legal-documents";
+import { legalRobots } from "@/content/legal-publication";
+import { GatedLegalPage } from "@/components/legal/GatedLegalPage";
 
 export const metadata: Metadata = {
   title: "Удаление данных",
-  robots: { index: false, follow: false },
+  robots: legalRobots(flags.show_data_deletion, dataDeletionDocument),
 };
 
 /** Порядок удаления данных ждёт юриста. Страница не выдумывает процедуру. */
 export default function DataDeletionPage() {
-  return <LegalPending title="Удаление данных" />;
+  return (
+    <GatedLegalPage
+      show={flags.show_data_deletion}
+      document={dataDeletionDocument}
+      title="Удаление данных"
+    />
+  );
 }
