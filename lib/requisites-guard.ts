@@ -79,11 +79,34 @@ function ogrnip15Valid(ogrn: string): boolean {
   return check === Number(ogrn[14]);
 }
 
-/** КПП ООО — ровно 9 символов, не нули. */
+/**
+ * КПП: 4 цифры кода инспекции, 2 цифры или латинские заглавные причины постановки, 3 цифры номера.
+ * Нули целиком — заглушка.
+ */
+const KPP_PATTERN = /^\d{4}[0-9A-Z]{2}\d{3}$/;
+
 function kppValid(kpp: string): boolean {
-  if (kpp.length !== 9 || /\s/.test(kpp)) return false;
+  if (!KPP_PATTERN.test(kpp)) return false;
   return !/^0+$/.test(kpp);
 }
+
+/** Подпись на /privacy: «ОГРНИП» только при включённой ветке ИП. */
+export function ogrnCaption(
+  ogrn: string,
+  allowEntrepreneur: boolean = allowEntrepreneurRequisites,
+): "ОГРН" | "ОГРНИП" {
+  return allowEntrepreneur && ogrn.length === 15 ? "ОГРНИП" : "ОГРН";
+}
+
+export type PublishedOperator = {
+  legalName: string;
+  inn: string;
+  kpp: string;
+  ogrn: string;
+  address: string;
+  phone: string;
+  phoneHref: string;
+};
 
 function addressValid(address: string): boolean {
   return !FOREIGN_BUILDING.test(address);
@@ -102,16 +125,16 @@ function phoneHrefValid(href: string): boolean {
 }
 
 /**
- * true, только если реквизиты можно публиковать.
- * По умолчанию это ООО: ИНН 10, ОГРН 13, КПП из 9 символов и адрес.
+ * Обрезанные реквизиты, если их можно публиковать. Иначе null.
+ * По умолчанию это ООО: ИНН 10, ОГРН 13, КПП и адрес.
  * Ветка ИП включается вторым аргументом и по умолчанию выключена.
- * Пустые значения и заглушки дают false, и блок на /privacy не рендерится.
+ * На сайт попадают только эти строки, не сырые поля company.
  */
 export function assertPublishedRequisites(
   requisites: Partial<PublishedRequisites> | null | undefined,
   allowEntrepreneur: boolean = allowEntrepreneurRequisites,
-): boolean {
-  if (!requisites) return false;
+): PublishedOperator | null {
+  if (!requisites) return null;
   const legalName = text(requisites.legalName);
   const inn = text(requisites.inn);
   const ogrn = text(requisites.ogrn);
@@ -119,17 +142,18 @@ export function assertPublishedRequisites(
   const phone = text(requisites.phone);
   const phoneHref = text(requisites.phoneHref);
   const kpp = text(requisites.kpp);
-  if (!legalName || !inn || !ogrn || !address || !phone || !phoneHref) return false;
-  if (!addressValid(address) || !phoneValid(phone) || !phoneHrefValid(phoneHref)) return false;
-  if (kpp && !kppValid(kpp)) return false;
+  if (!legalName || !inn || !ogrn || !address || !phone || !phoneHref) return null;
+  if (!addressValid(address) || !phoneValid(phone) || !phoneHrefValid(phoneHref)) return null;
+  if (kpp && !kppValid(kpp)) return null;
 
   const entrepreneur = inn.length === 12 || ogrn.length === 15;
   if (entrepreneur) {
-    if (!allowEntrepreneur) return false;
-    if (inn.length !== 12 || ogrn.length !== 15) return false;
-    return inn12Valid(inn) && ogrnip15Valid(ogrn);
+    if (!allowEntrepreneur) return null;
+    if (inn.length !== 12 || ogrn.length !== 15) return null;
+    if (!inn12Valid(inn) || !ogrnip15Valid(ogrn)) return null;
+    return { legalName, inn, kpp: kpp ?? "", ogrn, address, phone, phoneHref };
   }
 
-  if (!kpp) return false;
-  return inn10Valid(inn) && ogrn13Valid(ogrn);
+  if (!kpp || !kppValid(kpp) || !inn10Valid(inn) || !ogrn13Valid(ogrn)) return null;
+  return { legalName, inn, kpp, ogrn, address, phone, phoneHref };
 }
