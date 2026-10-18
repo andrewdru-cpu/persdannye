@@ -66,7 +66,7 @@ The client address comes from the Vercel header `x-real-ip`, or from the first a
 
 - `X-PD-Client-IP` — the raw Vercel address
 - `X-PD-Ts` — unix time in seconds
-- `X-PD-Sig` — hex HMAC-SHA256 (`node:crypto`) of `<ts>.<METHOD>.<path>.<ip>`, for example `1760817600.POST./public/lead.203.0.113.7`
+- `X-PD-Sig` — hex HMAC-SHA256 (`node:crypto`) of `<ts>.<METHOD>.<pathname>.<ip>`. METHOD is uppercased. The path is the pathname only, so `/public/lead?a=1` signs as `/public/lead`. Example: `1760817600.POST./public/lead.203.0.113.7`
 
 A missing or shorter secret omits those three headers outside production. In production (`VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`) the BFF does not call the parser and responds **503** with no secret details. A parser **429** is returned unchanged, including `Retry-After`. Lead names, emails, and phones are not written into HTTP responses or server logs. An address that is logged has its last IPv4 octet (or IPv6 interface id) cleared.
 

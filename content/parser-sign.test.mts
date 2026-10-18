@@ -71,6 +71,45 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     restoreEnv();
   });
 
+  it("uppercases a lowercase method in the signed string", async () => {
+    process.env.PARSER_API_TOKEN = "parser-token";
+    const calls: Array<{ headers: Headers }> = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ headers: new Headers(init?.headers) });
+      return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    await parserFetch("/api/scans", { method: "get" }, true, new Headers({ "x-real-ip": IP }));
+    const ts = calls[0].headers.get("x-pd-ts") ?? "";
+    const material = `${ts}.GET./api/scans.${IP}`;
+    const expected = createHmac("sha256", SECRET).update(material).digest("hex");
+    assert.equal(calls[0].headers.get("x-pd-sig"), expected);
+    assert.equal(bffSignatureMaterial(ts, "get", "/api/scans", IP), material);
+  });
+
+  it("signs a URL that has a query without that query", async () => {
+    process.env.PARSER_API_TOKEN = "parser-token";
+    const calls: Array<{ url: string; headers: Headers }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), headers: new Headers(init?.headers) });
+      return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    await parserFetch("/public/lead?a=1", { method: "post" }, true, new Headers({ "x-real-ip": IP }));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://parser.example/public/lead?a=1");
+    const ts = calls[0].headers.get("x-pd-ts") ?? "";
+    const material = `${ts}.POST./public/lead.${IP}`;
+    const expected = createHmac("sha256", SECRET).update(material).digest("hex");
+    assert.equal(calls[0].headers.get("x-pd-sig"), expected);
+    assert.equal(material.includes("?"), false);
+    assert.equal(material.includes("a=1"), false);
+    assert.equal(
+      bffSignatureMaterial("1760817600", "post", "https://parser.example/public/lead?a=1#section", "203.0.113.7"),
+      "1760817600.POST./public/lead.203.0.113.7"
+    );
+  });
+
   it("signs a scan with HMAC of ts.method.path.ip", async () => {
     process.env.PARSER_API_TOKEN = "parser-token";
     const calls: Array<{ url: string; headers: Headers }> = [];
