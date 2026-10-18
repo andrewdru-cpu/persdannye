@@ -66,24 +66,31 @@ export function stripClientPdHeaders(headers: Headers): void {
   }
 }
 
-/** Pathname only. Query and fragment are not part of the signed string. */
+/**
+ * Pathname of the request that is sent to the parser, not the Vercel route.
+ * Query, fragment, and a trailing slash are removed: `/public/lead/` and
+ * `/public/lead?x=1` both sign as `/public/lead`.
+ */
 function signaturePathname(path: string): string {
   const withoutFragment = path.split("#", 1)[0] ?? "";
+  let pathname = withoutFragment;
   if (/^[a-z][a-z\d+.-]*:/i.test(withoutFragment)) {
     try {
-      return new URL(withoutFragment).pathname;
+      pathname = new URL(withoutFragment).pathname;
     } catch {
-      // A scheme-shaped string that is not a URL still loses its query below.
+      pathname = withoutFragment;
     }
   }
-  const queryAt = withoutFragment.indexOf("?");
-  return queryAt === -1 ? withoutFragment : withoutFragment.slice(0, queryAt);
+  const queryAt = pathname.indexOf("?");
+  if (queryAt !== -1) pathname = pathname.slice(0, queryAt);
+  if (pathname.length > 1) pathname = pathname.replace(/\/+$/, "");
+  return pathname;
 }
 
 /**
  * The only signature string the BFF sends to the parser.
  * `<unix seconds>.<METHOD>.<pathname>.<ip>`. METHOD is uppercased.
- * The path is the pathname: `/public/lead?a=1#x` signs as `/public/lead`.
+ * The path is the parser pathname, for example `/public/lead`, never `/api/leads`.
  * Example: `1760817600.POST./public/lead.203.0.113.7`.
  */
 export function bffSignatureMaterial(ts: string, method: string, path: string, ip: string): string {

@@ -87,6 +87,40 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     assert.equal(bffSignatureMaterial(ts, "get", "/api/scans", IP), material);
   });
 
+  it("signs /public/lead/ and /public/lead?x=1 as /public/lead", async () => {
+    const canonical = "1760817600.POST./public/lead.203.0.113.7";
+    assert.equal(bffSignatureMaterial("1760817600", "POST", "/public/lead/", "203.0.113.7"), canonical);
+    assert.equal(bffSignatureMaterial("1760817600", "post", "/public/lead?x=1", "203.0.113.7"), canonical);
+    assert.notEqual(bffSignatureMaterial("1760817600", "POST", "/api/leads", "203.0.113.7"), canonical);
+    const expected = createHmac("sha256", SECRET).update(canonical).digest("hex");
+    assert.equal(
+      createHmac("sha256", SECRET).update(bffSignatureMaterial("1760817600", "POST", "/public/lead/", "203.0.113.7")).digest("hex"),
+      expected
+    );
+
+    process.env.PARSER_API_TOKEN = "parser-token";
+    const calls: Array<{ url: string; headers: Headers }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), headers: new Headers(init?.headers) });
+      return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    const client = new Headers({ "x-real-ip": IP });
+    await parserFetch("/public/lead/", { method: "post" }, true, client);
+    await parserFetch("/public/lead?x=1", { method: "post" }, true, client);
+    assert.deepEqual(
+      calls.map((call) => call.url),
+      ["https://parser.example/public/lead/", "https://parser.example/public/lead?x=1"]
+    );
+    for (const call of calls) {
+      const ts = call.headers.get("x-pd-ts") ?? "";
+      const material = `${ts}.POST./public/lead.${IP}`;
+      const sig = createHmac("sha256", SECRET).update(material).digest("hex");
+      assert.equal(call.headers.get("x-pd-sig"), sig);
+      const vercel = createHmac("sha256", SECRET).update(`${ts}.POST./api/leads.${IP}`).digest("hex");
+      assert.notEqual(call.headers.get("x-pd-sig"), vercel);
+    }
+  });
+
   it("signs a URL that has a query without that query", async () => {
     process.env.PARSER_API_TOKEN = "parser-token";
     const calls: Array<{ url: string; headers: Headers }> = [];

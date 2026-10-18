@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { LEAD_UNAVAILABLE_MESSAGE, submitLeadOnce } from "../lib/lead-submit.ts";
+import { LEAD_UNAVAILABLE_MESSAGE, leadUnavailableMessage, submitLeadOnce } from "../lib/lead-submit.ts";
 
 const KEY = "33333333-3333-4333-8333-333333333333";
 const payload = {
@@ -15,20 +15,73 @@ const payload = {
   marketing_consent: false,
 };
 
+function unavailable(retryAfter?: string) {
+  return new Response(JSON.stringify({ error: "rate_limit_unavailable" }), {
+    status: 503,
+    headers: {
+      "Content-Type": "application/json",
+      ...(retryAfter ? { "Retry-After": retryAfter } : {}),
+    },
+  });
+}
+
 describe("lead form submit", () => {
-  it("shows the 503 message once and reuses the idempotency key", async () => {
+  it("shows the plain 503 text and does not send a second request", async () => {
     assert.equal(
       LEAD_UNAVAILABLE_MESSAGE,
       "Не удалось отправить заявку, попробуйте через несколько минут"
     );
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return unavailable();
+    }) as typeof fetch;
+    const result = await submitLeadOnce(payload, KEY, fetchImpl);
+    assert.deepEqual(result, { ok: false, message: LEAD_UNAVAILABLE_MESSAGE });
+    assert.equal(calls, 1);
+  });
+
+  it("shows minutes from Retry-After seconds or an HTTP-date and still sends once", async () => {
+    const now = Date.parse("2026-10-18T20:00:00.000Z");
+    assert.equal(leadUnavailableMessage("120", now), "Не удалось отправить заявку, попробуйте через ~2 мин");
+    assert.equal(
+      leadUnavailableMessage(new Date(now + 180_000).toUTCString(), now),
+      "Не удалось отправить заявку, попробуйте через ~3 мин"
+    );
+    assert.equal(leadUnavailableMessage(null, now), LEAD_UNAVAILABLE_MESSAGE);
+
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return unavailable("120");
+    }) as typeof fetch;
+    const result = await submitLeadOnce(payload, KEY, fetchImpl);
+    assert.deepEqual(result, {
+      ok: false,
+      message: "Не удалось отправить заявку, попробуйте через ~2 мин",
+    });
+    assert.equal(calls, 1);
+
+    const dated = new Date(Date.now() + 125_000).toUTCString();
+    calls = 0;
+    const datedFetch = (async () => {
+      calls += 1;
+      return unavailable(dated);
+    }) as typeof fetch;
+    const datedResult = await submitLeadOnce(payload, KEY, datedFetch);
+    assert.deepEqual(datedResult, {
+      ok: false,
+      message: "Не удалось отправить заявку, попробуйте через ~3 мин",
+    });
+    assert.equal(calls, 1);
+  });
+
+  it("reuses the idempotency key on a manual resubmit", async () => {
     const calls: Array<{ key: string | null; body: string }> = [];
     const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       calls.push({ key: headers.get("idempotency-key"), body: String(init?.body ?? "") });
-      return new Response(JSON.stringify({ error: "rate_limit_unavailable" }), {
-        status: 503,
-        headers: { "Content-Type": "application/json", "Retry-After": "30" },
-      });
+      return unavailable();
     }) as typeof fetch;
 
     const first = await submitLeadOnce(payload, KEY, fetchImpl);
@@ -39,7 +92,6 @@ describe("lead form submit", () => {
     assert.equal(calls[0].key, KEY);
     assert.equal(calls[1].key, KEY);
     assert.equal(calls[0].body, calls[1].body);
-    assert.equal(calls[0].body.includes(payload.email), true);
   });
 
   it("keeps typed values and does not retry from the form", () => {

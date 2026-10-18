@@ -88,9 +88,17 @@ export async function classifyLeadUpstream(upstream: Response): Promise<LeadUpst
   }
   if (PASSTHROUGH.has(upstream.status)) {
     const text = await upstream.text();
+    const headers = new Headers();
+    if (upstream.status === 503) {
+      const retry = upstream.headers.get("retry-after");
+      if (retry !== null) headers.set("Retry-After", retry);
+    }
     return {
       kind: "response",
-      response: Response.json(leadErrorPayload(upstream.status, text), { status: upstream.status }),
+      response: Response.json(leadErrorPayload(upstream.status, text), {
+        status: upstream.status,
+        headers,
+      }),
     };
   }
   await upstream.arrayBuffer().catch(() => undefined);

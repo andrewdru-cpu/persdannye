@@ -58,7 +58,7 @@ Public without the service bearer: `GET {BASE}/api/health` and `POST {BASE}/publ
 
 When `PARSER_API_BASE` is set, an accepted lead is forwarded **once** to `POST {BASE}/public/lead` (contract v1.1, no service bearer, no `smart_token`). The JSON body is at most 16 KB: `name` (2–120), `email` (≤200) and/or `phone` (≤40), optional `url`, `check_id`, `message`, `source`, and `consent: { accepted: true, text_version: "2026-10-11-lead" }`. `marketing_consent: { accepted: true, text_version: "2026-10-11-marketing" }` is included only when the lead has an email and the checkbox is on. The browser sends one `Idempotency-Key` (UUID) per form fill; the BFF forwards it unchanged. A missing or invalid key is **400** `idempotency_key_invalid`. A manual resubmit reuses the same key. Neither the browser nor the BFF retries a lead automatically.
 
-Parser statuses are returned with the same `error`: **201**; **400** `validation_failed` plus `fields`; **409** `idempotency_in_progress`; **422** `idempotency_key_reused`, `consent_required`, or `consent_version_unknown`; **429** with `Retry-After`; **503** (any `error`, including `rate_limit_unavailable`). A 503 leaves the typed fields in the form and shows «Не удалось отправить заявку, попробуйте через несколько минут».
+Parser statuses are returned with the same `error`: **201**; **400** `validation_failed` plus `fields`; **409** `idempotency_in_progress`; **422** `idempotency_key_reused`, `consent_required`, or `consent_version_unknown`; **429** with `Retry-After`; **503** (any `error`, including `rate_limit_unavailable`) with `Retry-After` when the parser sent it. A 503 leaves the typed fields in the form and shows «Не удалось отправить заявку, попробуйте через несколько минут». When `Retry-After` is delay-seconds or an HTTP-date, that sentence uses «попробуйте через ~N мин». The form does not submit again by itself.
 
 The client address comes from the Vercel header `x-real-ip`, or from the first address in `x-vercel-forwarded-for`. A client-supplied `X-Forwarded-For` is ignored. Every client-supplied `X-PD-*` header is removed before the parser request is built.
 
@@ -66,7 +66,7 @@ The client address comes from the Vercel header `x-real-ip`, or from the first a
 
 - `X-PD-Client-IP` — the raw Vercel address
 - `X-PD-Ts` — unix time in seconds
-- `X-PD-Sig` — hex HMAC-SHA256 (`node:crypto`) of `<ts>.<METHOD>.<pathname>.<ip>`. METHOD is uppercased. The path is the pathname only, so `/public/lead?a=1` signs as `/public/lead`. Example: `1760817600.POST./public/lead.203.0.113.7`
+- `X-PD-Sig` — hex HMAC-SHA256 (`node:crypto`) of `<ts>.<METHOD>.<pathname>.<ip>`. METHOD is uppercased. The path is the parser request pathname, not the Vercel route: a lead signs `/public/lead`, never `/api/leads`. Query, fragment, and a trailing slash are omitted, so `/public/lead/` and `/public/lead?x=1` both sign as `/public/lead`. Example: `1760817600.POST./public/lead.203.0.113.7`
 
 A missing or shorter secret omits those three headers outside production. In production (`VERCEL_ENV=production` or `PD_DEPLOY_ENV=prod`) the BFF does not call the parser and responds **503** with no secret details. A parser **429** is returned unchanged, including `Retry-After`. Lead names, emails, and phones are not written into HTTP responses or server logs. An address that is logged has its last IPv4 octet (or IPv6 interface id) cleared.
 

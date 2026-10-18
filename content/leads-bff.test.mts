@@ -264,6 +264,10 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(Math.abs(tsNum - Math.floor(Date.now() / 1000)) <= 2, true);
     assert.equal(headers.get("x-pd-client-ip"), RAW_IP);
     assert.equal(headers.get("x-pd-sig"), signature(ts, RAW_IP));
+    const vercelPath = createHmac("sha256", SECRET)
+      .update(`${ts}.POST./api/leads.${RAW_IP}`)
+      .digest("hex");
+    assert.notEqual(headers.get("x-pd-sig"), vercelPath);
     assert.equal(headers.get("x-pd-client-ts"), null);
     assert.equal(headers.get("x-pd-client-sig"), null);
     assert.equal(headers.get("x-forwarded-for"), null);
@@ -530,7 +534,7 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
       assert.equal(payload.email, undefined);
       assertNoLeadPii(JSON.stringify(payload));
       assert.equal(storedCopies(EMAIL), before);
-      if (item.status === 503) assert.equal(res.headers.get("retry-after"), null);
+      if (item.status === 503) assert.equal(res.headers.get("retry-after"), "9");
     }
   });
 
