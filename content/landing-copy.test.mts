@@ -463,7 +463,7 @@ describe("publication flags", () => {
       `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`,
     );
     assert.equal(footerParagraphs(false).some((line) => line.includes("ИНН")), false);
-    assert.equal(footerParagraphs(false, true).some((line) => line.includes("ИНН")), true);
+    assert.equal(footerParagraphs(false, true).some((line) => line.includes("ИНН")), false);
   });
 });
 

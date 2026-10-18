@@ -6,9 +6,11 @@ import { footerParagraphs } from "./blocks.ts";
 import { company } from "../lib/company.ts";
 import { ogrnLabel, operatorDisclaimer, requisiteIdLine, visiblePhone, visibleRequisite } from "../lib/requisite-lines.ts";
 import {
+  assertPublishedRequisites,
   assertRequisiteFlags,
   assertTermsAndCookieFlags,
   emptyRequisiteFields,
+  type PublishedRequisites,
   type RequisiteIdentity,
 } from "../lib/requisites-guard.ts";
 
@@ -51,6 +53,7 @@ describe("requisites guard", () => {
     }
     const config = source("next.config.ts");
     assert.equal(config.includes("assertRequisiteFlags"), true);
+    assert.equal(config.includes("assertPublishedRequisites"), true);
     assert.equal(config.includes("assertTermsAndCookieFlags"), true);
     assert.doesNotThrow(() =>
       assertTermsAndCookieFlags(flags, {
@@ -130,8 +133,67 @@ describe("requisites guard", () => {
     assert.equal(operatorDisclaimer("ООО Пример", ""), "Оператор сайта: ООО Пример.");
     assert.equal(operatorDisclaimer("", "1098765432"), "Оператор сайта: ИНН 1098765432.");
     assert.equal(operatorDisclaimer("ООО Пример", "").includes("ИНН "), false);
+    assert.equal(company.legalName, "");
+    assert.equal(company.inn, "");
+    assert.equal(company.ogrn, "");
+    assert.equal(company.address, "");
+    assert.equal(company.phone, "");
+    assert.equal(company.phoneHref, "");
     const hidden = footerParagraphs(false, true).find((line) => line.startsWith("Оператор сайта"));
-    assert.equal(hidden, `Оператор сайта: ${company.legalName}, ИНН ${company.inn}.`);
+    assert.equal(hidden, undefined);
+    const published: PublishedRequisites = {
+      legalName: "ООО Пример",
+      inn: "1098765439",
+      ogrn: "1234567890127",
+      address: "г. Пример, ул. Примерная, д. 1",
+      phone: "+7 900 111-22-33",
+      phoneHref: "tel:+79001112233",
+      legalForm: "",
+    };
+    assert.doesNotThrow(() => assertPublishedRequisites(false, company));
+    assert.throws(() => assertPublishedRequisites(true, company), /Реквизиты пустые/);
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...published, inn: "0000000000" }),
+      /Тестовый ИНН/,
+    );
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...published, inn: "7700000000" }),
+      /Тестовый ИНН/,
+    );
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...published, ogrn: "0000000000000" }),
+      /Тестовый ОГРН/,
+    );
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...published, address: "г. Пример, {{address}}" }),
+      /Плейсхолдер в реквизитах/,
+    );
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...published, inn: "1098765432" }),
+      /Некорректный ИНН/,
+    );
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...published, ogrn: "1234567890123" }),
+      /Некорректный ОГРН/,
+    );
+    assert.throws(
+      () => assertPublishedRequisites(true, { ...published, legalForm: "ИП" }),
+      /Некорректный ИНН/,
+    );
+    assert.equal(
+      assertPublishedRequisites(true, {
+        ...published,
+        legalForm: "ИП",
+        inn: "109876543252",
+        ogrn: "304770000000008",
+      }),
+      undefined,
+    );
+    assert.equal(assertPublishedRequisites(true, published), undefined);
+    assert.equal(
+      operatorDisclaimer(published.legalName, published.inn),
+      "Оператор сайта: ООО Пример, ИНН 1098765439.",
+    );
     const footer = source("components/layout/Footer.tsx");
     assert.equal(footer.includes("requisiteIdLine("), true);
     assert.equal(footer.includes("visiblePhone("), true);
