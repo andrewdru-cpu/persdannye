@@ -7,7 +7,7 @@ import { CookieBanner } from "@/components/layout/CookieBanner";
 import { StickyCta } from "@/components/layout/StickyCta";
 import { AnalyticsGate } from "@/components/layout/AnalyticsGate";
 import { SiteAtmosphere } from "@/components/motion/SiteAtmosphere";
-import { isPdCollectionEnabled } from "@/lib/collection-gate";
+import { collectionEnabled } from "@/lib/collection-gate";
 import { company } from "@/lib/company";
 
 const manrope = localFont({
@@ -48,6 +48,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const collect = collectionEnabled();
   return (
     <html lang="ru">
       <body
@@ -61,9 +62,9 @@ export default function RootLayout({
           <Header />
           <main id="content">{children}</main>
           <Footer />
-          {isPdCollectionEnabled() ? <CookieBanner /> : null}
-          {isPdCollectionEnabled() ? <AnalyticsGate /> : null}
-          {isPdCollectionEnabled() ? <StickyCta /> : null}
+          {collect ? <CookieBanner /> : null}
+          {collect ? <AnalyticsGate enabled /> : null}
+          {collect ? <StickyCta /> : null}
         </div>
       </body>
     </html>

@@ -1,4 +1,4 @@
-import { COLLECTION_CLOSED_NOTICE } from "@/lib/collection-gate";
+export const COLLECTION_CLOSED_NOTICE = "Приём заявок временно приостановлен";
 
 export function CollectionClosed() {
   return (

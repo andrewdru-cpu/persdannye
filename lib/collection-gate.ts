@@ -2,12 +2,13 @@ import { flags } from "@/content/flags";
 
 export const COLLECTION_DISABLED_ERROR = "collection_disabled";
 
-export const COLLECTION_CLOSED_NOTICE =
-  "Приём заявок откроется после публикации политики обработки персональных данных";
-
-/** Заявки, сканы, аналитика и нетехнические cookie. */
-export function isPdCollectionEnabled(): boolean {
-  return flags.collect_pd === true;
+/**
+ * Сбор заявок, сканов, Метрики и необязательных cookie.
+ * Только сервер: route handlers и server components. Клиенту — boolean через props.
+ * true лишь при PD_COLLECTION_ENABLED="true" и опубликованной политике.
+ */
+export function collectionEnabled(): boolean {
+  return process.env.PD_COLLECTION_ENABLED === "true" && flags.show_site_legal === true;
 }
 
 /**
@@ -15,6 +16,6 @@ export function isPdCollectionEnabled(): boolean {
  * null — сбор включён, маршрут работает как раньше.
  */
 export function collectionGateResponse(): Response | null {
-  if (isPdCollectionEnabled()) return null;
+  if (collectionEnabled()) return null;
   return Response.json({ error: COLLECTION_DISABLED_ERROR }, { status: 503 });
 }

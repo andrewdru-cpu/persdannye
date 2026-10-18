@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, it, mock } from "node:test";
+import { createElement, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import CheckPage from "../app/check/page.tsx";
 import RootLayout from "../app/layout.tsx";
@@ -8,7 +10,9 @@ import { GET as getCheck } from "../app/api/checks/[id]/route.ts";
 import { GET as getCheckPdf } from "../app/api/checks/[id]/pdf/route.ts";
 import { POST as postCheck } from "../app/api/checks/route.ts";
 import { POST as postLead } from "../app/api/leads/route.ts";
-import { COLLECTION_CLOSED_NOTICE } from "../lib/collection-gate.ts";
+import { UrlChecker } from "../components/check/UrlChecker.tsx";
+import { COLLECTION_CLOSED_NOTICE } from "../components/collection/CollectionClosed.tsx";
+import { collectionEnabled } from "../lib/collection-gate.ts";
 import { flags } from "./flags.ts";
 
 const PROBE_EMAIL = "probe-secret@example.test";
@@ -27,6 +31,16 @@ const probeBody = {
   message: "probe-secret-message",
 };
 
+const clientSources = [
+  "../components/landing/Sections.tsx",
+  "../components/check/UrlChecker.tsx",
+  "../components/layout/AnalyticsGate.tsx",
+  "../components/layout/CookieBanner.tsx",
+  "../components/layout/StickyCta.tsx",
+  "../components/landing/LeadForm.tsx",
+  "../components/collection/CollectionClosed.tsx",
+];
+
 function contactInputs(html: string): string[] {
   return [...html.matchAll(/<input\b[^>]*>/gi)]
     .map((match) => match[0])
@@ -41,15 +55,22 @@ function post(path: string, body: unknown): Request {
   });
 }
 
-function trackParams(): { params: Promise<{ id: string }>; read: () => boolean } {
-  let read = false;
-  const params = Promise.resolve({ id: "scan-1" });
-  const then = params.then.bind(params);
-  params.then = ((onFulfilled, onRejected) => {
-    read = true;
-    return then(onFulfilled, onRejected);
-  }) as typeof params.then;
-  return { params, read: () => read };
+function componentNames(node: ReactNode, found: Set<string>): void {
+  if (node == null || typeof node === "boolean") return;
+  if (Array.isArray(node)) {
+    for (const child of node) componentNames(child, found);
+    return;
+  }
+  if (!isValidElement(node)) return;
+  const type = node.type;
+  if (typeof type === "function") found.add(type.name || "");
+  const children = (node.props as { children?: ReactNode }).children;
+  componentNames(children, found);
+}
+
+function postEnv(value: string | undefined) {
+  if (value === undefined) delete process.env.PD_COLLECTION_ENABLED;
+  else process.env.PD_COLLECTION_ENABLED = value;
 }
 
 async function html(page: "home" | "check"): Promise<string> {
@@ -57,14 +78,25 @@ async function html(page: "home" | "check"): Promise<string> {
   return renderToStaticMarkup(await RootLayout({ children: child }));
 }
 
+async function treeNames(): Promise<Set<string>> {
+  const found = new Set<string>();
+  componentNames(await RootLayout({ children: await HomePage() }), found);
+  return found;
+}
+
 describe("personal data collection gate", { concurrency: false }, () => {
   const saved = {
     parserBase: process.env.PARSER_API_BASE,
     parserUrl: process.env.PARSER_API_URL,
+    collection: process.env.PD_COLLECTION_ENABLED,
+    siteLegal: flags.show_site_legal,
+    cookiePolicy: flags.show_cookie_policy,
   };
 
   afterEach(() => {
-    flags.collect_pd = false;
+    flags.show_site_legal = saved.siteLegal;
+    flags.show_cookie_policy = saved.cookiePolicy;
+    postEnv(saved.collection);
     if (saved.parserBase === undefined) delete process.env.PARSER_API_BASE;
     else process.env.PARSER_API_BASE = saved.parserBase;
     if (saved.parserUrl === undefined) delete process.env.PARSER_API_URL;
@@ -72,72 +104,114 @@ describe("personal data collection gate", { concurrency: false }, () => {
     mock.restoreAll();
   });
 
-  it("keeps collect_pd off and leaves the other flags alone", () => {
-    assert.equal(flags.collect_pd, false);
+  it("does not keep a collect_pd flag and does not read the env on the client", () => {
+    assert.equal("collect_pd" in flags, false);
     assert.equal(flags.show_lead_form, true);
-    assert.equal(flags.show_fines, false);
-    assert.equal(flags.show_marketing_consent, false);
     assert.equal(flags.show_site_legal, false);
+    for (const file of clientSources) {
+      const source = readFileSync(new URL(file, import.meta.url), "utf8");
+      assert.equal(source.includes("PD_COLLECTION_ENABLED"), false, file);
+      assert.equal(source.includes("collection-gate"), false, file);
+    }
   });
 
-  it("returns 503 for every lead and scan route and does not call fetch", async () => {
-    process.env.PARSER_API_BASE = "https://parser.invalid";
-    const fetchMock = mock.method(globalThis, "fetch", async () => {
-      throw new Error("fetch should not run while collection is off");
-    });
-    const logs: string[] = [];
-    for (const method of ["log", "info", "warn", "error", "debug"] as const) {
-      mock.method(console, method, (...args: unknown[]) => {
-        logs.push(args.map((arg) => String(arg)).join(" "));
+  it("stays off when PD_COLLECTION_ENABLED is unset", () => {
+    postEnv(undefined);
+    flags.show_site_legal = true;
+    assert.equal(collectionEnabled(), false);
+    flags.show_site_legal = false;
+    assert.equal(collectionEnabled(), false);
+  });
+
+  it("stays off when PD_COLLECTION_ENABLED is any value other than true", () => {
+    flags.show_site_legal = true;
+    for (const value of ["", "false", "TRUE", "True", "1", "yes", " true", "true "]) {
+      postEnv(value);
+      assert.equal(collectionEnabled(), false, JSON.stringify(value));
+    }
+  });
+
+  it("turns on only when PD_COLLECTION_ENABLED is true and the policy is published", () => {
+    postEnv("true");
+    flags.show_site_legal = false;
+    assert.equal(collectionEnabled(), false);
+    flags.show_site_legal = true;
+    assert.equal(collectionEnabled(), true);
+  });
+
+  it("keeps the lead form, report email, Metrika, and optional cookies off while the policy is unpublished", async () => {
+    flags.show_site_legal = false;
+    flags.show_cookie_policy = false;
+    for (const value of [undefined, "", "false", "TRUE", "1", "yes", "true"]) {
+      postEnv(value);
+      assert.equal(collectionEnabled(), false, String(value));
+      process.env.PARSER_API_BASE = "https://parser.invalid";
+      const fetchMock = mock.method(globalThis, "fetch", async () => {
+        throw new Error("fetch should not run");
       });
+      const leadReq = post("/api/leads", probeBody);
+      const leadRes = await postLead(leadReq);
+      assert.equal(leadRes.status, 503, String(value));
+      assert.deepEqual(await leadRes.json(), { error: "collection_disabled" });
+      assert.equal(leadReq.bodyUsed, false);
+
+      const checkReq = post("/api/checks", { url: "https://probe-secret.example", email: PROBE_EMAIL });
+      const checkRes = await postCheck(checkReq);
+      assert.equal(checkRes.status, 503, String(value));
+      assert.equal(checkReq.bodyUsed, false);
+
+      const statusReq = new Request("http://localhost/api/checks/probe-secret");
+      const statusRes = await getCheck(statusReq, { params: Promise.resolve({ id: "probe-secret" }) });
+      assert.equal(statusRes.status, 503, String(value));
+
+      const pdfReq = new Request("http://localhost/api/checks/probe-secret/pdf");
+      const pdfRes = await getCheckPdf(pdfReq, { params: Promise.resolve({ id: "probe-secret" }) });
+      assert.equal(pdfRes.status, 503, String(value));
+      assert.equal(fetchMock.mock.calls.length, 0, String(value));
+      fetchMock.mock.restore();
+
+      for (const page of ["home", "check"] as const) {
+        const rendered = await html(page);
+        assert.equal(rendered.includes("<form"), false, `${page} ${value}`);
+        assert.equal(rendered.includes('id="lead"') && rendered.includes('aria-label="Имя"'), false, page);
+        assert.equal(rendered.includes("E-mail для отчёта"), false, page);
+        assert.deepEqual(contactInputs(rendered), [], page);
+        assert.equal(ANALYTICS.test(rendered), false, page);
+        assert.equal(rendered.includes("Настройки cookie"), false, page);
+        assert.equal(rendered.includes("маркетинговые cookie"), false, page);
+        assert.equal(rendered.includes('href="/cookies"'), false, page);
+        assert.equal(rendered.includes("/cookies"), false, page);
+        assert.equal(rendered.includes(COLLECTION_CLOSED_NOTICE), true, page);
+      }
+      const names = await treeNames();
+      assert.equal(names.has("CookieBanner"), false, String(value));
+      assert.equal(names.has("AnalyticsGate"), false, String(value));
+      assert.equal(names.has("UrlChecker"), false, String(value));
+      assert.equal(names.has("LeadForm"), false, String(value));
+
+      const checker = renderToStaticMarkup(createElement(UrlChecker, { collectionEnabled: false }));
+      assert.equal(checker.includes("E-mail для отчёта"), false);
+      assert.equal(checker.includes("<form"), false);
+      assert.equal(checker.includes(COLLECTION_CLOSED_NOTICE), true);
     }
-
-    const leadReq = post("/api/leads", probeBody);
-    const checkReq = post("/api/checks", {
-      url: "https://probe-secret.example",
-      lead: { email: PROBE_EMAIL, phone: PROBE_PHONE, consent: true },
-    });
-    const statusParams = trackParams();
-    const pdfParams = trackParams();
-
-    const leadRes = await postLead(leadReq);
-    const checkRes = await postCheck(checkReq);
-    const statusRes = await getCheck(new Request("http://localhost/api/checks/scan-1"), {
-      params: statusParams.params,
-    });
-    const pdfRes = await getCheckPdf(new Request("http://localhost/api/checks/scan-1/pdf"), {
-      params: pdfParams.params,
-    });
-
-    for (const res of [leadRes, checkRes, statusRes, pdfRes]) {
-      assert.equal(res.status, 503);
-      assert.deepEqual(await res.json(), { error: "collection_disabled" });
-    }
-    assert.equal(leadReq.bodyUsed, false);
-    assert.equal(checkReq.bodyUsed, false);
-    assert.equal(statusParams.read(), false);
-    assert.equal(pdfParams.read(), false);
-    assert.equal(fetchMock.mock.calls.length, 0);
-    const logged = logs.join("\n");
-    assert.equal(logged.includes(PROBE_EMAIL), false);
-    assert.equal(logged.includes(PROBE_PHONE), false);
   });
 
-  it("renders / and /check without analytics scripts or contact fields", async () => {
-    for (const page of ["home", "check"] as const) {
-      const rendered = await html(page);
-      assert.equal(ANALYTICS.test(rendered), false, page);
-      assert.deepEqual(contactInputs(rendered), [], page);
-      assert.equal(rendered.includes("<form"), false, page);
-      assert.equal(rendered.includes('id="url-check-input"'), false, page);
-      assert.equal(rendered.includes('href="/#lead"'), false, page);
-      assert.equal(rendered.includes(COLLECTION_CLOSED_NOTICE), true, page);
-      assert.equal(rendered.includes("Настройки cookie"), false, page);
-    }
+  it("shows the cookies link in the footer and FAQ only when the cookie policy flag is on", async () => {
+    flags.show_cookie_policy = false;
+    const hidden = await html("home");
+    assert.equal(hidden.includes('href="/cookies"'), false);
+    assert.equal(hidden.includes("/cookies"), false);
+
+    flags.show_cookie_policy = true;
+    const shown = await html("home");
+    assert.equal(shown.includes('href="/cookies"'), true);
+    assert.equal(shown.includes("https://persdannye.ru/cookies"), true);
   });
 
   it("keeps the previous lead, scan, and form behaviour when collection is on", async () => {
-    flags.collect_pd = true;
+    postEnv("true");
+    flags.show_site_legal = true;
+    assert.equal(collectionEnabled(), true);
     delete process.env.PARSER_API_BASE;
     delete process.env.PARSER_API_URL;
 
@@ -159,14 +233,20 @@ describe("personal data collection gate", { concurrency: false }, () => {
     });
     assert.equal(statusRes.status, 404);
 
+    const names = await treeNames();
+    assert.equal(names.has("CookieBanner"), true);
+    assert.equal(names.has("AnalyticsGate"), true);
+
     for (const page of ["home", "check"] as const) {
       const rendered = await html(page);
       assert.equal(rendered.includes(COLLECTION_CLOSED_NOTICE), false, page);
+      assert.equal(rendered.includes("E-mail для отчёта"), true, page);
       assert.equal(contactInputs(rendered).length > 0, true, page);
       assert.equal(rendered.includes("<form"), true, page);
       assert.equal(ANALYTICS.test(rendered), false, page);
     }
     const home = await html("home");
     assert.equal(home.includes('href="/#lead"'), true);
+    assert.equal(home.includes('id="lead"'), true);
   });
 });

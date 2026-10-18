@@ -3,7 +3,7 @@ import { UrlChecker } from "@/components/check/UrlChecker";
 import { CollectionClosed } from "@/components/collection/CollectionClosed";
 import { Reveal } from "@/components/motion/Reveal";
 import { GlassCard } from "@/components/ui/GlassCard";
-import { isPdCollectionEnabled } from "@/lib/collection-gate";
+import { collectionEnabled } from "@/lib/collection-gate";
 import { marketingConsentEnabled } from "@/lib/runtime-flags";
 
 export const metadata: Metadata = {
@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default function CheckPage() {
+  const collect = collectionEnabled();
   return (
     <div className="relative overflow-hidden py-16 md:py-28">
       <div className="pointer-events-none absolute left-1/2 top-0 h-80 w-[680px] -translate-x-1/2 rounded-full bg-amber-200/15 blur-[120px]" />
@@ -23,7 +24,7 @@ export default function CheckPage() {
           <h1 className="mt-3 font-display text-4xl font-semibold leading-[1.02] text-white md:text-6xl">
             Проверить свой сайт
           </h1>
-          {isPdCollectionEnabled() ? (
+          {collect ? (
             <p className="mt-4 max-w-xl text-base leading-relaxed text-white/80">
               Введите URL — ход проверки и наблюдения обновляются на странице.
               Страницу можно листать: проверка не блокирует экран.
@@ -32,9 +33,9 @@ export default function CheckPage() {
         </Reveal>
         <Reveal delay={0.08} className="mt-8">
           <div id="url-check" className="scroll-mt-28">
-            {isPdCollectionEnabled() ? (
+            {collect ? (
               <GlassCard gold>
-                <UrlChecker marketingConsent={marketingConsentEnabled()} />
+                <UrlChecker collectionEnabled marketingConsent={marketingConsentEnabled()} />
               </GlassCard>
             ) : (
               <CollectionClosed />
