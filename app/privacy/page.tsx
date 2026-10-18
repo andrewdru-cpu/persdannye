@@ -4,6 +4,7 @@ import { flags } from "@/content/flags";
 import { privacySurface, siteLegalPrivacy, subjectsAgeClause } from "@/content/site-legal";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { visibleRequisite } from "@/lib/requisite-lines";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -183,7 +184,7 @@ function LegacyPrivacyPolicy() {
             ДПО: <PrivacyContactLink />
           </p>
         ) : null}
-        <p>Тел.: {company.phone}</p>
+        {visibleRequisite(company.phone) ? <p>Тел.: {visibleRequisite(company.phone)}</p> : null}
         <p>{company.supportHours}</p>
       </Section>
     </article>

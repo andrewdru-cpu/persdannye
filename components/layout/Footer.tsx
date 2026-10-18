@@ -4,9 +4,11 @@ import { flags } from "@/content/flags";
 import { footerBlurb } from "@/content/landing";
 import { visibleFooterDocuments } from "@/content/legal-nav";
 import { fillPlaceholders } from "@/content/placeholders";
+import { CookieSettingsLink } from "@/components/layout/CookieSettingsLink";
 import { DbipAttribution } from "@/components/layout/DbipAttribution";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { requisiteIdLine, visiblePhone, visibleRequisite } from "@/lib/requisite-lines";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export function Footer() {
@@ -30,6 +32,9 @@ export function Footer() {
                 </Link>
               </li>
             ))}
+            <li>
+              <CookieSettingsLink />
+            </li>
           </ul>
         </div>
         <div>
@@ -37,22 +42,7 @@ export function Footer() {
             Оператор
           </div>
           {flags.show_requisites ? (
-            <ul className="space-y-1 text-sm text-white/80">
-              <li>{company.legalName}</li>
-              <li>ИНН {company.inn}</li>
-              <li>ОГРН {company.ogrn}</li>
-              <li>{company.address}</li>
-              {privacyContactLabel() ? (
-                <li>
-                  ДПО: <PrivacyContactLink className="hover:text-amber-300" />
-                </li>
-              ) : null}
-              <li>
-                <a className="hover:text-amber-300" href={company.phoneHref}>
-                  {company.phone}
-                </a>
-              </li>
-            </ul>
+            <OperatorRequisites />
           ) : (
             <ul className="space-y-1 text-sm text-white/80">
               {privacyContactLabel() ? (
@@ -79,9 +69,49 @@ export function Footer() {
           <DbipAttribution />
         </div>
         <p className="mt-3 text-center text-xs text-white/80">
-          © {new Date().getFullYear()} {flags.show_requisites ? company.legalName : company.brand}. Все права защищены.
+          © {new Date().getFullYear()}{" "}
+          {flags.show_requisites ? visibleRequisite(company.legalName) ?? company.brand : company.brand}. Все права
+          защищены.
         </p>
       </div>
     </footer>
+  );
+}
+
+function OperatorRequisites() {
+  const legalName = visibleRequisite(company.legalName);
+  const idLine = requisiteIdLine(company.inn, company.ogrn);
+  const address = visibleRequisite(company.address);
+  const phone = visiblePhone(company.phone, company.phoneHref);
+  const contact = privacyContactLabel();
+  if (!legalName && !idLine && !address && !phone && !contact) {
+    return (
+      <ul className="space-y-1 text-sm text-white/80">
+        <li>Реквизиты не опубликованы</li>
+      </ul>
+    );
+  }
+  return (
+    <ul className="space-y-1 text-sm text-white/80">
+      {legalName ? <li>{legalName}</li> : null}
+      {idLine ? <li>{idLine}</li> : null}
+      {address ? <li>{address}</li> : null}
+      {contact ? (
+        <li>
+          ДПО: <PrivacyContactLink className="hover:text-amber-300" />
+        </li>
+      ) : null}
+      {phone ? (
+        <li>
+          {phone.href ? (
+            <a className="hover:text-amber-300" href={phone.href}>
+              {phone.text}
+            </a>
+          ) : (
+            phone.text
+          )}
+        </li>
+      ) : null}
+    </ul>
   );
 }

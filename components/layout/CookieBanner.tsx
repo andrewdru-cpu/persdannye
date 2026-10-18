@@ -4,29 +4,30 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
+import { COOKIE_BANNER_ACTIONS } from "@/content/cookies-policy";
+import {
+  COOKIE_CONSENT_STORAGE_KEY,
+  OPEN_COOKIE_SETTINGS_EVENT,
+  consentFromChoice,
+  readStoredCookieConsent,
+  type CookieConsent,
+} from "@/lib/cookie-consent";
 
-export type CookieConsent = {
-  necessary: true;
-  analytics: boolean;
-  marketing: boolean;
-  updatedAt: string;
-};
+export type { CookieConsent };
 
-const STORAGE_KEY = "pd_cookie_consent_v1";
+const [acceptLabel, rejectLabel, settingsLabel] = COOKIE_BANNER_ACTIONS;
 
 function loadConsent(): CookieConsent | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as CookieConsent;
+    return readStoredCookieConsent(localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY))?.consent ?? null;
   } catch {
     return null;
   }
 }
 
 function saveConsent(c: CookieConsent) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(c));
+  localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, JSON.stringify(c));
   window.dispatchEvent(new CustomEvent("pd-cookie-consent", { detail: c }));
 }
 
@@ -41,12 +42,38 @@ export function CookieBanner() {
   const [visible, setVisible] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [analytics, setAnalytics] = useState(false);
-  const [marketing, setMarketing] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const existing = loadConsent();
-    if (!existing) setVisible(true);
+    try {
+      const raw = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY);
+      const read = readStoredCookieConsent(raw);
+      if (!read) {
+        setVisible(true);
+        return;
+      }
+      setAnalytics(read.consent.analytics);
+      if (read.droppedMarketing) {
+        try {
+          saveConsent(read.consent);
+        } catch {
+          // Квота или закрытое хранилище: выбор уже прочитан, исключение не показываем.
+        }
+      }
+    } catch {
+      setVisible(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    function open() {
+      const read = loadConsent();
+      setAnalytics(read?.analytics ?? false);
+      setAdvanced(false);
+      setVisible(true);
+    }
+    window.addEventListener(OPEN_COOKIE_SETTINGS_EVENT, open);
+    return () => window.removeEventListener(OPEN_COOKIE_SETTINGS_EVENT, open);
   }, []);
 
   useEffect(() => {
@@ -64,34 +91,19 @@ export function CookieBanner() {
   }, [visible]);
 
   function acceptAll() {
-    const c: CookieConsent = {
-      necessary: true,
-      analytics: true,
-      marketing: true,
-      updatedAt: new Date().toISOString(),
-    };
+    const c = consentFromChoice("accept", false, new Date().toISOString());
     saveConsent(c);
     setVisible(false);
   }
 
   function necessaryOnly() {
-    const c: CookieConsent = {
-      necessary: true,
-      analytics: false,
-      marketing: false,
-      updatedAt: new Date().toISOString(),
-    };
+    const c = consentFromChoice("reject", false, new Date().toISOString());
     saveConsent(c);
     setVisible(false);
   }
 
   function saveCustom() {
-    const c: CookieConsent = {
-      necessary: true,
-      analytics,
-      marketing,
-      updatedAt: new Date().toISOString(),
-    };
+    const c = consentFromChoice("custom", analytics, new Date().toISOString());
     saveConsent(c);
     setVisible(false);
   }
@@ -110,8 +122,8 @@ export function CookieBanner() {
           aria-label="Настройки cookie"
         >
           <p className="text-sm leading-relaxed text-white/85">
-            Мы используем необходимые cookie для работы сайта. Аналитические и
-            маркетинговые cookie включаем только после вашего согласия. Подробнее — в{" "}
+            Мы используем необходимые cookie для работы сайта. Аналитические cookie включаем только
+            после вашего согласия. Подробнее — в{" "}
             <Link href="/cookies" className="text-amber-300 underline-offset-2 hover:underline">
               Политике cookie
             </Link>{" "}
@@ -136,30 +148,21 @@ export function CookieBanner() {
                   className="accent-amber-400"
                 />
               </label>
-              <label className="flex items-center justify-between gap-3">
-                <span>Маркетинговые</span>
-                <input
-                  type="checkbox"
-                  checked={marketing}
-                  onChange={(e) => setMarketing(e.target.checked)}
-                  className="accent-amber-400"
-                />
-              </label>
             </div>
           )}
-          {/* «Отклонить» = только необходимые (analytics и marketing false). Обе кнопки одного размера и веса. Необязательные категории по умолчанию не отмечены. */}
+          {/* «Отклонить» = только необходимые (analytics false). Обе кнопки одного размера и веса. Аналитика по умолчанию не отмечена. */}
           <div className="mt-4 flex gap-2">
             <Button size="md" variant="secondary" className={choiceClass} onClick={acceptAll}>
-              Принять
+              {acceptLabel}
             </Button>
             <Button size="md" variant="secondary" className={choiceClass} onClick={necessaryOnly}>
-              Отклонить
+              {rejectLabel}
             </Button>
           </div>
           <div className="mt-2">
             {!advanced ? (
               <Button size="md" variant="secondary" className="min-h-11 w-full" onClick={() => setAdvanced(true)}>
-                Настроить
+                {settingsLabel}
               </Button>
             ) : (
               <Button size="md" variant="secondary" className="min-h-11 w-full" onClick={saveCustom}>

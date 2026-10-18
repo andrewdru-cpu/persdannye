@@ -1,3 +1,4 @@
+import { operatorDisclaimer } from "../lib/requisite-lines";
 import { flags } from "./flags";
 import { fillPlaceholders, placeholders } from "./placeholders";
 
@@ -18,9 +19,14 @@ export function footerParagraphs(todos: boolean, showRequisites = flags.show_req
   const source = showRequisites
     ? footerDisclaimer
     : footerDisclaimer.filter((paragraph) => !paragraph.includes("{{operator_inn}}"));
-  const filled = source.map((paragraph) => fillPlaceholders(paragraph, todos));
+  const filled = source.map((paragraph) => {
+    if (paragraph.includes("{{operator_inn}}")) {
+      return operatorDisclaimer(placeholders.operator_legal_name, placeholders.operator_inn) ?? "";
+    }
+    return fillPlaceholders(paragraph, todos);
+  });
   filled.splice(Math.min(4, filled.length), 0, privateCompanySentence);
-  return filled;
+  return filled.filter((paragraph) => paragraph.trim() !== "");
 }
 
 export const howSteps = [

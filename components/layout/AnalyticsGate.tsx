@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CookieConsent } from "@/components/layout/CookieBanner";
+import { COOKIE_CONSENT_STORAGE_KEY, readStoredCookieConsent } from "@/lib/cookie-consent";
 
 /**
  * Loads analytics only after cookie consent.analytics === true.
@@ -13,10 +14,8 @@ export function AnalyticsGate() {
   useEffect(() => {
     function read() {
       try {
-        const raw = localStorage.getItem("pd_cookie_consent_v1");
-        if (!raw) return setAllowed(false);
-        const c = JSON.parse(raw) as CookieConsent;
-        setAllowed(c.analytics === true);
+        const stored = readStoredCookieConsent(localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY));
+        setAllowed(stored?.consent.analytics === true);
       } catch {
         setAllowed(false);
       }

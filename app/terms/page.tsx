@@ -5,6 +5,7 @@ import { flags } from "@/content/flags";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { requisiteIdLine, visiblePhone, visibleRequisite } from "@/lib/requisite-lines";
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение",
@@ -15,26 +16,26 @@ export default function TermsPage() {
   if (!flags.show_terms) {
     return <LegalPending title="Пользовательское соглашение" />;
   }
+  const legalName = visibleRequisite(company.legalName);
+  const idLine = requisiteIdLine(company.inn, company.ogrn);
+  const address = visibleRequisite(company.address);
+  const phone = visiblePhone(company.phone, company.phoneHref);
+  const contact = privacyContactLabel();
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
-      <h1 className="text-3xl font-semibold text-white md:text-4xl">
-        Пользовательское соглашение (публичная оферта)
-      </h1>
+      <h1 className="text-3xl font-semibold text-white md:text-4xl">Пользовательское соглашение</h1>
       <p className="mt-2 text-sm text-white/80">
-        Редакция от 21.09.2026 · {company.legalName}
+        Редакция от 21.09.2026{legalName ? ` · ${legalName}` : ""}
       </p>
 
       <Sec title="1. Предмет соглашения">
         <p>
-          Настоящее соглашение является публичной офертой {company.legalName}
-          (ИНН {company.inn}, ОГРН {company.ogrn}) и регулирует использование сайта
-          {company.website} и сервиса экспресс-проверки сайтов на признаки
-          несоответствия требованиям 152-ФЗ и практике Роскомнадзора (далее — Сервис).
+          Настоящее соглашение является публичной офертой{legalName ? ` ${legalName}` : ""}
+          {idLine ? ` (${idLine})` : ""} и регулирует использование сайта {company.website} и
+          сервиса экспресс-проверки сайтов на признаки несоответствия требованиям 152-ФЗ и
+          практике Роскомнадзора (далее — Сервис).
         </p>
-        <p>
-          Совершая акцепт (начало проверки, отправка заявки, иное использование
-          Сервиса), пользователь принимает условия соглашения.
-        </p>
+        <p>Начиная проверку сайта, пользователь принимает условия соглашения.</p>
       </Sec>
 
       <Sec title="2. Описание сервиса">
@@ -67,7 +68,8 @@ export default function TermsPage() {
           Сервис предоставляется «как есть». Оператор не отвечает за временную
           недоступность, неполноту автоматической проверки, изменения на сайте
           пользователя после сканирования, а также за убытки, возникшие вследствие
-          решений, принятых исключительно на основе экспресс-отчёта.
+          решений, принятых исключительно на основе экспресс-отчёта, в пределах,
+          допускаемых законодательством РФ, в том числе Законом о защите прав потребителей.
         </p>
       </Sec>
 
@@ -101,19 +103,24 @@ export default function TermsPage() {
         </p>
       </Sec>
 
-      <Sec title="9. Реквизиты">
-        <p>{company.legalName}</p>
-        <p>ИНН {company.inn}, ОГРН {company.ogrn}</p>
-        <p>{company.address}</p>
-        <p>
-          {privacyContactLabel() ? (
-            <>
-              <PrivacyContactLink /> ·{" "}
-            </>
+      {legalName || idLine || address || phone || contact ? (
+        <Sec title="9. Реквизиты">
+          {legalName ? <p>{legalName}</p> : null}
+          {idLine ? <p>{idLine}</p> : null}
+          {address ? <p>{address}</p> : null}
+          {phone || contact ? (
+            <p>
+              {contact ? (
+                <>
+                  <PrivacyContactLink />
+                  {phone ? " · " : null}
+                </>
+              ) : null}
+              {phone ? phone.text : null}
+            </p>
           ) : null}
-          {company.phone}
-        </p>
-      </Sec>
+        </Sec>
+      ) : null}
     </article>
   );
 }
