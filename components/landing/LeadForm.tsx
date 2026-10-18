@@ -39,11 +39,11 @@ export function LeadForm({
   const idempotencyKey = useRef<string | null>(null);
   const payloadSig = useRef("");
   const mail = email.trim();
-  const showMarketing = direct ? mail.length > 0 : marketingConsent;
+  const showMarketing = marketingConsent && mail.length > 0;
 
   useEffect(() => {
-    if (!mail) setMarketingOptIn(false);
-  }, [mail]);
+    if (!showMarketing) setMarketingOptIn(false);
+  }, [showMarketing]);
 
   const signature = JSON.stringify({
     name: name.trim(),
@@ -52,7 +52,7 @@ export function LeadForm({
     url: url.trim(),
     message: message.trim(),
     consent,
-    marketing: mail.length > 0 && marketingOptIn,
+    marketing: showMarketing && marketingOptIn,
     checkId: checkId || "",
     source,
   });
@@ -98,7 +98,7 @@ export function LeadForm({
           message: message.trim() || undefined,
           source,
           consentAccepted: true,
-          marketingAccepted: mail.length > 0 && marketingOptIn,
+          marketingAccepted: showMarketing && marketingOptIn,
           smartToken: captchaRef.current?.getToken() || "",
           idempotencyKey: key,
         });

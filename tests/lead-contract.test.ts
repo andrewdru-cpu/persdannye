@@ -1,16 +1,24 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { flags } from "../content/flags";
-import { leadConsent } from "../content/consents";
-import { fillPlaceholders } from "../content/placeholders";
 import {
   DIRECT_LEAD_CONSENT_TEXT_VERSION,
   DIRECT_MARKETING_CONSENT_TEXT_VERSION,
   LEAD_CONSENT_TEXT_VERSION,
   MARKETING_CONSENT_TEXT_VERSION,
 } from "../lib/consent";
+import {
+  LEAD_CONSENT_PATH,
+  leadConsentDocument,
+  leadConsentProductionValues,
+  publishLeadConsent,
+  readLeadConsentSource,
+  renderLeadConsent,
+  UnresolvedConsentError,
+} from "../lib/lead-consent";
 import { createMockPublicApi } from "../scripts/mock-public-api.mjs";
 import {
   buildPublicLeadBody,
@@ -206,43 +214,85 @@ test("mock covers captcha, validation, and in-progress retries with one key", as
   }
 });
 
-test("lead form checkboxes start unchecked and marketing waits for an email", () => {
+test("lead form checkboxes start unchecked and marketing follows the flag and an email", () => {
+  assert.equal(flags.show_marketing_consent, false);
   const form = fs.readFileSync(path.join(root, "components/landing/LeadForm.tsx"), "utf8");
+  const fields = fs.readFileSync(path.join(root, "components/check/ReportConsentFields.tsx"), "utf8");
   assert.equal(form.includes("defaultChecked"), false);
   assert.equal((form.match(/useState\(false\)/g) || []).length >= 2, true);
   assert.match(form, /disabled=\{!consent/);
-  assert.match(form, /direct \? mail\.length > 0 : marketingConsent/);
-  assert.match(form, /if \(!mail\) setMarketingOptIn\(false\)/);
-  assert.match(form, /marketingAccepted: mail\.length > 0 && marketingOptIn/);
+  assert.match(form, /const showMarketing = marketingConsent && mail\.length > 0/);
+  assert.match(form, /if \(!showMarketing\) setMarketingOptIn\(false\)/);
+  assert.match(form, /marketingAccepted: showMarketing && marketingOptIn/);
+  assert.match(form, /marketing_consent: marketingConsent && marketingOptIn \? true : false/);
+  assert.equal(form.includes("Хочу получать"), false);
+  assert.equal(form.includes("formCopy.marketing"), false);
   assert.match(form, /Как мы обрабатываем данные — в/);
   assert.match(form, /href="\/privacy"/);
   assert.equal(form.includes("Политике"), true);
   assert.equal(form.includes("Компания"), false);
   assert.equal(form.includes("company"), false);
   assert.equal(form.includes('consentHref="/consent-lead"'), true);
+  assert.match(fields, /Соглашаюсь получать рекламные и информационные письма на условиях/);
+  assert.match(fields, /href="\/consent-marketing"/);
+  assert.match(fields, />\s*согласия\s*</);
+  assert.equal(fields.includes("Хочу получать"), false);
+  assert.equal(fields.includes("formCopy.marketing"), false);
+  assert.equal(fs.existsSync(path.join(root, "content/consents/marketing-2026-10-11.md")), false);
+
+  const hidden = buildPublicLeadBody({
+    ...baseLead,
+    email: "anna@example.com",
+    marketingAccepted: false,
+  });
+  assert.equal("marketing_consent" in hidden, false);
 });
 
-test("consent-lead stays unpublished while show_site_legal is off and keeps unknown markers", () => {
-  assert.equal(flags.show_site_legal, false);
-  const page = fs.readFileSync(path.join(root, "app/consent-lead/page.tsx"), "utf8");
-  const guard = page.indexOf("if (!flags.show_site_legal)");
-  const copy = page.indexOf("leadConsent.paragraphs");
-  assert.ok(guard > 0 && copy > guard);
-  assert.match(page, /index:\s*false/);
-  assert.equal(page.includes("LegalPending"), true);
-  assert.equal(page.slice(0, copy).includes("действуя свободно"), false);
+const LEAD_CONSENT_SHA256 = "43f4d7cfb76f6ea92e1a692c7ba31e30bc6d2b1032cffabfbfc6fda9d984ce80";
 
-  assert.equal(leadConsent.title, "Согласие на обработку персональных данных (заявка)");
+test("consent-lead file is the approved text and the publish guard rejects leftover braces", () => {
+  assert.equal(flags.show_site_legal, false);
+  const bytes = fs.readFileSync(LEAD_CONSENT_PATH);
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), LEAD_CONSENT_SHA256);
+  const source = readLeadConsentSource();
+  assert.equal(source, bytes.toString("utf8"));
+  const blocks = leadConsentDocument(source);
+  assert.equal(blocks[0]?.text, "Согласие на обработку персональных данных (заявка)");
   assert.equal(
-    leadConsent.paragraphs[0],
-    "Я, действуя свободно, своей волей и в своём интересе, отмечая чекбокс в форме заявки на {{operator_site}}, даю согласие {{operator_full_name}} (ИНН {{operator_inn}}, ОГРН/ОГРНИП {{operator_ogrn}}, адрес: {{operator_address}}) (далее — Оператор) на обработку моих персональных данных на следующих условиях."
+    blocks.find((block) => block.type === "point" && block.text.includes("processor_timeweb_legal"))?.text,
+    "**Лица, обрабатывающие данные по поручению Оператора:** {{processor_timeweb_legal}} (хостинг), {{processor_yandex360_legal}} (электронная почта)."
   );
   assert.equal(
-    leadConsent.points[7],
+    blocks.filter((block) => block.type === "point").at(-1)?.text,
     "Порядок обработки описан в [Политике обработки персональных данных]({{policy_url}})."
   );
-  const processors = fillPlaceholders(leadConsent.points[3], false, true);
-  assert.match(processors, /\{\{processor_timeweb_legal\}\}/);
-  assert.match(processors, /\{\{processor_yandex360_legal\}\}/);
-  assert.equal(fillPlaceholders("{{processor_timeweb_legal}}", false), "");
+
+  const values = leadConsentProductionValues();
+  assert.equal("privacy_contact_email" in values, false);
+  assert.equal("processor_timeweb_legal" in values, false);
+  assert.equal("processor_yandex360_legal" in values, false);
+  assert.equal(publishLeadConsent(false, source), null);
+  assert.throws(() => publishLeadConsent(true, source), UnresolvedConsentError);
+
+  const filled = renderLeadConsent(source, {
+    ...values,
+    processor_timeweb_legal: "ООО «Таймвэб»",
+    processor_yandex360_legal: "ООО «Яндекс 360»",
+    privacy_contact_email: "privacy@example.com",
+  });
+  assert.equal(filled.includes("{{"), false);
+  assert.match(filled, /ООО «Таймвэб»/);
+  assert.match(filled, /privacy@example.com/);
+  assert.match(filled, /\]\(\/privacy\)/);
+  assert.equal(leadConsentDocument(filled).filter((block) => block.type === "point").length, 8);
+
+  const page = fs.readFileSync(path.join(root, "app/consent-lead/page.tsx"), "utf8");
+  const call = page.indexOf("publishLeadConsent(flags.show_site_legal)");
+  const pending = page.indexOf("<LegalPending");
+  assert.ok(call > 0 && pending > call);
+  assert.match(page, /index:\s*false/);
+  assert.equal(page.includes("content/consents"), false);
+  assert.equal(page.includes("leadConsent.paragraphs"), false);
+  assert.equal(page.includes("действуя свободно"), false);
+  assert.equal(page.includes("{{"), false);
 });
