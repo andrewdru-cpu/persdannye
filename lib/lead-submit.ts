@@ -27,7 +27,19 @@ export function leadUnavailableMessage(retryAfter: string | null, nowMs = Date.n
 }
 
 /**
- * One attempt. The caller keeps the same Idempotency-Key for a later manual submit.
+ * Same key only when the serialized body is unchanged. Any other body gets a new key.
+ * The browser does not loop; a manual resubmit of the same body reuses the key.
+ */
+export function idempotencyKeyForBody(
+  previous: { key: string; body: string } | null,
+  body: string
+): { key: string; body: string } {
+  if (previous && previous.body === body) return previous;
+  return { key: crypto.randomUUID(), body };
+}
+
+/**
+ * One attempt. The caller keeps the same Idempotency-Key for a later manual submit of the same body.
  * There is no loop and no second fetch.
  */
 export async function submitLeadOnce(

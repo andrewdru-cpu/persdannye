@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
-import { previousSigningSecret } from "../lib/deploy-env.ts";
-import { bffSignatureMaterial, ParserUnavailableError, trustedClientIp } from "../lib/lead-guard.ts";
+import { assertSigningSecrets, previousSigningSecret, signingSecret } from "../lib/deploy-env.ts";
+import { bffSignatureMaterial, DEV_CLIENT_IP, ParserUnavailableError, trustedClientIp } from "../lib/lead-guard.ts";
 import { postLeadToParser } from "../lib/leads-upstream.ts";
 import { clearParserToken, parserFetch } from "../lib/parser-auth.ts";
 
@@ -23,6 +23,7 @@ const ENV_KEYS = [
   "PARSER_API_PASSWORD",
   "PD_BFF_SIGNING_SECRET",
   "PD_BFF_SIGNING_SECRET_PREV",
+  "VERCEL",
   "VERCEL_ENV",
   "PD_DEPLOY_ENV",
 ] as const;
@@ -74,6 +75,7 @@ describe("parser request signatures", { concurrency: 1 }, () => {
     delete process.env.PARSER_API_PASSWORD;
     process.env.PD_BFF_SIGNING_SECRET = SECRET;
     delete process.env.PD_BFF_SIGNING_SECRET_PREV;
+    process.env.VERCEL = "1";
     delete process.env.VERCEL_ENV;
     delete process.env.PD_DEPLOY_ENV;
     const prev = globalThis.fetch;
@@ -384,7 +386,29 @@ describe("parser request signatures", { concurrency: 1 }, () => {
       null
     );
     assert.equal(previousSigningSecret({ PD_BFF_SIGNING_SECRET_PREV: "a".repeat(31) } as NodeJS.ProcessEnv), null);
-    assert.equal(previousSigningSecret({ PD_BFF_SIGNING_SECRET_PREV: `  ${"b".repeat(32)}  ` } as NodeJS.ProcessEnv), "b".repeat(32));
+    const padded = ` ${"b".repeat(32)}\n`;
+    assert.equal(previousSigningSecret({ PD_BFF_SIGNING_SECRET_PREV: padded } as NodeJS.ProcessEnv), null);
+    assert.equal(signingSecret({ PD_BFF_SIGNING_SECRET: padded } as NodeJS.ProcessEnv), null);
+    assert.throws(
+      () => assertSigningSecrets({ PD_BFF_SIGNING_SECRET: `\t${"k".repeat(32)}` } as NodeJS.ProcessEnv),
+      (err: unknown) => err instanceof Error && err.message === "PD_BFF_SIGNING_SECRET" && err.message.includes("k") === false
+    );
+    assert.equal(
+      trustedClientIp(new Headers({ "x-vercel-forwarded-for": "203.0.113.10:443" }), { VERCEL: "1" }),
+      "203.0.113.10"
+    );
+    assert.equal(
+      trustedClientIp(new Headers({ "x-real-ip": "fe80::1%eth0" }), { VERCEL: "1" }),
+      "fe80::1"
+    );
+    assert.equal(
+      trustedClientIp(new Headers({ "x-vercel-forwarded-for": "nope", "x-real-ip": "also-nope" }), { VERCEL: "1" }),
+      null
+    );
+    assert.equal(
+      trustedClientIp(new Headers({ "x-real-ip": "203.0.113.10", "x-forwarded-for": "198.51.100.8" }), {}),
+      DEV_CLIENT_IP
+    );
   });
 
   it("signs the fetch URL path when PARSER_API_BASE has a prefix", async () => {
@@ -485,5 +509,39 @@ describe("parser request signatures", { concurrency: 1 }, () => {
       assert.equal(res.status, status);
       assert.equal(n, 1, String(status));
     }
+  });
+
+  it("sets one Idempotency-Key on POST /api/scans and a timeout on login", async () => {
+    process.env.PARSER_API_EMAIL = "svc@example.com";
+    process.env.PARSER_API_PASSWORD = "parser-password";
+    const calls: Array<{ url: string; headers: Headers; signal: AbortSignal | null | undefined }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({
+        url: String(input),
+        headers: new Headers(init?.headers),
+        signal: init?.signal,
+      });
+      if (String(input).endsWith("/api/auth/login")) {
+        assert.ok(init?.signal);
+        assert.equal(init.signal?.aborted, false);
+        return new Response(JSON.stringify({ access_token: "jwt", expires_in: 3600 }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+
+    await parserFetch("/api/scans", { method: "POST", body: "{}" }, true, new Headers({ "x-real-ip": IP }));
+    const scan = calls.find((call) => call.url.endsWith("/api/scans"));
+    assert.ok(scan);
+    assert.match(scan.headers.get("idempotency-key") ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    const login = calls.find((call) => call.url.endsWith("/api/auth/login"));
+    assert.ok(login?.signal);
+
+    calls.length = 0;
+    await parserFetch("/api/scans/scan-1", { method: "GET" }, true, new Headers({ "x-real-ip": IP }));
+    const follow = calls.find((call) => call.url.endsWith("/api/scans/scan-1"));
+    assert.equal(follow?.headers.get("idempotency-key"), null);
   });
 });

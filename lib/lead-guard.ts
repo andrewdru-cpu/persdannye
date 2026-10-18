@@ -1,8 +1,9 @@
 import { createHash, createHmac } from "node:crypto";
+import { isIP } from "node:net";
 import { isProductionDeploy, signingSecret } from "./deploy-env";
 
-const IPV4 =
-  /^(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+/** Signed address when the process is not on Vercel (`VERCEL` is not `1`). */
+export const DEV_CLIENT_IP = "192.0.2.1";
 
 /** Exact Origin values from ALLOWED_ORIGINS. Empty and whitespace-only entries are dropped. */
 export function allowedOriginsFromEnv(raw: string | undefined = process.env.ALLOWED_ORIGINS): Set<string> {
@@ -26,13 +27,29 @@ export function isAllowedOrigin(origin: string | null, allowed: ReadonlySet<stri
   return allowed.has(value);
 }
 
+/**
+ * First address in a header: trim, drop a port and an IPv6 zone id, then `net.isIP`.
+ * `203.0.113.10:443` and `fe80::1%eth0` become addresses `isIP` accepts without those suffixes.
+ */
 function firstAddress(value: string | null): string | null {
   if (!value) return null;
-  const first = value.split(",")[0]?.trim() ?? "";
-  if (!first || first.length > 64) return null;
-  if (IPV4.test(first)) return first;
-  if (first.includes(":") && /^[0-9a-fA-F:.]+$/.test(first)) return first;
-  return null;
+  let token = value.split(",")[0]?.trim() ?? "";
+  if (!token) return null;
+  const zone = token.indexOf("%");
+  if (zone !== -1) token = token.slice(0, zone);
+  if (token.startsWith("[")) {
+    const end = token.indexOf("]");
+    if (end !== -1) token = token.slice(1, end);
+  } else {
+    const colon = token.lastIndexOf(":");
+    if (colon > 0 && token.indexOf(":") === colon) {
+      const host = token.slice(0, colon);
+      const port = token.slice(colon + 1);
+      if (/^\d+$/.test(port) && isIP(host) !== 0) token = host;
+    }
+  }
+  if (isIP(token) === 0) return null;
+  return token;
 }
 
 /**
@@ -44,12 +61,14 @@ function firstAddress(value: string | null): string | null {
  * is Vercel's own copy of that address: a proxy placed in front of Vercel can
  * replace `X-Forwarded-For`, and this header still holds what Vercel recorded.
  *
- * When `x-vercel-forwarded-for` is present it is the signed IP. A client
- * `x-real-ip` or `x-forwarded-for` on the same request does not replace it.
- * `x-forwarded-for`, `Forwarded`, and `X-PD-Client-IP` are never read. Without
- * the Vercel header, `x-real-ip` is the fallback.
+ * Those two headers are read only when `VERCEL=1`, `x-vercel-forwarded-for`
+ * first and then `x-real-ip`. A client `x-forwarded-for` is never read. When
+ * `VERCEL` is not `1`, the signed address is the fixed {@link DEV_CLIENT_IP}
+ * and the request headers are ignored. If both Vercel headers are missing or
+ * not addresses, the result is null and the parser must not be called.
  */
-export function trustedClientIp(headers: Headers): string | null {
+export function trustedClientIp(headers: Headers, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.VERCEL !== "1") return DEV_CLIENT_IP;
   return firstAddress(headers.get("x-vercel-forwarded-for")) ?? firstAddress(headers.get("x-real-ip"));
 }
 
@@ -198,7 +217,7 @@ export function applySignedClientHeaders(
   const secret = signingSecret();
   if (!secret) return;
   const ip = trustedClientIp(incoming);
-  if (!ip) return;
+  if (!ip) throw new ParserUnavailableError();
   const ts = unixSeconds(Date.now());
   headers.set("X-PD-Client-IP", ip);
   headers.set("X-PD-Ts", ts);

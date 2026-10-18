@@ -6,6 +6,7 @@
  * `ngrok-skip-browser-warning` (and a non-browser User-Agent).
  */
 
+import { randomUUID } from "node:crypto";
 import { applySignedClientHeaders, ParserUnavailableError, parserSigningBlocked } from "./lead-guard";
 import { attemptTimeoutMs, withUnavailableRetry } from "./upstream-retry";
 
@@ -88,7 +89,7 @@ async function parserRequest(
   applyParserHeaders(headers);
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (auth) {
-    const token = await getParserBearer(client);
+    const token = await getParserBearer(client, startedAt);
     headers.set("Authorization", `Bearer ${token}`);
   }
   if (init.body && !headers.has("Content-Type")) {
@@ -117,7 +118,7 @@ async function parserRequest(
   }
 }
 
-async function loginWithPassword(base: string, client?: Headers): Promise<string> {
+async function loginWithPassword(base: string, client: Headers | undefined, startedAt: number): Promise<string> {
   if (parserSigningBlocked()) throw new ParserUnavailableError();
 
   const email = process.env.PARSER_API_EMAIL?.trim();
@@ -140,6 +141,7 @@ async function loginWithPassword(base: string, client?: Headers): Promise<string
     headers,
     body,
     cache: "no-store",
+    signal: AbortSignal.timeout(attemptTimeoutMs(startedAt)),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -161,7 +163,7 @@ async function loginWithPassword(base: string, client?: Headers): Promise<string
 }
 
 /** Prefer JWT via email/password; fall back to static PARSER_API_TOKEN */
-export async function getParserBearer(client?: Headers): Promise<string> {
+export async function getParserBearer(client?: Headers, startedAt = Date.now()): Promise<string> {
   const base = getParserBase();
   if (!base) throw new Error("PARSER_API_BASE не задан");
 
@@ -171,7 +173,7 @@ export async function getParserBearer(client?: Headers): Promise<string> {
     if (cachedToken && cachedToken.expiresAt > Date.now() + 30_000) {
       return cachedToken.token;
     }
-    return loginWithPassword(base, client);
+    return loginWithPassword(base, client, startedAt);
   }
 
   const staticToken = (process.env.PARSER_API_TOKEN || process.env.PARSER_API_KEY)?.trim();
@@ -195,5 +197,16 @@ export async function parserFetch(
 
   // 401, 413, and 429 are returned as-is. A 503 with Retry-After is retried once.
   const startedAt = Date.now();
-  return withUnavailableRetry(startedAt, () => parserRequest(base, path, init, auth, client, startedAt));
+  const request = withScanIdempotency(path, init);
+  return withUnavailableRetry(startedAt, () => parserRequest(base, path, request, auth, client, startedAt));
+}
+
+/** POST /api/scans gets one Idempotency-Key for the attempt, including a single 503 retry. */
+function withScanIdempotency(path: string, init: RequestInit): RequestInit {
+  const method = (init.method || "GET").toUpperCase();
+  const pathname = (path.split("?")[0] ?? path).replace(/\/+$/, "") || "/";
+  if (method !== "POST" || pathname !== "/api/scans") return init;
+  const headers = new Headers(init.headers);
+  if (!headers.has("idempotency-key")) headers.set("Idempotency-Key", randomUUID());
+  return { ...init, headers };
 }

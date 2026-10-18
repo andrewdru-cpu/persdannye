@@ -16,6 +16,7 @@ import { isParserConfigured } from "@/lib/parser-auth";
 import { buildPublicLeadBody, exceedsPublicLeadBytes, isIdempotencyKey } from "@/lib/public-lead";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 function unavailable() {
   return NextResponse.json({ error: "unavailable" }, { status: 503 });
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
   try {
     const raw = await req.text();
     if (exceedsPublicLeadBytes(raw)) {
-      return NextResponse.json({ error: "validation_failed" }, { status: 400 });
+      return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
     }
     let json: unknown;
     try {

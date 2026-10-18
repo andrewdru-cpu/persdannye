@@ -30,7 +30,6 @@ export async function GET(
     if (isParserUnavailable(e)) {
       return NextResponse.json({ error: "unavailable" }, { status: 503 });
     }
-    const message = e instanceof Error ? e.message : "Ошибка сервера";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }

@@ -76,7 +76,7 @@ describe("production mock env", () => {
   });
 
   it("fails production when the signing secret is empty or shorter than 32 bytes", () => {
-    for (const secret of [undefined, "", "   ", "a".repeat(31)]) {
+    for (const secret of [undefined, "", "a".repeat(31)]) {
       const env = { VERCEL_ENV: "production", NODE_ENV: "production" };
       if (secret !== undefined) env.PD_BFF_SIGNING_SECRET = secret;
       const result = run(env);
@@ -103,6 +103,25 @@ describe("production mock env", () => {
     });
     assert.equal(ok.status, 0, ok.stderr);
     assert.equal(ok.stderr, "");
+  });
+
+  it("fails startup when a signing secret has edge whitespace and does not print the value", () => {
+    const body = "c".repeat(32);
+    const cases = [
+      ["PD_BFF_SIGNING_SECRET", ` ${body}`],
+      ["PD_BFF_SIGNING_SECRET", `${body}\t`],
+      ["PD_BFF_SIGNING_SECRET", `${body}\n`],
+      ["PD_BFF_SIGNING_SECRET_PREV", `\n${body}`],
+    ];
+    for (const [name, value] of cases) {
+      const env = { NODE_ENV: "test", PD_BFF_SIGNING_SECRET: SECRET_32 };
+      env[name] = value;
+      const result = run(env);
+      assert.equal(result.status, 1, name);
+      assert.equal(result.stderr.trim(), name);
+      assert.equal(result.stderr.includes(body), false);
+      assert.equal(result.stdout.includes(body), false);
+    }
   });
 
   it("passes e2e with E2E=1 when production flags are unset", () => {

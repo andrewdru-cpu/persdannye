@@ -20,10 +20,24 @@ export function productionMockKeys(env = process.env) {
   });
 }
 
+/** Space, tab, or newline at either end. Keep in sync with lib/deploy-env.ts. The value is not trimmed. */
+const SIGNING_SECRET_EDGE = /^[ \t\n]|[ \t\n]$/;
+const SIGNING_SECRET_NAMES = ["PD_BFF_SIGNING_SECRET", "PD_BFF_SIGNING_SECRET_PREV"];
+
+/** Variable name when a signing secret has edge whitespace, otherwise null. */
+export function paddedSigningSecretName(env = process.env) {
+  for (const name of SIGNING_SECRET_NAMES) {
+    const value = env[name];
+    if (typeof value === "string" && SIGNING_SECRET_EDGE.test(value)) return name;
+  }
+  return null;
+}
+
 export function signingSecretByteLength(env = process.env) {
   const value = env.PD_BFF_SIGNING_SECRET;
   if (typeof value !== "string") return 0;
-  return Buffer.byteLength(value.trim(), "utf8");
+  if (SIGNING_SECRET_EDGE.test(value)) return 0;
+  return Buffer.byteLength(value, "utf8");
 }
 
 export function productionSigningSecretError(env = process.env) {
@@ -57,6 +71,11 @@ function isCli() {
 }
 
 if (isCli()) {
+  const padded = paddedSigningSecretName(process.env);
+  if (padded) {
+    console.error(padded);
+    process.exit(1);
+  }
   const keys = productionMockKeys(process.env);
   const secretTooShort =
     isProductionDeploy(process.env) && signingSecretByteLength(process.env) < MIN_SIGNING_SECRET_BYTES;

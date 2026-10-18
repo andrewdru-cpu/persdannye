@@ -13,6 +13,7 @@ import {
   maskIp,
   signClientPayload,
   stripClientPdHeaders,
+  DEV_CLIENT_IP,
   trustedClientIp,
 } from "../lib/lead-guard.ts";
 import { classifyLeadUpstream, postLeadToParser } from "../lib/leads-upstream.ts";
@@ -57,6 +58,7 @@ const ENV_KEYS = [
   "PARSER_API_PASSWORD",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_CHAT_ID",
+  "VERCEL",
   "VERCEL_ENV",
   "PD_DEPLOY_ENV",
   "PD_COLLECTION_ENABLED",
@@ -199,6 +201,7 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     delete process.env.PARSER_API_PASSWORD;
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_CHAT_ID;
+    process.env.VERCEL = "1";
     delete process.env.VERCEL_ENV;
     delete process.env.PD_DEPLOY_ENV;
     process.env.PD_COLLECTION_ENABLED = "true";
@@ -472,14 +475,13 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
         forwarded: "for=203.0.113.77",
       })
     );
-    assert.equal(forwardedOnly.status, 201);
-    assert.equal(trustedClientIp(new Headers({ "x-forwarded-for": spoofedChain, "x-pd-client-ip": FORGED_IP })), null);
-    for (const [key, value] of calls[0].entries()) {
-      assert.equal(key.toLowerCase().startsWith("x-pd-"), false, key);
-      assert.equal(value.includes(FORWARDED_FOR), false);
-      assert.equal(value.includes("203.0.113.77"), false);
-      assert.equal(value.includes(FORGED_IP), false);
-    }
+    assert.equal(forwardedOnly.status, 503);
+    assert.deepEqual(await forwardedOnly.json(), { error: "unavailable" });
+    assert.equal(calls.length, 0);
+    assert.equal(
+      trustedClientIp(new Headers({ "x-forwarded-for": spoofedChain, "x-pd-client-ip": FORGED_IP }), { VERCEL: "1" }),
+      null
+    );
 
     calls.length = 0;
     delete process.env.PD_BFF_SIGNING_SECRET;
@@ -737,6 +739,98 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
     assert.equal(String(calls[0].init.body), String(calls[1].init.body));
   });
 
+  it("does not retry a 503 when Retry-After is 30 seconds", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ error: "rate_limit_unavailable", redis: "down" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json", "Retry-After": "30" },
+      });
+    }) as typeof fetch;
+    const res = await POST(leadRequest(PROD));
+    assert.equal(calls, 1);
+    assert.equal(res.status, 503);
+    const payload = await res.text();
+    assert.equal(payload.includes("rate_limit_unavailable"), false);
+    assert.equal(payload.includes("redis"), false);
+    assert.deepEqual(JSON.parse(payload), { error: "unavailable" });
+  });
+
+  it("does not retry when the first attempt leaves no room for a second fetch", async () => {
+    let calls = 0;
+    await withFakeClock(1_700_000_000_000, async () => {
+      globalThis.fetch = (async () => {
+        calls += 1;
+        mock.timers.setTime(1_700_000_026_000);
+        return new Response(JSON.stringify({ error: "rate_limit_unavailable" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json", "Retry-After": "1" },
+        });
+      }) as typeof fetch;
+      const res = await POST(leadRequest(PROD));
+      assert.equal(res.status, 503);
+      assert.deepEqual(await res.json(), { error: "unavailable" });
+    });
+    assert.equal(calls, 1);
+  });
+
+  it("returns 503 when the parser attempt aborts or times out", async () => {
+    for (const name of ["AbortError", "TimeoutError"]) {
+      let calls = 0;
+      globalThis.fetch = (async () => {
+        calls += 1;
+        const err = new Error("stopped");
+        err.name = name;
+        throw err;
+      }) as typeof fetch;
+      const res = await POST(leadRequest(PROD));
+      assert.equal(calls, 1, name);
+      assert.equal(res.status, 503);
+      assert.deepEqual(await res.json(), { error: "unavailable" });
+    }
+  });
+
+  it("returns 503 and does not call the parser when both Vercel addresses are invalid", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 201 });
+    }) as typeof fetch;
+    const res = await POST(
+      leadRequest(PROD, {
+        "x-vercel-forwarded-for": "not-an-ip",
+        "x-real-ip": "203.0.113.10:nope",
+        "x-forwarded-for": "203.0.113.77",
+      })
+    );
+    assert.equal(calls, 0);
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { error: "unavailable" });
+  });
+
+  it("signs the fixed dev address when VERCEL is not 1", async () => {
+    delete process.env.VERCEL;
+    const calls: Array<{ init: RequestInit }> = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ init: init ?? {} });
+      return new Response("{}", { status: 201, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    const res = await POST(
+      leadRequest(PROD, {
+        "x-real-ip": "203.0.113.10",
+        "x-forwarded-for": "198.51.100.8",
+        "x-vercel-forwarded-for": "192.0.2.44",
+      })
+    );
+    assert.equal(res.status, 201);
+    const sent = outgoingHeaders(calls[0].init);
+    const body = String(calls[0].init.body);
+    assert.equal(sent.get("x-pd-client-ip"), DEV_CLIENT_IP);
+    assert.equal(sent.get("x-pd-sig"), signature(sent.get("x-pd-ts") || "", DEV_CLIENT_IP, body));
+    assert.equal(sent.get("x-pd-client-ip") === "203.0.113.10", false);
+  });
+
   it("does not retry when Retry-After does not fit under the 50s deadline", async () => {
     let calls = 0;
     globalThis.fetch = (async () => {
@@ -863,8 +957,8 @@ describe("POST /api/leads", { concurrency: 1 }, () => {
       return new Response("{}", { status: 201 });
     }) as typeof fetch;
     const res = await POST(leadRequest(PROD, undefined, { ...lead, padding: "a".repeat(17_000) }));
-    assert.equal(res.status, 400);
-    assert.deepEqual(await res.json(), { error: "validation_failed" });
+    assert.equal(res.status, 413);
+    assert.deepEqual(await res.json(), { error: "payload_too_large" });
     assert.equal(calls, 0);
   });
 

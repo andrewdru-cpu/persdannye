@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { LEAD_UNAVAILABLE_MESSAGE, leadUnavailableMessage, submitLeadOnce } from "../lib/lead-submit.ts";
+import { idempotencyKeyForBody, LEAD_UNAVAILABLE_MESSAGE, leadUnavailableMessage, submitLeadOnce } from "../lib/lead-submit.ts";
 
 const KEY = "33333333-3333-4333-8333-333333333333";
 const payload = {
@@ -113,14 +113,27 @@ describe("lead form submit", () => {
     assert.equal(calls[0].body, calls[1].body);
   });
 
+  it("issues a new idempotency key when the body changes and keeps it when the body does not", () => {
+    const body = JSON.stringify(payload);
+    const changed = JSON.stringify({ ...payload, name: "Борис" });
+    const first = idempotencyKeyForBody(null, body);
+    const same = idempotencyKeyForBody(first, body);
+    const next = idempotencyKeyForBody(first, changed);
+    assert.equal(same.key, first.key);
+    assert.equal(same.body, body);
+    assert.notEqual(next.key, first.key);
+    assert.equal(next.body, changed);
+    const again = idempotencyKeyForBody(next, changed);
+    assert.equal(again.key, next.key);
+  });
+
   it("keeps typed values and does not retry from the form", () => {
     const form = readFileSync(new URL("../components/landing/LeadForm.tsx", import.meta.url), "utf8");
-    assert.match(form, /const \[idempotencyKey\] = useState\(\(\) => crypto\.randomUUID\(\)\)/);
-    assert.equal(form.split("randomUUID").length - 1, 1);
+    assert.match(form, /idempotencyKeyForBody\(attempt\.current, JSON\.stringify\(leadBody\)\)/);
+    assert.equal(form.includes("useState(() => crypto.randomUUID())"), false);
     const submit = form.slice(form.indexOf("async function onSubmit"));
-    assert.equal(submit.includes("randomUUID"), false);
     assert.match(submit, /submitLeadOnce\(/);
-    assert.match(submit, /idempotencyKey/);
+    assert.match(submit, /nextAttempt\.key/);
     assert.match(form, /submitLeadOnce\(/);
     assert.equal(form.includes("fetch("), false);
     assert.equal(form.includes('setName("")'), false);
