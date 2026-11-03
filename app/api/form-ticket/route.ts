@@ -1,4 +1,5 @@
-import { signFormOpened, assertFormTicketSecret } from "@/lib/form-ticket";
+import { collectionGateResponse } from "@/lib/collection-gate";
+import { formTicketSecret, signFormOpened } from "@/lib/form-ticket";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -6,13 +7,11 @@ export const runtime = "nodejs";
 const noStore = { "cache-control": "no-store" };
 
 export function GET() {
-  if (process.env.PD_COLLECTION_ENABLED !== "true") {
-    return Response.json({ error: "collection_disabled" }, { status: 503, headers: noStore });
+  const closed = collectionGateResponse();
+  if (closed) return closed;
+  const secret = formTicketSecret();
+  if (!secret.ok) {
+    return Response.json({ error: "ticket_unavailable" }, { status: 503, headers: noStore });
   }
-  try {
-    const secret = assertFormTicketSecret();
-    return Response.json({ ticket: signFormOpened(Date.now(), secret) }, { headers: noStore });
-  } catch {
-    return Response.json({ error: "Ошибка сервера" }, { status: 500, headers: noStore });
-  }
+  return Response.json({ ticket: signFormOpened(Date.now(), secret.secret) }, { headers: noStore });
 }

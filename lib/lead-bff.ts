@@ -6,7 +6,7 @@
 import { findingsForClient, scanHasRisks } from "./check-report";
 import { CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION, marketingConsentForParser } from "./consent";
 import { FORM_OPENED_FIELD } from "./form-open";
-import { assertFormTicketSecret, formOpenedTooFast, readFormOpened } from "./form-ticket";
+import { formOpenedTooFast, formTicketSecret, readFormOpened } from "./form-ticket";
 import { friendlyPhaseMessage, normalizePhase } from "./phases";
 import type { CheckJob, Finding, Recommendation } from "./types";
 import { domainFromUrl, normalizeUrl } from "./utils";
@@ -397,21 +397,18 @@ export async function submitLead(req: Request): Promise<Response> {
   const parsed = validateLead(json);
   if (!parsed.ok) return jsonError(400, parsed.error);
 
-  const token = parserApiToken();
-  if (!token) return jsonError(500, "Ошибка сервера");
-  let ticketSecret: string;
-  try {
-    ticketSecret = assertFormTicketSecret();
-  } catch {
-    return jsonError(500, "Ошибка сервера");
-  }
+  const ticketSecret = formTicketSecret();
+  if (!ticketSecret.ok) return jsonError(503, "ticket_unavailable");
   const ticket = openedTicket(json);
-  const opened = ticket ? readFormOpened(ticket, ticketSecret, Date.now()) : { ok: false as const };
+  const opened = ticket ? readFormOpened(ticket, ticketSecret.secret, Date.now()) : { ok: false as const };
   if (!opened.ok) return jsonError(400, "Некорректные данные");
   if (formOpenedTooFast(opened.openedAt, Date.now())) return accepted();
 
   const ip = clientIpFromRealIp(req.headers);
   if (!ip) return jsonError(400, "Не указан адрес клиента");
+
+  const token = parserApiToken();
+  if (!token) return jsonError(500, "Ошибка сервера");
 
   let upstream: Response;
   try {

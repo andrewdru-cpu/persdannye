@@ -8,7 +8,12 @@ import { GET as getHealth } from "../app/api/health/route.ts";
 import { GET as getScan } from "../app/api/scan/[id]/route.ts";
 import { GET as getScanPdf } from "../app/api/scan/[id]/pdf/route.ts";
 import { LEAD_CONSENT_TEXT_VERSION } from "../lib/consent.ts";
-import { assertFormTicketSecret, FORM_TICKET_MAX_AGE_MS, signFormOpened } from "../lib/form-ticket.ts";
+import {
+  assertFormTicketSecret,
+  enforceFormTicketSecretAtStartup,
+  FORM_TICKET_MAX_AGE_MS,
+  signFormOpened,
+} from "../lib/form-ticket.ts";
 import { LEAD_PARSER_FIELDS } from "../lib/lead-bff.ts";
 import { flags } from "./flags.ts";
 
@@ -268,6 +273,19 @@ describe("lead BFF", { concurrency: false }, () => {
     assert.equal(body.includes("Анна"), false);
   });
 
+  it("does not fetch a PDF without X-Real-IP", async () => {
+    enableCollection();
+    process.env.PARSER_API_TOKEN = TOKEN;
+    const fetchMock = mock.method(globalThis, "fetch", async () => {
+      throw new Error("fetch should not run");
+    });
+    const res = await getScanPdf(new Request(`http://localhost/api/scan/${SCAN_ID}/pdf`), {
+      params: Promise.resolve({ id: SCAN_ID }),
+    });
+    assert.equal(res.status, 400);
+    assert.equal(fetchMock.mock.calls.length, 0);
+  });
+
   it("does not fetch scan status without X-Real-IP", async () => {
     enableCollection();
     process.env.PARSER_API_TOKEN = TOKEN;
@@ -478,6 +496,8 @@ describe("lead BFF", { concurrency: false }, () => {
     await rejectedTicket(forged);
     await rejectedTicket(signFormOpened(Date.now() - FORM_TICKET_MAX_AGE_MS - 5_000, TICKET_SECRET));
     await rejectedTicket(signFormOpened(Date.now() + 2 * 60 * 60 * 1000, TICKET_SECRET));
+    await rejectedTicket(signFormOpened(Date.now() + 61_000, TICKET_SECRET));
+    await rejectedTicket(signFormOpened(Date.now() - 10_000, TOKEN));
     await rejectedTicket(undefined);
     await rejectedTicket("not-a-ticket");
     await rejectedTicket("123.%%%");
@@ -505,6 +525,58 @@ describe("lead BFF", { concurrency: false }, () => {
       if (savedToken === undefined) delete process.env.PARSER_API_TOKEN;
       else process.env.PARSER_API_TOKEN = savedToken;
     }
+  });
+
+  it("starts without a ticket secret when collection is off and both routes return 503", async () => {
+    delete process.env.PD_COLLECTION_ENABLED;
+    delete process.env.FORM_TICKET_SECRET;
+    flags.show_site_legal = false;
+    assert.doesNotThrow(() => enforceFormTicketSecretAtStartup());
+    const ticket = await getTicket();
+    assert.equal(ticket.status, 503);
+    assert.equal(ticket.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await ticket.json(), { error: "collection_disabled" });
+    const leadReq = leadRequest(validBody(), { "x-real-ip": "203.0.113.10" });
+    const lead = await postLead(leadReq);
+    assert.equal(lead.status, 503);
+    assert.equal(leadReq.bodyUsed, false);
+    assert.deepEqual(await lead.json(), { error: "collection_disabled" });
+  });
+
+  it("returns 503 not 500 when signing is reached without FORM_TICKET_SECRET", async () => {
+    enableCollection();
+    delete process.env.FORM_TICKET_SECRET;
+    process.env.PARSER_API_TOKEN = TOKEN;
+    const fetchMock = mock.method(globalThis, "fetch", async () => {
+      throw new Error("fetch should not run");
+    });
+    const ticket = await getTicket();
+    assert.equal(ticket.status, 503);
+    assert.deepEqual(await ticket.json(), { error: "ticket_unavailable" });
+    const lead = await postLead(
+      leadRequest(validBody({ opened: signFormOpened(Date.now() - 10_000, TOKEN) }), {
+        "x-real-ip": "203.0.113.10",
+      }),
+    );
+    assert.equal(lead.status, 503);
+    assert.deepEqual(await lead.json(), { error: "ticket_unavailable" });
+    assert.equal(fetchMock.mock.calls.length, 0);
+  });
+
+  it("checks the ticket secret at startup only when collection is enabled", () => {
+    delete process.env.PD_COLLECTION_ENABLED;
+    delete process.env.FORM_TICKET_SECRET;
+    assert.doesNotThrow(() => enforceFormTicketSecretAtStartup());
+    process.env.PD_COLLECTION_ENABLED = "false";
+    process.env.FORM_TICKET_SECRET = "short";
+    assert.doesNotThrow(() => enforceFormTicketSecretAtStartup());
+    process.env.PD_COLLECTION_ENABLED = "true";
+    delete process.env.FORM_TICKET_SECRET;
+    process.env.PARSER_API_TOKEN = TOKEN;
+    assert.throws(() => enforceFormTicketSecretAtStartup(), /32 bytes/);
+    process.env.FORM_TICKET_SECRET = "b".repeat(32);
+    process.env.PARSER_API_TOKEN = "b".repeat(32);
+    assert.throws(() => enforceFormTicketSecretAtStartup(), /PARSER_API_TOKEN/);
   });
 
   it("returns 503 for the form ticket when collection is off", async () => {

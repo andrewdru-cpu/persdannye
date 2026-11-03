@@ -12,6 +12,18 @@ export class FormTicketSecretError extends Error {
   }
 }
 
+/**
+ * Секрет подписи. Пустая строка, короткий ключ и совпадение с PARSER_API_TOKEN
+ * не используются: запасного ключа нет.
+ */
+export function formTicketSecret(): { ok: true; secret: string } | { ok: false } {
+  const secret = process.env.FORM_TICKET_SECRET?.trim() ?? "";
+  if (Buffer.byteLength(secret, "utf8") < FORM_TICKET_SECRET_MIN_BYTES) return { ok: false };
+  const parserToken = process.env.PARSER_API_TOKEN?.trim() ?? "";
+  if (parserToken.length > 0 && secret === parserToken) return { ok: false };
+  return { ok: true, secret };
+}
+
 /** Падает, если секрет пуст, короче 32 байт или совпадает с токеном парсера. */
 export function assertFormTicketSecret(): string {
   const secret = process.env.FORM_TICKET_SECRET?.trim() ?? "";
@@ -23,6 +35,12 @@ export function assertFormTicketSecret(): string {
     throw new FormTicketSecretError("FORM_TICKET_SECRET must not equal PARSER_API_TOKEN");
   }
   return secret;
+}
+
+/** Проверка при старте только когда сбор включён флагом PD_COLLECTION_ENABLED. */
+export function enforceFormTicketSecretAtStartup(): void {
+  if (process.env.PD_COLLECTION_ENABLED !== "true") return;
+  assertFormTicketSecret();
 }
 
 /** Подпись времени открытия. Секрет только FORM_TICKET_SECRET, в браузер не попадает. */
