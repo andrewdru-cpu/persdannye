@@ -30,7 +30,7 @@ Open http://localhost:3000
 
 Client never sees tokens. Browser calls only:
 
-- `POST /api/lead` — form (url, contacts). The server sets `consent_version` from a code constant and `consent_at` to the current ISO time. `checkId` is sent as `lead.scan_id`. Success is **200** with a scan id. Missing `X-Real-IP` is **400**. A signed open-time shorter than 3 seconds returns `{ "ok": true }` and does not call the parser. Body limit is 16 KiB.
+- `POST /api/lead` — form (url, contacts). The server sets `consent_version` from a code constant and `consent_at` to the current ISO time. `checkId` is sent as top-level `scan_id` next to `url` and `mode: "quick"`, not inside `lead`. Success is **200** with a scan id. Missing `X-Real-IP` is **400**. A signed open-time shorter than 3 seconds returns `{ "ok": true }` and does not call the parser. Body limit is 16 KiB.
 - `GET|POST /api/checks` and nested paths — **410 Gone**
 - `GET /api/scan/[id]` — scan status (poll every 1.5s while active)
 - `GET /api/scan/[id]/pdf` — server-side PDF proxy

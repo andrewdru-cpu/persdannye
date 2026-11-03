@@ -128,11 +128,14 @@ describe("lead BFF", { concurrency: false }, () => {
     assert.equal(forwarded.headers.get("x-forwarded-for"), null);
     const sent = JSON.parse(forwarded.body) as {
       url: string;
+      mode?: string;
+      scan_id?: string;
       fax?: string;
       lead: Record<string, unknown>;
     };
     assert.equal(sent.url, "https://example.com/path");
-    assert.equal("mode" in sent, false);
+    assert.equal(sent.mode, "quick");
+    assert.equal(sent.scan_id, undefined);
     assert.equal(sent.fax, undefined);
     assert.equal(sent.lead.email, EMAIL);
     assert.equal("consent" in sent.lead, false);
@@ -354,7 +357,7 @@ describe("lead BFF", { concurrency: false }, () => {
     assert.equal(fetchMock.mock.calls.length, 0);
   });
 
-  it("passes checkId as lead.scan_id and ignores client consent time", async () => {
+  it("passes checkId as top-level scan_id and ignores client consent time", async () => {
     enableCollection();
     process.env.PARSER_API_BASE = "http://parser.test";
     process.env.PARSER_API_TOKEN = TOKEN;
@@ -373,9 +376,10 @@ describe("lead BFF", { concurrency: false }, () => {
       ),
     );
     assert.equal(res.status, 200);
-    const sent = JSON.parse(body) as { url: string; mode?: string; lead: Record<string, unknown> };
-    assert.equal(sent.lead.scan_id, SCAN_ID);
-    assert.equal(sent.mode, undefined);
+    const sent = JSON.parse(body) as { url: string; mode?: string; scan_id?: string; lead: Record<string, unknown> };
+    assert.equal(sent.scan_id, SCAN_ID);
+    assert.equal(sent.mode, "quick");
+    assert.equal("scan_id" in sent.lead, false);
     assert.equal(sent.lead.message, undefined);
     assert.equal(sent.lead.source, undefined);
     assert.equal(sent.lead.consent_version, LEAD_CONSENT_TEXT_VERSION);

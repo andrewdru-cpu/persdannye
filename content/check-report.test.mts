@@ -334,7 +334,7 @@ describe("checklist flags", () => {
     assert.equal(off.marketing_consent, false);
     assert.equal("marketing_consent_text_version" in off, false);
     assert.equal("marketing_consent_at" in off, false);
-    const named = scanCreatePayload(
+    const namedPayload = scanCreatePayload(
       {
         url: "https://example.com/",
         name: "Анна",
@@ -343,9 +343,12 @@ describe("checklist flags", () => {
         scanId: "scan-1",
       },
       now,
-    ).lead as Record<string, unknown>;
+    );
+    assert.equal(namedPayload.mode, "quick");
+    assert.equal(namedPayload.scan_id, "scan-1");
+    const named = namedPayload.lead as Record<string, unknown>;
     assert.equal(named.consent_version, LEAD_CONSENT_TEXT_VERSION);
-    assert.equal(named.scan_id, "scan-1");
+    assert.equal("scan_id" in named, false);
     for (const lead of [on, off, missingVersion, named]) {
       const keys = Object.keys(lead);
       assert.equal(keys.includes("marketing_consent_at"), false);

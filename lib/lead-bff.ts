@@ -28,7 +28,6 @@ export const LEAD_PARSER_FIELDS = [
   "phone",
   "consent_version",
   "consent_at",
-  "scan_id",
   "marketing_consent",
   "marketing_consent_text_version",
 ] as const;
@@ -196,8 +195,15 @@ export function validateLead(body: unknown): { ok: true; lead: LeadInput } | { o
   };
 }
 
-export function scanCreatePayload(lead: LeadInput, now = new Date()): { url: string; lead?: Record<string, unknown> } {
-  const payload: { url: string; lead?: Record<string, unknown> } = { url: lead.url };
+export function scanCreatePayload(
+  lead: LeadInput,
+  now = new Date(),
+): { url: string; mode: "quick"; scan_id?: string; lead?: Record<string, unknown> } {
+  const payload: { url: string; mode: "quick"; scan_id?: string; lead?: Record<string, unknown> } = {
+    url: lead.url,
+    mode: "quick",
+  };
+  if (lead.scanId) payload.scan_id = lead.scanId;
   const hasLead = Boolean(lead.name || lead.email || lead.phone || lead.scanId);
   if (!hasLead) return payload;
   const contact: Record<string, unknown> = {
@@ -205,7 +211,6 @@ export function scanCreatePayload(lead: LeadInput, now = new Date()): { url: str
     consent_at: now.toISOString(),
     ...marketingConsentForParser(lead.marketingConsent),
   };
-  if (lead.scanId) contact.scan_id = lead.scanId;
   if (lead.name) contact.name = lead.name;
   if (lead.email) contact.email = lead.email;
   if (lead.phone) contact.phone = lead.phone;
