@@ -35,8 +35,7 @@ export async function GET(
         "Cache-Control": "no-store",
       },
     });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Ошибка сервера";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Ошибка сервера" }, { status: 500 });
   }
 }

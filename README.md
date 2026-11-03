@@ -6,7 +6,7 @@ Premium dark B2B landing for Roskomnadzor / 152-FZ website compliance scanning.
 
 - Next.js App Router + TypeScript + Tailwind CSS v4
 - Framer Motion, Zod, clsx / tailwind-merge
-- Mock parser when `PARSER_API_BASE` is unset; real VPS parser via env
+- Standalone Next.js server. Leads go to the parser in the same compose; the site does not store them or send them to Telegram.
 
 ## Quick start (Windows)
 
@@ -30,27 +30,25 @@ Open http://localhost:3000
 
 Client never sees tokens. Browser calls only:
 
-- `POST /api/checks` `{ "url": "https://…", "lead?": { "name", "email", "phone", "consent", "consent_text_version" } }` → check job. Any contact without `consent: true` is rejected with 400
-- `GET /api/checks/[id]` → status / findings (poll every 1.5s while active); on every `phase=done`, BFF notifies Telegram
-- `GET /api/checks/[id]/pdf` → server-side PDF proxy (parser Bearer never reaches the browser)
-- `POST /api/leads` → lead with required consent + Telegram notify
+- `POST /api/lead` — form (url, contacts, `consent_version`, `consent_at`). Success is **200** with a scan id. Missing `X-Real-IP` is **400**. Body limit is 16 KiB.
+- `GET /api/scan/[id]` — scan status (poll every 1.5s while active)
+- `GET /api/scan/[id]/pdf` — server-side PDF proxy
+- `GET /api/health` — liveness, no parser call
 
-When `PARSER_API_BASE` is set, the BFF:
+The BFF calls `POST ${PARSER_API_BASE}/api/scans` with `Authorization: Bearer ${PARSER_API_TOKEN}` and `X-PD-Client-IP` taken only from `X-Real-IP` (Caddy). It does not read `X-Forwarded-For`. Default `PARSER_API_BASE` is `http://api:8080`. Parser 400, 429 and 5xx are returned with the same status and a generic body.
 
-1. Authenticates with `PARSER_API_EMAIL` + `PARSER_API_PASSWORD` via `POST {BASE}/api/auth/login` (JWT cached server-side), **or** uses `PARSER_API_TOKEN` as Bearer
-2. Creates scan: `POST {BASE}/api/scans` always `{ "url", "mode": "quick" }`, plus `lead: { name, email, phone, consent: true, consent_text_version, source: "landing" }` when the visitor left contacts and consented. If an older parser rejects those fields, the BFF retries without `lead`, then with `{ "url" }` only.
-3. Polls: `GET {BASE}/api/scans/{scan_id}` until `phase` ∈ `done|error|blocked`
-4. PDF: `GET {BASE}/api/scans/{scan_id}/pdf` (only from the BFF)
+Personal data is not written to the site disk and is not sent to Telegram or any other external service. Logs do not contain form fields, the client IP, or the token.
 
-All parser fetches send `ngrok-skip-browser-warning: true` so free ngrok tunnels work from Vercel/Node (no browser interstitial).
+```bash
+docker build -t persdannye-site .
+docker run --rm --read-only --tmpfs /tmp -p 3000:3000 \
+  -e PARSER_API_BASE=http://api:8080 \
+  -e PARSER_API_TOKEN \
+  -e PD_COLLECTION_ENABLED=true \
+  persdannye-site
+```
 
-Phases: `queued|open|extract|rules|pdf` (+ terminal). Landing risks = `push===true` OR `findings.length>0` when `phase===done`.
-
-Without a public `PARSER_API_BASE` the site uses a polished mock parser.
-
-Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`): every finished landing scan («Новый клиент с лендинга»: domain, score, risks yes/no, findings, contacts, link) plus new-lead alerts. PDF `sendDocument` only when `pdf_ready` and the scan has risks. Missing Telegram env is a logged skip, not a crash.
-
-Public without auth on parser: `GET {BASE}/api/health` only.
+`PARSER_API_TOKEN` is taken from the shell environment. Do not pass the secret as a literal in the command line of a committed file.
 
 ## Сбор персональных данных
 
@@ -67,7 +65,7 @@ Public without auth on parser: `GET {BASE}/api/health` only.
 
 Edit `lib/company.ts` (INN, OGRN, address, emails, phone).
 
-Routes: `/privacy`, `/cookies`, `/terms`, cookie banner (necessary / analytics / marketing), consent checkbox on the lead form and on URL-check contacts. Leads are accepted only via `POST /api/leads` and are not listed by any page or API route.
+Routes: `/privacy`, `/cookies`, `/terms`, cookie banner (necessary / analytics / marketing), consent checkbox on the lead form and on URL-check contacts. Leads are accepted only via `POST /api/lead` and are not listed by any page or API route.
 
 ## CI / npm audit
 

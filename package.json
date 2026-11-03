@@ -7,16 +7,16 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --import ./content/test-register.mjs --import ./content/test-alias.mjs --test content/landing-copy.test.mts content/check-report.test.mts content/leads.test.mts content/collection-gate.test.mts content/requisites-guard.test.mts scripts/audit-allowlist.test.mjs scripts/vercel-ignore.test.mjs"
+    "test": "node --experimental-strip-types --import ./content/test-register.mjs --import ./content/test-alias.mjs --test content/landing-copy.test.mts content/check-report.test.mts content/leads.test.mts content/lead-bff.test.mts content/collection-gate.test.mts content/requisites-guard.test.mts scripts/audit-allowlist.test.mjs scripts/vercel-ignore.test.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
     "framer-motion": "^13.4.0",
-    "next": "^16.3.8",
+    "next": "^16.4.5",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.7.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

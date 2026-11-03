@@ -9,13 +9,7 @@ import {
 import type { CheckJob, Finding, Recommendation, ScanContact } from "./types";
 import { findingsForClient, scanHasRisks } from "./check-report";
 import { domainFromUrl } from "./utils";
-import {
-  findScanContact,
-  hasScanContact,
-  mergeScanContact,
-  normalizeScanContact,
-  saveScanContact,
-} from "./scan-contacts";
+import { normalizeScanContact } from "./scan-contacts";
 import { randomUUID } from "crypto";
 import { CONSENT_TEXT_VERSION, marketingConsentForParser, ScanConsentRequiredError } from "./consent";
 
@@ -59,7 +53,6 @@ type JobMeta = {
   mock: boolean;
   createdAt: string;
   warning?: string | null;
-  lead?: ScanContact | null;
 };
 
 /** In-memory map: our check id → upstream scan_id (or mock) */
@@ -202,15 +195,11 @@ async function createUpstreamScan(
   }
   attempts.push({ url });
 
-  let lastStatus = 0;
-  let lastText = "";
   for (let i = 0; i < attempts.length; i++) {
     const res = await postScan(attempts[i]);
     if (res.ok) return parserJson<UpstreamCreate>(res);
 
     const text = await readParserBody(res);
-    lastStatus = res.status;
-    lastText = text;
     const canFallback = i < attempts.length - 1 && isUnknownFieldRejection(res.status, text);
     if (!canFallback) break;
     console.info(
@@ -218,38 +207,7 @@ async function createUpstreamScan(
     );
   }
 
-  throw new Error(
-    `Не удалось создать сканирование: ${lastStatus} ${lastText}`.slice(0, 400)
-  );
-}
-
-async function rememberContact(
-  id: string,
-  url: string,
-  contact: ScanContact | null
-): Promise<void> {
-  if (!hasScanContact(contact) || !contact) return;
-  try {
-    await saveScanContact(id, url, contact);
-  } catch (err) {
-    console.error("[scan-contact] save failed", err);
-  }
-}
-
-async function resolveContact(
-  id: string,
-  metaLead?: ScanContact | null,
-  upstream?: ScanContact | null
-): Promise<ScanContact | null> {
-  let stored = hasScanContact(metaLead) ? metaLead : null;
-  if (!stored) {
-    try {
-      stored = await findScanContact(id);
-    } catch (err) {
-      console.error("[scan-contact] read failed", err);
-    }
-  }
-  return mergeScanContact(stored, upstream);
+  throw new Error("Не удалось создать сканирование");
 }
 
 function remember(checkId: string, meta: JobMeta) {
@@ -267,8 +225,7 @@ export async function createCheck(
   if (!isParserConfigured()) {
     const id = randomUUID();
     mockCreateScan(id, url);
-    remember(id, { url, scanId: id, mock: true, createdAt, lead: contact });
-    await rememberContact(id, url, contact);
+    remember(id, { url, scanId: id, mock: true, createdAt });
     const job = mockGetScan(id)!;
     return { ...job, id, createdAt, contact };
   }
@@ -287,9 +244,7 @@ export async function createCheck(
     mock: false,
     createdAt,
     warning: data.warning,
-    lead: contact,
   });
-  await rememberContact(id, url, contact);
 
   return {
     id,
@@ -317,8 +272,7 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
   if (meta?.mock || !isParserConfigured()) {
     const job = mockGetScan(id);
     if (!job) return null;
-    const contact = await resolveContact(id, meta?.lead, job.contact);
-    return { ...job, contact };
+    return job;
   }
 
   const scanId = meta?.scanId || id;
@@ -329,8 +283,8 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
     return mockGetScan(id);
   }
   if (!res.ok) {
-    const text = await readParserBody(res);
-    throw new Error(`Ошибка статуса скана: ${res.status} ${text}`.slice(0, 400));
+    await readParserBody(res);
+    throw new Error("Ошибка статуса скана");
   }
   const data = await parserJson<UpstreamScan>(res);
   const url = meta?.url || data.url || "";
@@ -344,9 +298,7 @@ export async function getCheck(id: string): Promise<CheckJob | null> {
       warning: data.warning,
     });
   }
-  const mapped = mapUpstream(id, url, data, false, createdAt, meta?.warning);
-  const contact = await resolveContact(id, meta?.lead, mapped.contact);
-  return { ...mapped, contact };
+  return mapUpstream(id, url, data, false, createdAt, meta?.warning);
 }
 
 export async function getCheckPdf(
@@ -367,8 +319,8 @@ export async function getCheckPdf(
     return null;
   }
   if (!res.ok) {
-    const text = await readParserBody(res);
-    throw new Error(`Не удалось получить PDF: ${res.status} ${text}`.slice(0, 400));
+    await readParserBody(res);
+    throw new Error("Не удалось получить PDF");
   }
   const ct = (res.headers.get("content-type") || "").toLowerCase();
   if (ct.includes("text/html")) {

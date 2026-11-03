@@ -68,7 +68,7 @@ describe("lead request limits", () => {
   });
 
   it("sends explicit marketing_consent false and a generic server error", () => {
-    const route = readFileSync(new URL("../app/api/leads/route.ts", import.meta.url), "utf8");
+    const route = readFileSync(new URL("../lib/lead-bff.ts", import.meta.url), "utf8");
     const form = readFileSync(new URL("../components/landing/LeadForm.tsx", import.meta.url), "utf8");
     const routeWithoutNamedVersions = route.replaceAll("LEAD_CONSENT_TEXT_VERSION", "");
     assert.equal(route.includes("marketingConsentForParser"), true);

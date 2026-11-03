@@ -62,9 +62,8 @@ export async function POST(req: Request) {
     return NextResponse.json(publicCheckJob(job), { status: 201 });
   } catch (e) {
     if (isScanConsentRequiredError(e)) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
+      return NextResponse.json({ error: "Нужно согласие на обработку персональных данных" }, { status: 400 });
     }
-    const message = e instanceof Error ? e.message : "Ошибка сервера";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Ошибка сервера" }, { status: 500 });
   }
 }

@@ -133,7 +133,7 @@ async function loginWithPassword(base: string): Promise<string> {
     if (isNgrokInterstitial(res, text)) {
       throw new Error(ngrokErrorMessage(text));
     }
-    throw new Error(`Ошибка входа в parser API: ${res.status} ${text}`.slice(0, 400));
+    throw new Error("Ошибка входа в parser API");
   }
   const data = await parserJson<{
     access_token?: string;

@@ -19,40 +19,27 @@ npm run dev
 
 См. `.env.example`:
 
-- `PARSER_API_BASE` — публичный URL парсера. **Если не задан, сайт работает на отполированном mock.**
-- `PARSER_API_EMAIL` + `PARSER_API_PASSWORD` — JWT через `POST {BASE}/api/auth/login`
-- или `PARSER_API_TOKEN` — Bearer, если пользователей в БД ещё нет
-- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` — мгновенные алерты менеджеру
-- Если токен или chat id не заданы, алерт пропускается с записью в лог (сайт не падает)
+- `PARSER_API_BASE` — URL парсера. Если пусто, сервер использует `http://api:8080`.
+- `PARSER_API_TOKEN` — Bearer для `POST /api/scans`. В репозиторий не кладётся.
 - `NEXT_PUBLIC_SHOW_FINES=true` — вместе с `approved: true` в `content/fines.ts` показывает таблицу штрафов и калькулятор. Пока юрист не поставил `approved: true`, даже с флагом цифр нет. Без флага блок скрыт целиком.
 - `PD_COLLECTION_ENABLED=true` — серверная переменная без `NEXT_PUBLIC_`. Сбор заявок, проверки URL, Метрики и необязательных cookie включается только вместе с опубликованной политикой (`show_site_legal`) и redeploy. Иначе сбор выключен.
 
 Токены **не** отдаются в браузер — только серверный BFF.
 
-## Как работают алерты
-
-Когда заданы `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`, BFF пишет менеджеру в Telegram:
-
-1. **Любая проверка URL завершилась** (`phase === done`, с рисками и без) — «Новый клиент с лендинга»:
-   - сразу после опроса статуса (`GET /api/checks/{id}`)
-   - текст: домен, ссылка, риски да/нет, находки, контакты если есть
-   - PDF `sendDocument` только если есть риски и `pdf_ready`
-2. **Новая заявка** (`POST /api/leads`) — отдельное сообщение «Новый клиент с лендинга» с полями формы и призывом взять в работу
-
-Без Telegram-переменных сайт работает как обычно, алерты просто не уходят.
-
 ## Parser BFF
 
 Браузер вызывает только:
 
-- `POST /api/checks` `{ "url", "lead?" }` — создать проверку. Если в `lead` есть имя, email или телефон, без `consent: true` BFF отвечает 400 и проверку не создаёт. При согласии парсеру уходит `{ url, mode: "quick" }` и `lead` (`consent: true`, `consent_text_version`, source `landing`). Старый парсер, который отвергает лишние поля, получает повтор с `{ url }`
-- `GET /api/checks/[id]` — статус / находки (poll 1,5 с, пока проверка идёт)
-- `GET /api/checks/[id]/pdf` — прокси PDF с авторизацией на сервере
-- `POST /api/leads` — заявка с обязательным согласием
+- `POST /api/lead` — заявка и проверка URL. Успех — **200** и id скана. Нет заголовка `X-Real-IP` — **400**. Лимит тела 16 КБ.
+- `GET /api/scan/[id]` — статус (poll 1,5 с, пока проверка идёт)
+- `GET /api/scan/[id]/pdf` — прокси PDF
+- `GET /api/health` — живость процесса, без вызова парсера
 
-Если `PARSER_API_BASE` задан, BFF логинится в парсер, создаёт скан и маппит фазы `queued | open | extract | rules | pdf` (+ `done | error | blocked`).
+Сервер вызывает `POST ${PARSER_API_BASE}/api/scans` с `Authorization: Bearer ${PARSER_API_TOKEN}` и `X-PD-Client-IP` из `X-Real-IP` (его ставит Caddy). `X-Forwarded-For` не используется. По умолчанию база — `http://api:8080`.
 
-Для **ngrok free** (`*.ngrok-free.dev`) BFF на каждом серверном запросе к парсеру ставит заголовок `ngrok-skip-browser-warning: true` и `User-Agent: PersDannye-BFF/1.0`, чтобы не упираться в interstitial. Токены по-прежнему только на сервере.
+ПДн не пишутся на диск сайта и не уходят в Telegram или другие внешние сервисы. В логах нет полей формы, IP и токена.
+
+Контейнер: `docker build -t persdannye-site .`, затем `docker run --rm --read-only --tmpfs /tmp -p 3000:3000 -e PARSER_API_BASE -e PARSER_API_TOKEN -e PD_COLLECTION_ENABLED=true persdannye-site`. Токен берите из окружения, не из файла в git.
 
 ## Что есть на сайте
 
@@ -61,7 +48,7 @@ npm run dev
 - `/privacy`, `/cookies`, `/terms` — юридические страницы
 - Cookie-баннер с категориями; аналитика только после согласия
 - Согласие на ПДн в форме заявки и в блоке «Контакты для менеджера» (обязательный чекбокс, по умолчанию снят)
-- Заявки принимаются только `POST /api/leads`. Страницы и API со списком заявок нет
+- Заявки принимаются только `POST /api/lead`. Страницы и API со списком заявок нет
 
 Реквизиты оператора: `lib/company.ts`.
 

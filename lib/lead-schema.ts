@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** Limits for POST /api/leads. Marketing text version matches the parser (max 32). */
+/** Limits for the lead form. Marketing text version matches the parser (max 32). */
 export const leadBodySchema = z.object({
   name: z.string().min(2, "Укажите имя").max(120),
   email: z.union([z.string().max(200).email("Некорректный email"), z.literal("")]).optional(),

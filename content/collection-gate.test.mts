@@ -9,7 +9,9 @@ import HomePage from "../app/page.tsx";
 import { GET as getCheck } from "../app/api/checks/[id]/route.ts";
 import { GET as getCheckPdf } from "../app/api/checks/[id]/pdf/route.ts";
 import { POST as postCheck } from "../app/api/checks/route.ts";
-import { POST as postLead } from "../app/api/leads/route.ts";
+import { POST as postLead } from "../app/api/lead/route.ts";
+import { GET as getScan } from "../app/api/scan/[id]/route.ts";
+import { GET as getScanPdf } from "../app/api/scan/[id]/pdf/route.ts";
 import { UrlChecker } from "../components/check/UrlChecker.tsx";
 import { COLLECTION_CLOSED_NOTICE } from "../components/collection/CollectionClosed.tsx";
 import { collectionEnabled } from "../lib/collection-gate.ts";
@@ -151,7 +153,7 @@ describe("personal data collection gate", { concurrency: false }, () => {
       const fetchMock = mock.method(globalThis, "fetch", async () => {
         throw new Error("fetch should not run");
       });
-      const leadReq = post("/api/leads", probeBody);
+      const leadReq = post("/api/lead", probeBody);
       const leadRes = await postLead(leadReq);
       assert.equal(leadRes.status, 503, String(value));
       assert.deepEqual(await leadRes.json(), { error: "collection_disabled" });
@@ -177,6 +179,13 @@ describe("personal data collection gate", { concurrency: false }, () => {
       const pdfReq = new Request("http://localhost/api/checks/probe-secret/pdf");
       const pdfRes = await getCheckPdf(pdfReq, { params: Promise.resolve({ id: "probe-secret" }) });
       assert.equal(pdfRes.status, 503, String(value));
+
+      const scanReq = new Request("http://localhost/api/scan/probe-secret");
+      const scanRes = await getScan(scanReq, { params: Promise.resolve({ id: "probe-secret" }) });
+      assert.equal(scanRes.status, 503, String(value));
+      const scanPdfReq = new Request("http://localhost/api/scan/probe-secret/pdf");
+      const scanPdfRes = await getScanPdf(scanPdfReq, { params: Promise.resolve({ id: "probe-secret" }) });
+      assert.equal(scanPdfRes.status, 503, String(value));
       assert.equal(fetchMock.mock.calls.length, 0, String(value));
       fetchMock.mock.restore();
 
@@ -234,7 +243,7 @@ describe("personal data collection gate", { concurrency: false }, () => {
       });
 
       try {
-        const leadReq = post("/api/leads", { ...probeBody, consent_text_version: CONSENT_SENTINEL });
+        const leadReq = post("/api/lead", { ...probeBody, consent_text_version: CONSENT_SENTINEL });
         const leadRes = await postLead(leadReq);
         assert.equal(leadRes.status, 503, String(value));
         assert.equal(leadReq.bodyUsed, false);
@@ -306,7 +315,7 @@ describe("personal data collection gate", { concurrency: false }, () => {
     delete process.env.PARSER_API_URL;
 
     const leadRes = await postLead(
-      post("/api/leads", { name: "Анна", email: PROBE_EMAIL, consent: false }),
+      post("/api/lead", { name: "Анна", email: PROBE_EMAIL, consent: false }),
     );
     assert.equal(leadRes.status, 400);
     const leadBody = (await leadRes.json()) as { error?: string };
