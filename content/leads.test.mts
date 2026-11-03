@@ -14,7 +14,6 @@ const validLead = {
   phone: "+79990001122",
   url: "https://example.com",
   checkId: "11111111-1111-1111-1111-111111111111",
-  message: "Нужен разбор",
   consent: true,
   consent_text_version: "2026-10-11-lead",
   marketing_consent: false,
@@ -46,7 +45,6 @@ describe("lead request limits", () => {
       phone: "1".repeat(41),
       url: `https://example.com/${"a".repeat(2048)}`,
       checkId: "x".repeat(65),
-      message: "я".repeat(4001),
       consent_text_version: "v".repeat(65),
       marketing_consent_text_version: "v".repeat(33),
       source: "s".repeat(65),
@@ -68,11 +66,11 @@ describe("lead request limits", () => {
   });
 
   it("sends explicit marketing_consent false and a generic server error", () => {
-    const route = readFileSync(new URL("../app/api/leads/route.ts", import.meta.url), "utf8");
+    const route = readFileSync(new URL("../lib/lead-bff.ts", import.meta.url), "utf8");
     const form = readFileSync(new URL("../components/landing/LeadForm.tsx", import.meta.url), "utf8");
-    const routeWithoutNamedVersions = route.replaceAll("LEAD_CONSENT_TEXT_VERSION", "");
     assert.equal(route.includes("marketingConsentForParser"), true);
-    assert.equal(routeWithoutNamedVersions.includes("CONSENT_TEXT_VERSION"), false);
+    assert.equal(route.includes("LEAD_CONSENT_TEXT_VERSION"), true);
+    assert.equal(route.replaceAll("marketing_consent_text_version", "").includes("consent_text_version"), false);
     assert.equal(route.includes("e.message"), false);
     assert.equal(route.includes("err.message"), false);
     assert.equal(route.includes("marketing_consent_at"), false);

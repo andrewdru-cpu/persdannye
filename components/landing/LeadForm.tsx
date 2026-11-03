@@ -2,6 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
+import { FormOpenedField, useFormOpened } from "@/components/forms/FormOpenedField";
+import { HoneypotField } from "@/components/forms/HoneypotField";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
 import { LEAD_CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
@@ -23,9 +25,10 @@ export function LeadForm({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [url, setUrl] = useState(defaultUrl);
-  const [message, setMessage] = useState("");
   const [consent, setConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [fax, setFax] = useState("");
+  const { ticket, ready } = useFormOpened();
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -39,21 +42,26 @@ export function LeadForm({
       setError("Укажите телефон или e-mail.");
       return;
     }
+    if (!url.trim()) {
+      setError("Укажите ссылку на сайт.");
+      return;
+    }
     setStatus("loading");
     try {
-      const res = await fetch("/api/leads", {
+      const res = await fetch("/api/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           email: mail || undefined,
           phone: tel || undefined,
-          url: url.trim() || undefined,
+          url: url.trim(),
           checkId,
-          message: message.trim() || undefined,
           consent: true,
-          consent_text_version: LEAD_CONSENT_TEXT_VERSION,
+          consent_version: LEAD_CONSENT_TEXT_VERSION,
           source,
+          fax,
+          opened: ticket,
           marketing_consent: marketingConsent && marketingOptIn ? true : false,
           ...(marketingConsent && marketingOptIn
             ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
@@ -78,7 +86,9 @@ export function LeadForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
+    <form onSubmit={onSubmit} className="relative grid gap-3 sm:grid-cols-2">
+      <HoneypotField value={fax} onChange={setFax} />
+      <FormOpenedField value={ticket} />
       <input
         required
         value={name}
@@ -110,17 +120,10 @@ export function LeadForm({
       <input
         value={url}
         onChange={(e) => setUrl(e.target.value)}
-        placeholder="Сайт"
+        required
+        placeholder="Сайт *"
         aria-label="Сайт"
         inputMode="url"
-        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
-      />
-      <textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Сообщение"
-        aria-label="Сообщение"
-        rows={3}
         className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
       />
       <div className="sm:col-span-2">
@@ -139,7 +142,7 @@ export function LeadForm({
       </div>
       {error && <p className="text-sm text-rose-300 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={!consent || status === "loading"} pulse>
+        <Button type="submit" disabled={!consent || !ready || status === "loading"} pulse>
           {status === "loading" ? "Отправляем…" : cta}
         </Button>
       </div>

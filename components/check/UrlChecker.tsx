@@ -10,6 +10,8 @@ import type { CheckJob } from "@/lib/types";
 import { CheckReport } from "@/components/check/CheckReport";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
+import { FormOpenedField, useFormOpened } from "@/components/forms/FormOpenedField";
+import { HoneypotField } from "@/components/forms/HoneypotField";
 import { CollectionClosed } from "@/components/collection/CollectionClosed";
 import { LeadForm } from "@/components/landing/LeadForm";
 
@@ -71,6 +73,8 @@ export function UrlChecker({
   const [leadEmail, setLeadEmail] = useState("");
   const [leadConsent, setLeadConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [fax, setFax] = useState("");
+  const { ticket, ready } = useFormOpened();
   const [status, setStatus] = useState<Status>("idle");
   const [job, setJob] = useState<CheckJob | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +112,7 @@ export function UrlChecker({
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/checks/${jobId}`, { cache: "no-store" });
+        const res = await fetch(`/api/scan/${jobId}`, { cache: "no-store" });
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) throw new Error(data.error || "Ошибка опроса");
@@ -152,28 +156,32 @@ export function UrlChecker({
     setElapsedSec(0);
     setStatus("running");
 
-    const lead = email
+    const contact = email
       ? {
           email,
           consent: true,
-          consent_text_version: CONSENT_TEXT_VERSION,
+          consent_version: CONSENT_TEXT_VERSION,
           ...(marketingConsent && marketingOptIn
             ? {
                 marketing_consent: true,
                 marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
               }
-            : {}),
+            : { marketing_consent: false }),
         }
-      : undefined;
+      : {};
 
     try {
-      const res = await fetch("/api/checks", {
+      const res = await fetch("/api/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(lead ? { url, lead } : { url }),
+        body: JSON.stringify({ url, source: "check", fax, opened: ticket, ...contact }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Не удалось запустить проверку");
+      if (!data.id) {
+        setStatus("idle");
+        return;
+      }
       const next = data as CheckJob;
       setJob(next);
       if (["done", "error", "blocked"].includes(String(next.phase))) {
@@ -202,7 +210,9 @@ export function UrlChecker({
 
   return (
     <div className={cn("w-full", compact ? "" : "mx-auto max-w-2xl")}>
-      <form onSubmit={onSubmit} className="flex flex-col gap-3">
+      <form onSubmit={onSubmit} className="relative flex flex-col gap-3">
+        <HoneypotField value={fax} onChange={setFax} />
+        <FormOpenedField value={ticket} />
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             id="url-check-input"
@@ -220,7 +230,7 @@ export function UrlChecker({
           <Button
             type="submit"
             size="lg"
-            disabled={status === "running"}
+            disabled={status === "running" || !ready}
             pulse={pulseCta && status === "idle"}
             className="w-full sm:w-auto"
           >
@@ -397,7 +407,7 @@ export function UrlChecker({
 
             {job.pdfReady && !job.mock && (
               <a
-                href={`/api/checks/${job.id}/pdf`}
+                href={`/api/scan/${job.id}/pdf`}
                 className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/35 bg-amber-400/10 px-5 py-3 text-sm font-semibold text-amber-50 transition hover:border-amber-100/60 hover:bg-amber-400/20"
               >
                 Скачать PDF-отчёт

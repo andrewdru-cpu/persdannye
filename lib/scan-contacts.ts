@@ -1,18 +1,10 @@
 /**
- * Contacts typed next to the URL check, so a finished scan can alert
- * the manager even if the visitor has not submitted the full lead form.
- * Best-effort file store: a write failure must not fail the scan.
+ * Нормализация контактов скана в памяти запроса.
+ * На диск сайта контакты не пишутся: их хранит парсер.
  */
 
-import { promises as fs } from "fs";
-import path from "path";
 import type { ScanContact } from "./types";
-import { dataFilePath } from "./data-dir";
 import { CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "./consent";
-
-const DATA_PATH = dataFilePath("scan-contacts.json");
-
-type Store = Record<string, ScanContact & { url?: string; savedAt?: string }>;
 
 export function hasScanContact(contact?: ScanContact | null): boolean {
   return Boolean(contact && (contact.name || contact.email || contact.phone));
@@ -84,51 +76,3 @@ export function mergeScanContact(
   };
 }
 
-async function readStore(): Promise<Store> {
-  try {
-    const raw = await fs.readFile(DATA_PATH, "utf8");
-    const parsed = JSON.parse(raw) as Store;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-export async function saveScanContact(
-  id: string,
-  url: string,
-  contact: ScanContact
-): Promise<void> {
-  if (!hasScanContact(contact)) return;
-  const store = await readStore();
-  store[id] = {
-    name: contact.name,
-    email: contact.email,
-    phone: contact.phone,
-    source: "landing",
-    ...(contact.consent === true
-      ? {
-          consent: true as const,
-          consent_text_version: contact.consent_text_version || CONSENT_TEXT_VERSION,
-        }
-      : {}),
-    ...(contact.marketing_consent === true
-      ? {
-          marketing_consent: true as const,
-          marketing_consent_text_version:
-            contact.marketing_consent_text_version || MARKETING_CONSENT_TEXT_VERSION,
-        }
-      : {}),
-    url,
-    savedAt: new Date().toISOString(),
-  };
-  await fs.mkdir(path.dirname(DATA_PATH), { recursive: true });
-  await fs.writeFile(DATA_PATH, JSON.stringify(store, null, 2) + "\n", "utf8");
-}
-
-export async function findScanContact(id?: string): Promise<ScanContact | null> {
-  if (!id) return null;
-  const store = await readStore();
-  const hit = store[id];
-  return hit && hasScanContact(hit) ? hit : null;
-}
