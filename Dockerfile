@@ -28,10 +28,11 @@ COPY --from=builder --chown=10001:10001 /app/.next/standalone ./
 COPY --from=builder --chown=10001:10001 /app/.next/static ./.next/static
 COPY --from=builder --chown=10001:10001 /app/public ./public
 COPY --chown=10001:10001 docker/entrypoint.sh /entrypoint.sh
+# Пустой каталог — точка монтирования tmpfs из compose. Корень контейнера read-only.
 RUN chmod 555 /entrypoint.sh \
   && rm -rf .next/cache \
-  && ln -sfn /tmp/next-cache .next/cache \
-  && chown -h 10001:10001 .next/cache
+  && mkdir -p .next/cache \
+  && chown 10001:10001 .next/cache
 
 USER 10001
 EXPOSE 3000

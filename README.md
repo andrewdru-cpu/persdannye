@@ -30,7 +30,8 @@ Open http://localhost:3000
 
 Client never sees tokens. Browser calls only:
 
-- `POST /api/lead` — form (url, contacts, `consent_version`, `consent_at`). Success is **200** with a scan id. Missing `X-Real-IP` is **400**. Body limit is 16 KiB.
+- `POST /api/lead` — form (url, contacts). The server sets `consent_version` from a code constant and `consent_at` to the current ISO time. `checkId` is sent as `lead.scan_id`. Success is **200** with a scan id. Missing `X-Real-IP` is **400**. A signed open-time shorter than 3 seconds returns `{ "ok": true }` and does not call the parser. Body limit is 16 KiB.
+- `GET|POST /api/checks` and nested paths — **410 Gone**
 - `GET /api/scan/[id]` — scan status (poll every 1.5s while active)
 - `GET /api/scan/[id]/pdf` — server-side PDF proxy
 - `GET /api/health` — liveness, no parser call
@@ -41,7 +42,7 @@ Personal data is not written to the site disk and is not sent to Telegram or any
 
 ```bash
 docker build -t persdannye-site .
-docker run --rm --read-only --tmpfs /tmp -p 3000:3000 \
+docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 \
   -e PARSER_API_BASE=http://api:8080 \
   -e PARSER_API_TOKEN \
   -e PD_COLLECTION_ENABLED=true \

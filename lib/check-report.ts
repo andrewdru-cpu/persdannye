@@ -93,6 +93,13 @@ export function scanHasRisks(done: boolean, push: boolean, findings: Finding[]):
   return push || findings.some(findingCountsAsRisk);
 }
 
+/** В браузер collects_pd и контакты заявки не отдаём. */
+export function publicCheckJob(job: CheckJob): Omit<CheckJob, "contact"> {
+  const view = { ...job, findings: findingsForClient(job.findings) };
+  delete view.contact;
+  return view;
+}
+
 /** В браузер collects_pd не отдаём: поле хранится на сервере и на экран не выводится. */
 export function findingsForClient(findings: Finding[]): Finding[] {
   return findings.map((finding) => {

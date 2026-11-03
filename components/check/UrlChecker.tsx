@@ -10,6 +10,7 @@ import type { CheckJob } from "@/lib/types";
 import { CheckReport } from "@/components/check/CheckReport";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
+import { FormOpenedField, useFormOpened } from "@/components/forms/FormOpenedField";
 import { HoneypotField } from "@/components/forms/HoneypotField";
 import { CollectionClosed } from "@/components/collection/CollectionClosed";
 import { LeadForm } from "@/components/landing/LeadForm";
@@ -73,6 +74,7 @@ export function UrlChecker({
   const [leadConsent, setLeadConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [fax, setFax] = useState("");
+  const { ticket, ready } = useFormOpened();
   const [status, setStatus] = useState<Status>("idle");
   const [job, setJob] = useState<CheckJob | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -159,7 +161,6 @@ export function UrlChecker({
           email,
           consent: true,
           consent_version: CONSENT_TEXT_VERSION,
-          consent_at: new Date().toISOString(),
           ...(marketingConsent && marketingOptIn
             ? {
                 marketing_consent: true,
@@ -173,10 +174,14 @@ export function UrlChecker({
       const res = await fetch("/api/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, source: "check", fax, ...contact }),
+        body: JSON.stringify({ url, source: "check", fax, opened: ticket, ...contact }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Не удалось запустить проверку");
+      if (!data.id) {
+        setStatus("idle");
+        return;
+      }
       const next = data as CheckJob;
       setJob(next);
       if (["done", "error", "blocked"].includes(String(next.phase))) {
@@ -207,6 +212,7 @@ export function UrlChecker({
     <div className={cn("w-full", compact ? "" : "mx-auto max-w-2xl")}>
       <form onSubmit={onSubmit} className="relative flex flex-col gap-3">
         <HoneypotField value={fax} onChange={setFax} />
+        <FormOpenedField value={ticket} />
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             id="url-check-input"
@@ -224,7 +230,7 @@ export function UrlChecker({
           <Button
             type="submit"
             size="lg"
-            disabled={status === "running"}
+            disabled={status === "running" || !ready}
             pulse={pulseCta && status === "idle"}
             className="w-full sm:w-auto"
           >

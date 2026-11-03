@@ -19,14 +19,16 @@ import {
   findingsForClient,
   maskClientPii,
   presentCheckReport,
+  publicCheckJob,
   scanHasRisks,
 } from "../lib/check-report.ts";
 import {
   CONSENT_TEXT_VERSION,
+  LEAD_CONSENT_TEXT_VERSION,
   MARKETING_CONSENT_TEXT_VERSION,
   marketingConsentForParser,
 } from "../lib/consent.ts";
-import { leadForParser, publicCheckJob } from "../lib/parser-client.ts";
+import { scanCreatePayload } from "../lib/lead-bff.ts";
 import { marketingConsentEnabled } from "../lib/runtime-flags.ts";
 import type { CheckJob, Finding, Recommendation } from "../lib/types.ts";
 
@@ -304,40 +306,51 @@ describe("checklist flags", () => {
   it("forwards mailing consent as an explicit parser field", () => {
     assert.ok(MARKETING_CONSENT_TEXT_VERSION.length <= 32);
     assert.notEqual(MARKETING_CONSENT_TEXT_VERSION, CONSENT_TEXT_VERSION);
-    const on = leadForParser({
-      email: "a@b.c",
-      consent: true,
-      consent_text_version: CONSENT_TEXT_VERSION,
-      marketing_consent: true,
-      marketing_consent_text_version: "m-1",
-    });
+    const now = new Date("2026-11-03T12:00:00.000Z");
+    const on = scanCreatePayload(
+      { url: "https://example.com/", email: "a@b.c", marketingConsent: true },
+      now,
+    ).lead as Record<string, unknown>;
     assert.equal(on.marketing_consent, true);
     assert.equal(on.marketing_consent_text_version, MARKETING_CONSENT_TEXT_VERSION);
-    assert.equal(on.consent_text_version, CONSENT_TEXT_VERSION);
+    assert.equal(on.consent_version, CONSENT_TEXT_VERSION);
+    assert.equal(on.consent_at, "2026-11-03T12:00:00.000Z");
+    assert.equal("consent_text_version" in on, false);
     assert.equal("marketing_consent_at" in on, false);
-    const missingVersion = leadForParser({
-      email: "a@b.c",
-      consent: true,
+    const missingVersion = scanCreatePayload(
+      { url: "https://example.com/", email: "a@b.c", marketingConsent: true },
+      now,
+    ).lead as Record<string, unknown>;
+    assert.deepEqual(marketingConsentForParser(true), {
       marketing_consent: true,
+      marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
     });
-    assert.deepEqual(
-      marketingConsentForParser(true),
-      {
-        marketing_consent: true,
-        marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
-      },
-    );
     assert.equal(missingVersion.marketing_consent_text_version, MARKETING_CONSENT_TEXT_VERSION);
-    assert.equal(missingVersion.consent_text_version, CONSENT_TEXT_VERSION);
-    const off = leadForParser({ email: "a@b.c", consent: true, marketing_consent: false });
+    assert.equal(missingVersion.consent_version, CONSENT_TEXT_VERSION);
+    const off = scanCreatePayload(
+      { url: "https://example.com/", email: "a@b.c", marketingConsent: false },
+      now,
+    ).lead as Record<string, unknown>;
     assert.equal(off.marketing_consent, false);
     assert.equal("marketing_consent_text_version" in off, false);
     assert.equal("marketing_consent_at" in off, false);
-    const omitted = leadForParser({ email: "a@b.c", consent: true });
-    assert.equal(omitted.marketing_consent, false);
-    for (const lead of [on, off, omitted, missingVersion]) {
+    const named = scanCreatePayload(
+      {
+        url: "https://example.com/",
+        name: "Анна",
+        email: "a@b.c",
+        marketingConsent: false,
+        scanId: "scan-1",
+      },
+      now,
+    ).lead as Record<string, unknown>;
+    assert.equal(named.consent_version, LEAD_CONSENT_TEXT_VERSION);
+    assert.equal(named.scan_id, "scan-1");
+    for (const lead of [on, off, missingVersion, named]) {
       const keys = Object.keys(lead);
       assert.equal(keys.includes("marketing_consent_at"), false);
+      assert.equal(keys.includes("source"), false);
+      assert.equal(keys.includes("message"), false);
       assert.equal(keys.some((key) => /stop|suppression|unsubscrib/i.test(key)), false);
     }
   });

@@ -4,7 +4,9 @@
  */
 
 import { findingsForClient, scanHasRisks } from "./check-report";
-import { marketingConsentForParser } from "./consent";
+import { CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION, marketingConsentForParser } from "./consent";
+import { FORM_OPENED_FIELD } from "./form-open";
+import { formOpenedTooFast, readFormOpened } from "./form-ticket";
 import { friendlyPhaseMessage, normalizePhase } from "./phases";
 import type { CheckJob, Finding, Recommendation } from "./types";
 import { domainFromUrl, normalizeUrl } from "./utils";
@@ -14,21 +16,30 @@ export const DEFAULT_PARSER_API_BASE = "http://api:8080";
 export const HONEYPOT_FIELD = "fax";
 
 const SCAN_ID = /^[A-Za-z0-9_-]{1,64}$/;
-const CONSENT_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
-const SOURCE = /^[a-z0-9-]{1,64}$/;
 const PARSER_TIMEOUT_MS = 20_000;
+
+/**
+ * Поля lead, которые принимает парсер (parser-152fz#37).
+ * Лишнее поле он отвергает 422, поэтому payload собирается только из этого списка.
+ */
+export const LEAD_PARSER_FIELDS = [
+  "name",
+  "email",
+  "phone",
+  "consent_version",
+  "consent_at",
+  "scan_id",
+  "marketing_consent",
+  "marketing_consent_text_version",
+] as const;
 
 export type LeadInput = {
   url: string;
   name?: string;
   email?: string;
   phone?: string;
-  message?: string;
-  consentVersion?: string;
-  consentAt?: string;
   marketingConsent: boolean;
-  marketingConsentVersion?: string;
-  source: string;
+  scanId?: string;
 };
 
 export function parserApiBase(): string {
@@ -107,13 +118,9 @@ function textField(value: unknown, max: number): string | undefined {
   return trimmed;
 }
 
-function validConsentAt(value: string): boolean {
-  if (!CONSENT_AT.test(value)) return false;
-  const time = Date.parse(value);
-  if (!Number.isFinite(time)) return false;
-  if (time - Date.now() > 10 * 60 * 1000) return false;
-  if (Date.now() - time > 7 * 24 * 60 * 60 * 1000) return false;
-  return true;
+/** Версия текста согласия — константа сайта, не строка из браузера. */
+export function consentVersionFor(lead: Pick<LeadInput, "name" | "scanId">): string {
+  return lead.name || lead.scanId ? LEAD_CONSENT_TEXT_VERSION : CONSENT_TEXT_VERSION;
 }
 
 export function validateLead(body: unknown): { ok: true; lead: LeadInput } | { ok: false; error: string } {
@@ -126,12 +133,14 @@ export function validateLead(body: unknown): { ok: true; lead: LeadInput } | { o
   const phoneRaw = record.phone;
   const messageRaw = record.message;
   const urlRaw = record.url;
+  const checkIdRaw = record.checkId;
 
   if (nameRaw != null && typeof nameRaw !== "string") return { ok: false, error: "Некорректные данные" };
   if (emailRaw != null && typeof emailRaw !== "string") return { ok: false, error: "Некорректные данные" };
   if (phoneRaw != null && typeof phoneRaw !== "string") return { ok: false, error: "Некорректные данные" };
   if (messageRaw != null && typeof messageRaw !== "string") return { ok: false, error: "Некорректные данные" };
   if (urlRaw != null && typeof urlRaw !== "string") return { ok: false, error: "Некорректные данные" };
+  if (checkIdRaw != null && typeof checkIdRaw !== "string") return { ok: false, error: "Некорректные данные" };
 
   if (typeof nameRaw === "string" && nameRaw.trim().length > 120) return { ok: false, error: "Некорректные данные" };
   if (typeof emailRaw === "string" && emailRaw.trim().length > 200) return { ok: false, error: "Некорректные данные" };
@@ -142,8 +151,12 @@ export function validateLead(body: unknown): { ok: true; lead: LeadInput } | { o
   const name = textField(nameRaw, 120);
   const email = textField(emailRaw, 200);
   const phone = textField(phoneRaw, 40);
-  const message = textField(messageRaw, 4000);
-  const hasContact = Boolean(name || email || phone || message);
+  let scanId: string | undefined;
+  if (typeof checkIdRaw === "string" && checkIdRaw.trim()) {
+    scanId = checkIdRaw.trim();
+    if (!isScanId(scanId)) return { ok: false, error: "Некорректные данные" };
+  }
+  const hasContact = Boolean(name || email || phone || scanId);
 
   if (hasContact && record.consent !== true) {
     return { ok: false, error: "Нужно согласие на обработку персональных данных" };
@@ -164,37 +177,11 @@ export function validateLead(body: unknown): { ok: true; lead: LeadInput } | { o
     return { ok: false, error: "Некорректный email" };
   }
   if (phone && /[\r\n]/.test(phone)) return { ok: false, error: "Некорректные данные" };
-
-  let consentVersion: string | undefined;
-  let consentAt: string | undefined;
-  if (hasContact) {
-    if (!email && !phone) return { ok: false, error: "Укажите телефон или e-mail" };
-    if (typeof record.consent_version !== "string" || !record.consent_version.trim()) {
-      return { ok: false, error: "Укажите версию согласия" };
-    }
-    consentVersion = record.consent_version.trim();
-    if (consentVersion.length > 64) return { ok: false, error: "Укажите версию согласия" };
-    if (typeof record.consent_at !== "string" || !validConsentAt(record.consent_at.trim())) {
-      return { ok: false, error: "Укажите время согласия" };
-    }
-    consentAt = record.consent_at.trim();
+  if ((name || scanId) && !email && !phone) {
+    return { ok: false, error: "Укажите телефон или e-mail" };
   }
 
   const marketingConsent = record.marketing_consent === true;
-  let marketingConsentVersion: string | undefined;
-  if (marketingConsent) {
-    const version = marketingConsentForParser(true).marketing_consent_text_version;
-    if (typeof record.marketing_consent_text_version === "string") {
-      const given = record.marketing_consent_text_version.trim();
-      if (!given || given.length > 32) return { ok: false, error: "Некорректные данные" };
-      marketingConsentVersion = given;
-    } else {
-      marketingConsentVersion = version;
-    }
-  }
-
-  const sourceRaw = typeof record.source === "string" ? record.source.trim() : "";
-  const source = SOURCE.test(sourceRaw) ? sourceRaw : "landing";
 
   return {
     ok: true,
@@ -203,33 +190,25 @@ export function validateLead(body: unknown): { ok: true; lead: LeadInput } | { o
       name,
       email,
       phone,
-      message,
-      consentVersion,
-      consentAt,
       marketingConsent,
-      marketingConsentVersion,
-      source,
+      scanId,
     },
   };
 }
 
-export function scanCreatePayload(lead: LeadInput): Record<string, unknown> {
-  const payload: Record<string, unknown> = { url: lead.url, mode: "quick" };
-  if (!lead.email && !lead.phone && !lead.name && !lead.message) return payload;
+export function scanCreatePayload(lead: LeadInput, now = new Date()): { url: string; lead?: Record<string, unknown> } {
+  const payload: { url: string; lead?: Record<string, unknown> } = { url: lead.url };
+  const hasLead = Boolean(lead.name || lead.email || lead.phone || lead.scanId);
+  if (!hasLead) return payload;
   const contact: Record<string, unknown> = {
-    consent: true,
-    consent_version: lead.consentVersion,
-    consent_at: lead.consentAt,
-    source: lead.source,
+    consent_version: consentVersionFor(lead),
+    consent_at: now.toISOString(),
     ...marketingConsentForParser(lead.marketingConsent),
   };
-  if (lead.marketingConsent && lead.marketingConsentVersion) {
-    contact.marketing_consent_text_version = lead.marketingConsentVersion;
-  }
+  if (lead.scanId) contact.scan_id = lead.scanId;
   if (lead.name) contact.name = lead.name;
   if (lead.email) contact.email = lead.email;
   if (lead.phone) contact.phone = lead.phone;
-  if (lead.message) contact.message = lead.message;
   payload.lead = contact;
   return payload;
 }
@@ -256,9 +235,9 @@ function retryAfter(res: Response): HeadersInit | undefined {
 
 /** Статусы парсера наружу, без тела: в нём могут быть эхо ПДн и внутренние детали. */
 export async function responseFromParser(res: Response): Promise<Response | null> {
-  if (res.status === 400) {
+  if (res.status === 400 || res.status === 422) {
     await discard(res);
-    return jsonError(400, "Некорректный запрос");
+    return jsonError(res.status, "Некорректный запрос");
   }
   if (res.status === 429) {
     await discard(res);
@@ -393,6 +372,16 @@ async function parserFetch(path: string, init: RequestInit): Promise<Response> {
   });
 }
 
+function accepted(): Response {
+  return Response.json({ ok: true }, { status: 200, headers: { "cache-control": "no-store" } });
+}
+
+function openedTicket(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const value = (body as Record<string, unknown>)[FORM_OPENED_FIELD];
+  return typeof value === "string" && value ? value : null;
+}
+
 export async function submitLead(req: Request): Promise<Response> {
   const limited = await readLimitedBody(req);
   if (!limited.ok) return limited.response;
@@ -402,17 +391,19 @@ export async function submitLead(req: Request): Promise<Response> {
   } catch {
     return jsonError(400, "Некорректные данные");
   }
-  if (isHoneypotTripped(json)) {
-    return Response.json({ ok: true }, { status: 200, headers: { "cache-control": "no-store" } });
-  }
+  if (isHoneypotTripped(json)) return accepted();
   const parsed = validateLead(json);
   if (!parsed.ok) return jsonError(400, parsed.error);
 
-  const ip = clientIpFromRealIp(req.headers);
-  if (!ip) return jsonError(400, "Не указан адрес клиента");
-
   const token = parserApiToken();
   if (!token) return jsonError(500, "Ошибка сервера");
+  const ticket = openedTicket(json);
+  const opened = ticket ? readFormOpened(ticket, token, Date.now()) : { ok: false as const };
+  if (!opened.ok) return jsonError(400, "Некорректные данные");
+  if (formOpenedTooFast(opened.openedAt, Date.now())) return accepted();
+
+  const ip = clientIpFromRealIp(req.headers);
+  if (!ip) return jsonError(400, "Не указан адрес клиента");
 
   let upstream: Response;
   try {

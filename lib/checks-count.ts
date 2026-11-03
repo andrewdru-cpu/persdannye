@@ -1,4 +1,4 @@
-import { applyParserHeaders, getParserBase } from "./parser-auth";
+import { parserApiBase } from "./lead-bff";
 
 /** Путь публичного счётчика. Меняется здесь, если парсер перенесёт ручку. */
 export const PARSER_CHECKS_COUNT_PATH = "/public/checks-count";
@@ -117,11 +117,13 @@ export async function resolveVisibleChecksCount(
 }
 
 async function fetchParserCount(): Promise<{ count: number; generatedAt: number | null | "invalid" } | null> {
-  const base = getParserBase();
-  if (!base) return null;
-  const headers = new Headers();
-  applyParserHeaders(headers);
-  headers.set("Accept", "application/json");
+  let base: string;
+  try {
+    base = parserApiBase();
+  } catch {
+    return null;
+  }
+  const headers = new Headers({ Accept: "application/json" });
   const res = await fetch(`${base}${PARSER_CHECKS_COUNT_PATH}`, {
     headers,
     cache: "no-store",

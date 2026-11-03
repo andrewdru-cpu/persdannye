@@ -30,7 +30,8 @@ npm run dev
 
 Браузер вызывает только:
 
-- `POST /api/lead` — заявка и проверка URL. Успех — **200** и id скана. Нет заголовка `X-Real-IP` — **400**. Лимит тела 16 КБ.
+- `POST /api/lead` — заявка и проверка URL. `consent_version` берётся из константы в коде, `consent_at` ставит сервер. Если в форме есть `checkId`, в lead уходит `scan_id`. Успех — **200** и id скана. Нет `X-Real-IP` — **400**. Если от открытия формы до отправки меньше 3 секунд, ответ `{ "ok": true }` и парсер не вызывается. Лимит тела 16 КБ.
+- `/api/checks` и вложенные пути — **410 Gone**
 - `GET /api/scan/[id]` — статус (poll 1,5 с, пока проверка идёт)
 - `GET /api/scan/[id]/pdf` — прокси PDF
 - `GET /api/health` — живость процесса, без вызова парсера
@@ -39,7 +40,7 @@ npm run dev
 
 ПДн не пишутся на диск сайта и не уходят в Telegram или другие внешние сервисы. В логах нет полей формы, IP и токена.
 
-Контейнер: `docker build -t persdannye-site .`, затем `docker run --rm --read-only --tmpfs /tmp -p 3000:3000 -e PARSER_API_BASE -e PARSER_API_TOKEN -e PD_COLLECTION_ENABLED=true persdannye-site`. Токен берите из окружения, не из файла в git.
+Контейнер: `docker build -t persdannye-site .`, затем `docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 -e PARSER_API_BASE -e PARSER_API_TOKEN -e PD_COLLECTION_ENABLED=true persdannye-site`. Каталог `.next/cache` — tmpfs из compose, не симлинк. Токен берите из окружения, не из файла в git.
 
 ## Что есть на сайте
 

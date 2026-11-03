@@ -6,9 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import CheckPage from "../app/check/page.tsx";
 import RootLayout from "../app/layout.tsx";
 import HomePage from "../app/page.tsx";
-import { GET as getCheck } from "../app/api/checks/[id]/route.ts";
-import { GET as getCheckPdf } from "../app/api/checks/[id]/pdf/route.ts";
-import { POST as postCheck } from "../app/api/checks/route.ts";
+import { GET as getGone, POST as postGone } from "../app/api/checks/[[...slug]]/route.ts";
 import { POST as postLead } from "../app/api/lead/route.ts";
 import { GET as getScan } from "../app/api/scan/[id]/route.ts";
 import { GET as getScanPdf } from "../app/api/scan/[id]/pdf/route.ts";
@@ -167,18 +165,18 @@ describe("personal data collection gate", { concurrency: false }, () => {
           consent_text_version: CONSENT_SENTINEL,
         },
       });
-      const checkRes = await postCheck(checkReq);
-      assert.equal(checkRes.status, 503, String(value));
+      const checkRes = await postGone(checkReq);
+      assert.equal(checkRes.status, 410, String(value));
       assert.equal(checkReq.bodyUsed, false);
       assert.equal((await checkRes.clone().text()).includes(CONSENT_SENTINEL), false);
 
       const statusReq = new Request("http://localhost/api/checks/probe-secret");
-      const statusRes = await getCheck(statusReq, { params: Promise.resolve({ id: "probe-secret" }) });
-      assert.equal(statusRes.status, 503, String(value));
+      const statusRes = await getGone(statusReq);
+      assert.equal(statusRes.status, 410, String(value));
 
       const pdfReq = new Request("http://localhost/api/checks/probe-secret/pdf");
-      const pdfRes = await getCheckPdf(pdfReq, { params: Promise.resolve({ id: "probe-secret" }) });
-      assert.equal(pdfRes.status, 503, String(value));
+      const pdfRes = await getGone(pdfReq);
+      assert.equal(pdfRes.status, 410, String(value));
 
       const scanReq = new Request("http://localhost/api/scan/probe-secret");
       const scanRes = await getScan(scanReq, { params: Promise.resolve({ id: "probe-secret" }) });
@@ -261,8 +259,8 @@ describe("personal data collection gate", { concurrency: false }, () => {
             marketing_consent_text_version: CONSENT_SENTINEL,
           },
         });
-        const checkRes = await postCheck(checkReq);
-        assert.equal(checkRes.status, 503, String(value));
+        const checkRes = await postGone(checkReq);
+        assert.equal(checkRes.status, 410, String(value));
         assert.equal(checkReq.bodyUsed, false);
         assert.equal((await checkRes.text()).includes(CONSENT_SENTINEL), false);
 
@@ -321,16 +319,13 @@ describe("personal data collection gate", { concurrency: false }, () => {
     const leadBody = (await leadRes.json()) as { error?: string };
     assert.equal(leadBody.error, "Нужно согласие на обработку персональных данных");
 
-    const checkRes = await postCheck(post("/api/checks", { url: "example.com" }));
-    assert.equal(checkRes.status, 201);
-    const checkBody = (await checkRes.json()) as { error?: string; url?: string };
-    assert.notEqual(checkBody.error, "collection_disabled");
-    assert.equal(typeof checkBody.url, "string");
+    const checkRes = await postGone(post("/api/checks", { url: "example.com" }));
+    assert.equal(checkRes.status, 410);
+    const checkBody = (await checkRes.json()) as { error?: string };
+    assert.equal(checkBody.error, "gone");
 
-    const statusRes = await getCheck(new Request("http://localhost/api/checks/missing"), {
-      params: Promise.resolve({ id: "missing-scan" }),
-    });
-    assert.equal(statusRes.status, 404);
+    const statusRes = await getGone(new Request("http://localhost/api/checks/missing"));
+    assert.equal(statusRes.status, 410);
 
     const names = await treeNames();
     assert.equal(names.has("CookieBanner"), true);
