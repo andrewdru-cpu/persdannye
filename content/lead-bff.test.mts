@@ -6,17 +6,20 @@ import { GET as getTicket } from "../app/api/form-ticket/route.ts";
 import { GET as getGone, POST as postGone } from "../app/api/checks/[[...slug]]/route.ts";
 import { GET as getHealth } from "../app/api/health/route.ts";
 import { GET as getScan } from "../app/api/scan/[id]/route.ts";
+import { GET as getScanPdf } from "../app/api/scan/[id]/pdf/route.ts";
 import { LEAD_CONSENT_TEXT_VERSION } from "../lib/consent.ts";
-import { signFormOpened } from "../lib/form-ticket.ts";
+import { assertFormTicketSecret, FORM_TICKET_MAX_AGE_MS, signFormOpened } from "../lib/form-ticket.ts";
 import { LEAD_PARSER_FIELDS } from "../lib/lead-bff.ts";
 import { flags } from "./flags.ts";
 
 const SCAN_ID = "11111111-1111-4111-8111-111111111111";
 const EMAIL = "anna@example.com";
 const TOKEN = "test-parser-token";
+const TICKET_SECRET = "form-ticket-secret-value-32b-minx";
 
 function enableCollection() {
   process.env.PD_COLLECTION_ENABLED = "true";
+  process.env.FORM_TICKET_SECRET = TICKET_SECRET;
   flags.show_site_legal = true;
 }
 
@@ -26,14 +29,13 @@ function validBody(extra: Record<string, unknown> = {}) {
     email: EMAIL,
     phone: "+79990001122",
     url: "https://example.com/path",
-    message: "Нужен разбор",
     consent: true,
     consent_version: "evil-client-version",
     consent_at: "1999-01-01T00:00:00.000Z",
     marketing_consent: false,
     source: "landing",
     fax: "",
-    opened: signFormOpened(Date.now() - 10_000, TOKEN),
+    opened: signFormOpened(Date.now() - 10_000, TICKET_SECRET),
     ...extra,
   };
 }
@@ -51,6 +53,7 @@ describe("lead BFF", { concurrency: false }, () => {
     base: process.env.PARSER_API_BASE,
     token: process.env.PARSER_API_TOKEN,
     collection: process.env.PD_COLLECTION_ENABLED,
+    ticketSecret: process.env.FORM_TICKET_SECRET,
     siteLegal: flags.show_site_legal,
   };
 
@@ -58,6 +61,8 @@ describe("lead BFF", { concurrency: false }, () => {
     flags.show_site_legal = saved.siteLegal;
     if (saved.collection === undefined) delete process.env.PD_COLLECTION_ENABLED;
     else process.env.PD_COLLECTION_ENABLED = saved.collection;
+    if (saved.ticketSecret === undefined) delete process.env.FORM_TICKET_SECRET;
+    else process.env.FORM_TICKET_SECRET = saved.ticketSecret;
     if (saved.base === undefined) delete process.env.PARSER_API_BASE;
     else process.env.PARSER_API_BASE = saved.base;
     if (saved.token === undefined) delete process.env.PARSER_API_TOKEN;
@@ -234,11 +239,13 @@ describe("lead BFF", { concurrency: false }, () => {
     assert.equal(fetchMock.mock.calls.length, 0);
   });
 
-  it("strips contact fields from the scan status", async () => {
+  it("strips contact fields from the scan status and forwards X-PD-Client-IP", async () => {
     enableCollection();
     process.env.PARSER_API_BASE = "http://parser.test";
     process.env.PARSER_API_TOKEN = TOKEN;
-    mock.method(globalThis, "fetch", async () => {
+    let clientIp: string | null = null;
+    mock.method(globalThis, "fetch", async (_input: unknown, init?: RequestInit) => {
+      clientIp = new Headers(init?.headers).get("x-pd-client-ip");
       return new Response(
         JSON.stringify({
           phase: "done",
@@ -250,27 +257,69 @@ describe("lead BFF", { concurrency: false }, () => {
         { status: 200, headers: { "content-type": "application/json" } },
       );
     });
-    const ok = await getScan(new Request("http://localhost/api/scan/" + SCAN_ID), {
-      params: Promise.resolve({ id: SCAN_ID }),
-    });
+    const ok = await getScan(
+      new Request("http://localhost/api/scan/" + SCAN_ID, { headers: { "x-real-ip": "203.0.113.10" } }),
+      { params: Promise.resolve({ id: SCAN_ID }) },
+    );
     assert.equal(ok.status, 200);
+    assert.equal(clientIp, "203.0.113.10");
     const body = await ok.text();
     assert.equal(body.includes(EMAIL), false);
     assert.equal(body.includes("Анна"), false);
+  });
+
+  it("does not fetch scan status without X-Real-IP", async () => {
+    enableCollection();
+    process.env.PARSER_API_TOKEN = TOKEN;
+    const fetchMock = mock.method(globalThis, "fetch", async () => {
+      throw new Error("fetch should not run");
+    });
+    const res = await getScan(new Request("http://localhost/api/scan/" + SCAN_ID), {
+      params: Promise.resolve({ id: SCAN_ID }),
+    });
+    assert.equal(res.status, 400);
+    assert.equal(fetchMock.mock.calls.length, 0);
   });
 
   it("forwards 429 from the scan status proxy", async () => {
     enableCollection();
     process.env.PARSER_API_BASE = "http://parser.test";
     process.env.PARSER_API_TOKEN = TOKEN;
-    mock.method(globalThis, "fetch", async () => {
+    let clientIp: string | null = null;
+    mock.method(globalThis, "fetch", async (_input: unknown, init?: RequestInit) => {
+      clientIp = new Headers(init?.headers).get("x-pd-client-ip");
       return new Response("secret", { status: 429 });
     });
-    const limited = await getScan(new Request("http://localhost/api/scan/" + SCAN_ID), {
-      params: Promise.resolve({ id: SCAN_ID }),
-    });
+    const limited = await getScan(
+      new Request("http://localhost/api/scan/" + SCAN_ID, { headers: { "x-real-ip": "2001:db8::10" } }),
+      { params: Promise.resolve({ id: SCAN_ID }) },
+    );
     assert.equal(limited.status, 429);
+    assert.equal(clientIp, "2001:db8::10");
     assert.equal((await limited.text()).includes("secret"), false);
+  });
+
+  it("forwards X-PD-Client-IP on the PDF proxy", async () => {
+    enableCollection();
+    process.env.PARSER_API_BASE = "http://parser.test";
+    process.env.PARSER_API_TOKEN = TOKEN;
+    let clientIp: string | null = null;
+    let path = "";
+    mock.method(globalThis, "fetch", async (input: unknown, init?: RequestInit) => {
+      path = String(input);
+      clientIp = new Headers(init?.headers).get("x-pd-client-ip");
+      return new Response(new Uint8Array([0x25, 0x50, 0x44, 0x46]), {
+        status: 200,
+        headers: { "content-type": "application/pdf" },
+      });
+    });
+    const res = await getScanPdf(
+      new Request("http://localhost/api/scan/" + SCAN_ID + "/pdf", { headers: { "x-real-ip": "203.0.113.44" } }),
+      { params: Promise.resolve({ id: SCAN_ID }) },
+    );
+    assert.equal(res.status, 200);
+    assert.equal(clientIp, "203.0.113.44");
+    assert.match(path, /\/pdf$/);
   });
 
   it("answers the health check without the parser", async () => {
@@ -315,11 +364,17 @@ describe("lead BFF", { concurrency: false }, () => {
     assert.match(docker, /mkdir -p \.next\/cache/);
     const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
     const release = readFileSync(new URL("../.github/workflows/release-image.yml", import.meta.url), "utf8");
+    const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8");
     assert.match(ci, /docker build --pull/);
     assert.match(release, /tags:\n\s+- "v\*"/);
     assert.match(release, /GITHUB_STEP_SUMMARY/);
     assert.match(release, /steps\.build\.outputs\.digest/);
-    assert.match(release, /ghcr\.io/);
+    assert.match(release, /ghcr\.io\/andrewdru-cpu\/persdannye/);
+    assert.equal(release.split("\njobs:")[0]?.includes("packages: write"), false);
+    assert.match(release, /publish:[\s\S]*packages: write/);
+    assert.match(config, /poweredByHeader:\s*false/);
+    assert.equal(form.includes("Сообщение"), false);
+    assert.equal(form.includes("message:"), false);
   });
 
   it("returns ok and skips the parser when the form was opened less than 3 seconds ago", async () => {
@@ -330,7 +385,7 @@ describe("lead BFF", { concurrency: false }, () => {
     });
     const res = await postLead(
       leadRequest(
-        validBody({ opened: signFormOpened(Date.now() - 500, TOKEN) }),
+        validBody({ opened: signFormOpened(Date.now() - 500, TICKET_SECRET) }),
         { "x-real-ip": "203.0.113.10" },
       ),
     );
@@ -400,6 +455,68 @@ describe("lead BFF", { concurrency: false }, () => {
     const text = await res.text();
     assert.equal(text.includes(EMAIL), false);
     assert.equal(text.includes("lead.message"), false);
+  });
+
+  async function rejectedTicket(opened: unknown) {
+    enableCollection();
+    process.env.PARSER_API_TOKEN = TOKEN;
+    const fetchMock = mock.method(globalThis, "fetch", async () => {
+      throw new Error("fetch should not run");
+    });
+    const body = validBody();
+    if (opened === undefined) delete body.opened;
+    else body.opened = opened;
+    const res = await postLead(leadRequest(body, { "x-real-ip": "203.0.113.10" }));
+    assert.equal(res.status, 400);
+    assert.equal(fetchMock.mock.calls.length, 0);
+    fetchMock.mock.restore();
+  }
+
+  it("rejects a forged, expired, future, missing, or malformed open ticket", async () => {
+    const good = signFormOpened(Date.now() - 10_000, TICKET_SECRET);
+    const forged = `${good.slice(0, -4)}aaaa`;
+    await rejectedTicket(forged);
+    await rejectedTicket(signFormOpened(Date.now() - FORM_TICKET_MAX_AGE_MS - 5_000, TICKET_SECRET));
+    await rejectedTicket(signFormOpened(Date.now() + 2 * 60 * 60 * 1000, TICKET_SECRET));
+    await rejectedTicket(undefined);
+    await rejectedTicket("not-a-ticket");
+    await rejectedTicket("123.%%%");
+    await rejectedTicket("1.2.3");
+  });
+
+  it("refuses a short ticket secret and one equal to the parser token", () => {
+    const savedSecret = process.env.FORM_TICKET_SECRET;
+    const savedToken = process.env.PARSER_API_TOKEN;
+    try {
+      process.env.PARSER_API_TOKEN = TOKEN;
+      process.env.FORM_TICKET_SECRET = "short";
+      assert.throws(() => assertFormTicketSecret(), /32 bytes/);
+      process.env.FORM_TICKET_SECRET = "a".repeat(31);
+      assert.throws(() => assertFormTicketSecret(), /32 bytes/);
+      process.env.FORM_TICKET_SECRET = "b".repeat(32);
+      process.env.PARSER_API_TOKEN = "b".repeat(32);
+      assert.throws(() => assertFormTicketSecret(), /PARSER_API_TOKEN/);
+      process.env.FORM_TICKET_SECRET = TICKET_SECRET;
+      process.env.PARSER_API_TOKEN = TOKEN;
+      assert.equal(assertFormTicketSecret(), TICKET_SECRET);
+    } finally {
+      if (savedSecret === undefined) delete process.env.FORM_TICKET_SECRET;
+      else process.env.FORM_TICKET_SECRET = savedSecret;
+      if (savedToken === undefined) delete process.env.PARSER_API_TOKEN;
+      else process.env.PARSER_API_TOKEN = savedToken;
+    }
+  });
+
+  it("returns 503 for the form ticket when collection is off", async () => {
+    flags.show_site_legal = true;
+    for (const value of [undefined, "false", "TRUE", ""]) {
+      if (value === undefined) delete process.env.PD_COLLECTION_ENABLED;
+      else process.env.PD_COLLECTION_ENABLED = value;
+      const res = await getTicket();
+      assert.equal(res.status, 503, String(value));
+      assert.equal(res.headers.get("cache-control"), "no-store");
+      assert.deepEqual(await res.json(), { error: "collection_disabled" });
+    }
   });
 
   it("answers every /api/checks path with 410 and does not read the body", async () => {

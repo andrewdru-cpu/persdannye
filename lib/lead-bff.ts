@@ -6,7 +6,7 @@
 import { findingsForClient, scanHasRisks } from "./check-report";
 import { CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION, marketingConsentForParser } from "./consent";
 import { FORM_OPENED_FIELD } from "./form-open";
-import { formOpenedTooFast, readFormOpened } from "./form-ticket";
+import { assertFormTicketSecret, formOpenedTooFast, readFormOpened } from "./form-ticket";
 import { friendlyPhaseMessage, normalizePhase } from "./phases";
 import type { CheckJob, Finding, Recommendation } from "./types";
 import { domainFromUrl, normalizeUrl } from "./utils";
@@ -130,21 +130,18 @@ export function validateLead(body: unknown): { ok: true; lead: LeadInput } | { o
   const nameRaw = record.name;
   const emailRaw = record.email;
   const phoneRaw = record.phone;
-  const messageRaw = record.message;
   const urlRaw = record.url;
   const checkIdRaw = record.checkId;
 
   if (nameRaw != null && typeof nameRaw !== "string") return { ok: false, error: "Некорректные данные" };
   if (emailRaw != null && typeof emailRaw !== "string") return { ok: false, error: "Некорректные данные" };
   if (phoneRaw != null && typeof phoneRaw !== "string") return { ok: false, error: "Некорректные данные" };
-  if (messageRaw != null && typeof messageRaw !== "string") return { ok: false, error: "Некорректные данные" };
   if (urlRaw != null && typeof urlRaw !== "string") return { ok: false, error: "Некорректные данные" };
   if (checkIdRaw != null && typeof checkIdRaw !== "string") return { ok: false, error: "Некорректные данные" };
 
   if (typeof nameRaw === "string" && nameRaw.trim().length > 120) return { ok: false, error: "Некорректные данные" };
   if (typeof emailRaw === "string" && emailRaw.trim().length > 200) return { ok: false, error: "Некорректные данные" };
   if (typeof phoneRaw === "string" && phoneRaw.trim().length > 40) return { ok: false, error: "Некорректные данные" };
-  if (typeof messageRaw === "string" && messageRaw.trim().length > 4000) return { ok: false, error: "Некорректные данные" };
   if (typeof urlRaw === "string" && urlRaw.trim().length > 2048) return { ok: false, error: "Некорректный URL" };
 
   const name = textField(nameRaw, 120);
@@ -402,8 +399,14 @@ export async function submitLead(req: Request): Promise<Response> {
 
   const token = parserApiToken();
   if (!token) return jsonError(500, "Ошибка сервера");
+  let ticketSecret: string;
+  try {
+    ticketSecret = assertFormTicketSecret();
+  } catch {
+    return jsonError(500, "Ошибка сервера");
+  }
   const ticket = openedTicket(json);
-  const opened = ticket ? readFormOpened(ticket, token, Date.now()) : { ok: false as const };
+  const opened = ticket ? readFormOpened(ticket, ticketSecret, Date.now()) : { ok: false as const };
   if (!opened.ok) return jsonError(400, "Некорректные данные");
   if (formOpenedTooFast(opened.openedAt, Date.now())) return accepted();
 
@@ -434,8 +437,9 @@ export async function submitLead(req: Request): Promise<Response> {
   return Response.json({ ok: true, ...job }, { status: 200, headers: { "cache-control": "no-store" } });
 }
 
-export async function fetchScan(id: string): Promise<Response> {
+export async function fetchScan(id: string, ip: string): Promise<Response> {
   if (!isScanId(id)) return jsonError(400, "Некорректный идентификатор");
+  if (!ip) return jsonError(400, "Не указан адрес клиента");
   const token = parserApiToken();
   if (!token) return jsonError(500, "Ошибка сервера");
 
@@ -443,7 +447,7 @@ export async function fetchScan(id: string): Promise<Response> {
   try {
     upstream = await parserFetch(`/api/scans/${encodeURIComponent(id)}`, {
       method: "GET",
-      headers: parserHeaders(token),
+      headers: parserHeaders(token, ip),
     });
   } catch {
     return jsonError(502, "Сервис временно недоступен");
@@ -459,14 +463,15 @@ export async function fetchScan(id: string): Promise<Response> {
   return Response.json(publicScan(id, data), { headers: { "cache-control": "no-store" } });
 }
 
-export async function fetchScanPdf(id: string): Promise<Response> {
+export async function fetchScanPdf(id: string, ip: string): Promise<Response> {
   if (!isScanId(id)) return jsonError(400, "Некорректный идентификатор");
+  if (!ip) return jsonError(400, "Не указан адрес клиента");
   const token = parserApiToken();
   if (!token) return jsonError(500, "Ошибка сервера");
 
   let upstream: Response;
   try {
-    const headers = parserHeaders(token);
+    const headers = parserHeaders(token, ip);
     headers.set("accept", "application/pdf");
     upstream = await parserFetch(`/api/scans/${encodeURIComponent(id)}/pdf`, {
       method: "GET",

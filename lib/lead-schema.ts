@@ -7,7 +7,6 @@ export const leadBodySchema = z.object({
   phone: z.string().max(40).optional(),
   url: z.string().max(2048).optional(),
   checkId: z.string().max(64).optional(),
-  message: z.string().max(4000).optional(),
   consent: z.boolean(),
   consent_text_version: z.string().trim().max(64).optional(),
   marketing_consent: z.boolean().optional(),

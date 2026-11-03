@@ -7,12 +7,14 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
     outputs:
       image: ${{ steps.publish.outputs.image }}
       digest: ${{ steps.publish.outputs.digest }}
@@ -38,15 +40,15 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          # Имя пакета GHCR этого репозитория. Compose парсера тянет его по digest.
+          tags: ghcr.io/andrewdru-cpu/persdannye:${{ github.ref_name }}
 
       - name: Publish image digest
         id: publish
         run: |
           set -eu
-          repo="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
           digest="${{ steps.build.outputs.digest }}"
-          image="ghcr.io/${repo}@${digest}"
+          image="ghcr.io/andrewdru-cpu/persdannye@${digest}"
           echo "image=${image}" >> "$GITHUB_OUTPUT"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
           echo "image=${image}"

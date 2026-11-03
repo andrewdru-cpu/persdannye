@@ -25,7 +25,6 @@ export function LeadForm({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [url, setUrl] = useState(defaultUrl);
-  const [message, setMessage] = useState("");
   const [consent, setConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [fax, setFax] = useState("");
@@ -58,7 +57,6 @@ export function LeadForm({
           phone: tel || undefined,
           url: url.trim(),
           checkId,
-          message: message.trim() || undefined,
           consent: true,
           consent_version: LEAD_CONSENT_TEXT_VERSION,
           source,
@@ -126,14 +124,6 @@ export function LeadForm({
         placeholder="Сайт *"
         aria-label="Сайт"
         inputMode="url"
-        className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
-      />
-      <textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Сообщение"
-        aria-label="Сообщение"
-        rows={3}
         className="field-luxury px-3 py-2.5 text-sm text-white placeholder:text-white/75 sm:col-span-2"
       />
       <div className="sm:col-span-2">

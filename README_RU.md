@@ -21,6 +21,7 @@ npm run dev
 
 - `PARSER_API_BASE` — URL парсера. Если пусто, сервер использует `http://api:8080`.
 - `PARSER_API_TOKEN` — Bearer для `POST /api/scans`. В репозиторий не кладётся.
+- `FORM_TICKET_SECRET` — секрет подписи метки открытия формы. Обязателен, не короче 32 байт и не равен `PARSER_API_TOKEN`. Без него или при совпадении с токеном процесс не стартует.
 - `NEXT_PUBLIC_SHOW_FINES=true` — вместе с `approved: true` в `content/fines.ts` показывает таблицу штрафов и калькулятор. Пока юрист не поставил `approved: true`, даже с флагом цифр нет. Без флага блок скрыт целиком.
 - `PD_COLLECTION_ENABLED=true` — серверная переменная без `NEXT_PUBLIC_`. Сбор заявок, проверки URL, Метрики и необязательных cookie включается только вместе с опубликованной политикой (`show_site_legal`) и redeploy. Иначе сбор выключен.
 
@@ -40,7 +41,7 @@ npm run dev
 
 ПДн не пишутся на диск сайта и не уходят в Telegram или другие внешние сервисы. В логах нет полей формы, IP и токена.
 
-Контейнер: `docker build -t persdannye-site .`, затем `docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 -e PARSER_API_BASE -e PARSER_API_TOKEN -e PD_COLLECTION_ENABLED=true persdannye-site`. Каталог `.next/cache` — tmpfs из compose, не симлинк. Токен берите из окружения, не из файла в git.
+Контейнер: `docker build -t persdannye-site .`, затем `docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 -e PARSER_API_BASE -e PARSER_API_TOKEN -e FORM_TICKET_SECRET -e PD_COLLECTION_ENABLED=true persdannye-site`. Каталог `.next/cache` — tmpfs из compose, не симлинк. Секреты берите из окружения, не из файла в git. Образ для compose: `ghcr.io/andrewdru-cpu/persdannye@sha256:...`.
 
 ## Что есть на сайте
 

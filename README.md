@@ -45,11 +45,12 @@ docker build -t persdannye-site .
 docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 \
   -e PARSER_API_BASE=http://api:8080 \
   -e PARSER_API_TOKEN \
+  -e FORM_TICKET_SECRET \
   -e PD_COLLECTION_ENABLED=true \
   persdannye-site
 ```
 
-`PARSER_API_TOKEN` is taken from the shell environment. Do not pass the secret as a literal in the command line of a committed file.
+`PARSER_API_TOKEN` and `FORM_TICKET_SECRET` are taken from the shell environment. `FORM_TICKET_SECRET` is required, at least 32 bytes, and must differ from `PARSER_API_TOKEN`. Do not pass secrets as literals in a committed file. The server refuses to start when the ticket secret is missing, short, or equal to the parser token.
 
 ## Сбор персональных данных
 

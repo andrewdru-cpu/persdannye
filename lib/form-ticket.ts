@@ -1,10 +1,31 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { FORM_OPEN_MIN_MS } from "./form-open";
 
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export const FORM_TICKET_SECRET_MIN_BYTES = 32;
+export const FORM_TICKET_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 const MAX_FUTURE_MS = 60 * 1000;
 
-/** Подпись времени открытия. Секрет — только PARSER_API_TOKEN, в браузер не попадает. */
+export class FormTicketSecretError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FormTicketSecretError";
+  }
+}
+
+/** Падает, если секрет пуст, короче 32 байт или совпадает с токеном парсера. */
+export function assertFormTicketSecret(): string {
+  const secret = process.env.FORM_TICKET_SECRET?.trim() ?? "";
+  if (Buffer.byteLength(secret, "utf8") < FORM_TICKET_SECRET_MIN_BYTES) {
+    throw new FormTicketSecretError("FORM_TICKET_SECRET must be at least 32 bytes");
+  }
+  const parserToken = process.env.PARSER_API_TOKEN?.trim() ?? "";
+  if (parserToken.length > 0 && secret === parserToken) {
+    throw new FormTicketSecretError("FORM_TICKET_SECRET must not equal PARSER_API_TOKEN");
+  }
+  return secret;
+}
+
+/** Подпись времени открытия. Секрет только FORM_TICKET_SECRET, в браузер не попадает. */
 export function signFormOpened(openedAtMs: number, secret: string): string {
   const payload = String(openedAtMs);
   const mac = createHmac("sha256", secret).update(payload).digest("base64url");
@@ -28,7 +49,7 @@ export function readFormOpened(
   const openedAt = Number(payload);
   if (!Number.isSafeInteger(openedAt)) return { ok: false };
   if (openedAt - now > MAX_FUTURE_MS) return { ok: false };
-  if (now - openedAt > MAX_AGE_MS) return { ok: false };
+  if (now - openedAt > FORM_TICKET_MAX_AGE_MS) return { ok: false };
   return { ok: true, openedAt };
 }
 
