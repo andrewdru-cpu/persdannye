@@ -16,10 +16,10 @@ export const placeholders: Record<string, string> = {
   consent_lead_url: "/consent-lead",
   operator_site: company.website,
   operator_short_name: company.shortName,
-  operator_full_name: company.legalName,
-  operator_legal_name: company.legalName,
-  operator_inn: company.inn,
-  operator_ogrn: company.ogrn,
+  operator_fio: "",
+  operator_full_name: "",
+  operator_legal_name: "",
+  operator_inn: "",
   operator_address: company.address,
   retention_months_goal1: "36 месяцев",
   marketing_consent_term: "3 года",
@@ -30,9 +30,10 @@ const token = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;
 function publishedOperatorValue(key: string): string | undefined {
   const published = assertPublishedRequisites(company);
   if (!published) return undefined;
-  if (key === "operator_full_name" || key === "operator_legal_name") return published.legalName;
+  if (key === "operator_fio" || key === "operator_full_name" || key === "operator_legal_name") {
+    return published.legalName;
+  }
   if (key === "operator_inn") return published.inn;
-  if (key === "operator_ogrn") return published.ogrn;
   if (key === "operator_address") return published.address;
   return undefined;
 }

@@ -4,7 +4,7 @@ import { flags } from "@/content/flags";
 import { privacySurface, siteLegalPrivacy, subjectsAgeClause } from "@/content/site-legal";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
-import { assertPublishedRequisites, ogrnCaption } from "@/lib/requisites-guard";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -27,13 +27,8 @@ export default function PrivacyPage() {
   return <LegacyPrivacyPolicy />;
 }
 
-function identityDetails(requisites: {
-  inn: string;
-  kpp: string;
-  ogrn: string;
-}): string {
-  const kpp = requisites.kpp ? `, КПП ${requisites.kpp}` : "";
-  return `ИНН ${requisites.inn}${kpp}, ${ogrnCaption(requisites.ogrn)} ${requisites.ogrn}`;
+function identityDetails(requisites: { inn: string }): string {
+  return `ИНН ${requisites.inn}`;
 }
 
 /** Прежняя политика. Новые тексты site-legal сюда не добавляем. */

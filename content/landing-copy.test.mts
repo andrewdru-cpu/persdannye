@@ -4,7 +4,7 @@ import { resolveCalculator, emptyAnswers } from "./calculator.ts";
 import { checkGroupsTitle, faqItems, footerParagraphs, formCopy, howSteps } from "./blocks.ts";
 import { leadConsent, marketingConsent, reportConsent } from "./consents.ts";
 import { flags } from "./flags.ts";
-import { fillPlaceholders, placeholders } from "./placeholders.ts";
+import { fillPlaceholders } from "./placeholders.ts";
 import {
   CHECKS_COUNT_MAX_AGE_MS,
   CHECKS_COUNT_MAX_FUTURE_MS,
@@ -456,14 +456,19 @@ describe("publication flags", () => {
     assert.equal(dumped.includes("cons_doc_LAW_221615"), false);
   });
 
-  it("takes the footer operator name from operator_short_name", () => {
-    const paragraph = footerParagraphs(false).find((line) => line.includes("частная компания"));
+  it("does not call the service a private company and keeps requisites behind the flag", () => {
+    const paragraph = footerParagraphs(false).find((line) => line.includes("не является государственным"));
     assert.equal(
       paragraph,
-      `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`,
+      "Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.",
     );
+    assert.equal(footerParagraphs(false).some((line) => line.includes("частная компания")), false);
+    assert.equal(footerParagraphs(false).some((line) => line.includes("ООО")), false);
+    assert.equal(footerParagraphs(false).some((line) => line.includes("ОГРН")), false);
     assert.equal(footerParagraphs(false).some((line) => line.includes("ИНН")), false);
-    assert.equal(footerParagraphs(false, true).some((line) => line.includes("ИНН")), true);
+    const withRequisites = footerParagraphs(false, true).find((line) => line.includes("ИНН"));
+    assert.equal(withRequisites?.includes("{{operator_fio}}") || withRequisites?.includes("Оператор сайта:"), true);
+    assert.equal(withRequisites?.includes("ОГРН"), false);
   });
 });
 

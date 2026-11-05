@@ -65,22 +65,20 @@ describe("lead request limits", () => {
     );
   });
 
-  it("sends explicit marketing_consent false and a generic server error", () => {
-    const route = readFileSync(new URL("../lib/lead-bff.ts", import.meta.url), "utf8");
+  it("sends marketing consent only when the box is checked and does not log the body", () => {
+    const route = readFileSync(new URL("../lib/ru-api.ts", import.meta.url), "utf8");
     const form = readFileSync(new URL("../components/landing/LeadForm.tsx", import.meta.url), "utf8");
-    assert.equal(route.includes("marketingConsentForParser"), true);
-    assert.equal(route.includes("LEAD_CONSENT_TEXT_VERSION"), true);
-    assert.equal(route.replaceAll("marketing_consent_text_version", "").includes("consent_text_version"), false);
+    const leadRoute = readFileSync(new URL("../app/api/lead/route.ts", import.meta.url), "utf8");
+    assert.equal(route.includes("marketing_consent_at"), false);
+    assert.equal(route.includes("console.error"), false);
     assert.equal(route.includes("e.message"), false);
     assert.equal(route.includes("err.message"), false);
-    assert.equal(route.includes("marketing_consent_at"), false);
-    assert.match(route, /"Ошибка сервера"/);
-    const formWithoutNamedVersions = form
-      .replaceAll("MARKETING_CONSENT_TEXT_VERSION", "")
-      .replaceAll("LEAD_CONSENT_TEXT_VERSION", "");
-    assert.equal(form.includes("MARKETING_CONSENT_TEXT_VERSION"), true);
-    assert.equal(formWithoutNamedVersions.includes("CONSENT_TEXT_VERSION"), false);
-    assert.match(form, /marketing_consent: marketingConsent && marketingOptIn \? true : false/);
+    assert.match(form, /marketing: Boolean\(marketingConsent && marketingOptIn && mail\)/);
     assert.equal(form.includes("marketing_consent_at"), false);
+    assert.equal(form.includes("/api/lead"), false);
+    assert.match(form, /api\.scanweb\.pro|postRuLead/);
+    assert.equal(leadRoute.includes("console.error"), false);
+    assert.match(leadRoute, /status: 410/);
+    assert.equal(leadRoute.includes("req"), false);
   });
 });

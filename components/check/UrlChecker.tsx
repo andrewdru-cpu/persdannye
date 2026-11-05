@@ -4,13 +4,12 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
-import { CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
 import { ACTIVE_POLL_MS, PHASE_STEPS, phaseIndex } from "@/lib/phases";
+import { getRuCheck, postRuCheck, ruCheckPdfUrl } from "@/lib/ru-api";
 import type { CheckJob } from "@/lib/types";
 import { CheckReport } from "@/components/check/CheckReport";
 import { cn, domainFromUrl } from "@/lib/utils";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
-import { FormOpenedField, useFormOpened } from "@/components/forms/FormOpenedField";
 import { HoneypotField } from "@/components/forms/HoneypotField";
 import { CollectionClosed } from "@/components/collection/CollectionClosed";
 import { LeadForm } from "@/components/landing/LeadForm";
@@ -74,7 +73,6 @@ export function UrlChecker({
   const [leadConsent, setLeadConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [fax, setFax] = useState("");
-  const { ticket, ready } = useFormOpened();
   const [status, setStatus] = useState<Status>("idle");
   const [job, setJob] = useState<CheckJob | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,11 +110,8 @@ export function UrlChecker({
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/scan/${jobId}`, { cache: "no-store" });
-        const data = await res.json();
+        const next = await getRuCheck(jobId);
         if (cancelled) return;
-        if (!res.ok) throw new Error(data.error || "Ошибка опроса");
-        const next = data as CheckJob;
         setJob(next);
         if (["done", "error", "blocked"].includes(String(next.phase))) {
           setStatus(next.phase === "done" ? "done" : "error");
@@ -137,6 +132,7 @@ export function UrlChecker({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!collectionEnabled) return;
     const email = leadEmail.trim();
     if (!url.trim()) {
       setError(formCopy.emptyUrl);
@@ -156,33 +152,17 @@ export function UrlChecker({
     setElapsedSec(0);
     setStatus("running");
 
-    const contact = email
-      ? {
-          email,
-          consent: true,
-          consent_version: CONSENT_TEXT_VERSION,
-          ...(marketingConsent && marketingOptIn
-            ? {
-                marketing_consent: true,
-                marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION,
-              }
-            : { marketing_consent: false }),
-        }
-      : {};
+    if (fax.trim()) {
+      setStatus("idle");
+      return;
+    }
 
     try {
-      const res = await fetch("/api/lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, source: "check", fax, opened: ticket, ...contact }),
+      const next = await postRuCheck({
+        url,
+        email: email || undefined,
+        marketing: Boolean(email && marketingConsent && marketingOptIn),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Не удалось запустить проверку");
-      if (!data.id) {
-        setStatus("idle");
-        return;
-      }
-      const next = data as CheckJob;
       setJob(next);
       if (["done", "error", "blocked"].includes(String(next.phase))) {
         setStatus(next.phase === "done" ? "done" : "error");
@@ -212,7 +192,6 @@ export function UrlChecker({
     <div className={cn("w-full", compact ? "" : "mx-auto max-w-2xl")}>
       <form onSubmit={onSubmit} className="relative flex flex-col gap-3">
         <HoneypotField value={fax} onChange={setFax} />
-        <FormOpenedField value={ticket} />
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
             id="url-check-input"
@@ -230,7 +209,7 @@ export function UrlChecker({
           <Button
             type="submit"
             size="lg"
-            disabled={status === "running" || !ready}
+            disabled={status === "running"}
             pulse={pulseCta && status === "idle"}
             className="w-full sm:w-auto"
           >
@@ -407,7 +386,7 @@ export function UrlChecker({
 
             {job.pdfReady && !job.mock && (
               <a
-                href={`/api/scan/${job.id}/pdf`}
+                href={ruCheckPdfUrl(job.id)}
                 className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-amber-200/35 bg-amber-400/10 px-5 py-3 text-sm font-semibold text-amber-50 transition hover:border-amber-100/60 hover:bg-amber-400/20"
               >
                 Скачать PDF-отчёт

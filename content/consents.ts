@@ -2,16 +2,16 @@ import { company } from "../lib/company";
 import { assertPublishedRequisites } from "../lib/requisites-guard";
 
 /**
- * Фраза об операторе. Пустые реквизиты дают нейтральный текст без скобок с пустыми полями.
- * В опубликованной фразе подпись «ОГРН», не «ОГРН/ОГРНИП».
+ * Фраза об операторе — плательщик НПД.
+ * Пустые реквизиты дают нейтральный текст. ОГРН в фразу не входит.
+ * ФИО и ИНН берутся только из стража, не из зашитых в репозиторий данных.
  */
 export function operatorConsentPhrase(kind: "full" | "contact"): string {
   const published = assertPublishedRequisites(company);
-  if (!published) return "оператору (далее — Оператор)";
-  if (kind === "contact") {
-    return `${published.legalName} (ИНН ${published.inn}, адрес: ${published.address}) (далее — Оператор)`;
+  if (!published || (kind !== "full" && kind !== "contact")) {
+    return "оператору (далее — Оператор)";
   }
-  return `${published.legalName} (ИНН ${published.inn}, ОГРН ${published.ogrn}, адрес: ${published.address}) (далее — Оператор)`;
+  return `${published.legalName} (ИНН ${published.inn}, адрес: ${published.address}) (далее — Оператор)`;
 }
 
 /** Тексты разделов 8.1 и 8.2. Плейсхолдеры заполняет страница. */

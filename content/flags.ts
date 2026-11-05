@@ -24,7 +24,7 @@ export const flags = {
   /** Кнопка «Обсудить исправления» и форма #lead. Включена: форма переведена на 8.1-lead. */
   show_lead_form: true as boolean,
   show_platform_hints: false as boolean,
-  /** Реквизиты в футере: наименование, ИНН, ОГРН, адрес, телефон. */
+  /** Реквизиты оператора (НПД): ФИО, ИНН, адрес, телефон. ОГРН нет. */
   show_requisites: false as boolean,
   /** Страница оферты и ссылка в футере. Текст не выдумываем. */
   show_offer: false as boolean,

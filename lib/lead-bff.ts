@@ -1,45 +1,17 @@
 /**
- * BFF к парсеру на том же compose. Персональные данные не пишутся на диск
- * и не уходят никуда, кроме POST/GET парсера. В логи попадают только коды событий.
+ * Прокси статуса скана к парсеру в том же compose.
+ * Тело заявки этот модуль не принимает и не логирует.
  */
 
 import { findingsForClient, scanHasRisks } from "./check-report";
-import { CONSENT_TEXT_VERSION, LEAD_CONSENT_TEXT_VERSION, marketingConsentForParser } from "./consent";
-import { FORM_OPENED_FIELD } from "./form-open";
-import { formOpenedTooFast, formTicketSecret, readFormOpened } from "./form-ticket";
 import { friendlyPhaseMessage, normalizePhase } from "./phases";
 import type { CheckJob, Finding, Recommendation } from "./types";
-import { domainFromUrl, normalizeUrl } from "./utils";
+import { domainFromUrl } from "./utils";
 
-export const LEAD_BODY_LIMIT = 16 * 1024;
 export const DEFAULT_PARSER_API_BASE = "http://api:8080";
-export const HONEYPOT_FIELD = "fax";
 
 const SCAN_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const PARSER_TIMEOUT_MS = 20_000;
-
-/**
- * Поля lead, которые принимает парсер (parser-152fz#37).
- * Лишнее поле он отвергает 422, поэтому payload собирается только из этого списка.
- */
-export const LEAD_PARSER_FIELDS = [
-  "name",
-  "email",
-  "phone",
-  "consent_version",
-  "consent_at",
-  "marketing_consent",
-  "marketing_consent_text_version",
-] as const;
-
-export type LeadInput = {
-  url: string;
-  name?: string;
-  email?: string;
-  phone?: string;
-  marketingConsent: boolean;
-  scanId?: string;
-};
 
 export function parserApiBase(): string {
   const raw = process.env.PARSER_API_BASE?.trim() || DEFAULT_PARSER_API_BASE;
@@ -98,121 +70,8 @@ export function clientIpFromRealIp(headers: Headers): string | null {
   return value;
 }
 
-export function isHoneypotTripped(body: unknown): boolean {
-  if (!body || typeof body !== "object") return false;
-  const value = (body as Record<string, unknown>)[HONEYPOT_FIELD];
-  if (value == null) return false;
-  if (typeof value === "string") return value.trim().length > 0;
-  return true;
-}
-
 export function isScanId(id: string): boolean {
   return SCAN_ID.test(id);
-}
-
-function textField(value: unknown, max: number): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > max) return undefined;
-  return trimmed;
-}
-
-/** Версия текста согласия — константа сайта, не строка из браузера. */
-export function consentVersionFor(lead: Pick<LeadInput, "name" | "scanId">): string {
-  return lead.name || lead.scanId ? LEAD_CONSENT_TEXT_VERSION : CONSENT_TEXT_VERSION;
-}
-
-export function validateLead(body: unknown): { ok: true; lead: LeadInput } | { ok: false; error: string } {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return { ok: false, error: "Некорректные данные" };
-  }
-  const record = body as Record<string, unknown>;
-  const nameRaw = record.name;
-  const emailRaw = record.email;
-  const phoneRaw = record.phone;
-  const urlRaw = record.url;
-  const checkIdRaw = record.checkId;
-
-  if (nameRaw != null && typeof nameRaw !== "string") return { ok: false, error: "Некорректные данные" };
-  if (emailRaw != null && typeof emailRaw !== "string") return { ok: false, error: "Некорректные данные" };
-  if (phoneRaw != null && typeof phoneRaw !== "string") return { ok: false, error: "Некорректные данные" };
-  if (urlRaw != null && typeof urlRaw !== "string") return { ok: false, error: "Некорректные данные" };
-  if (checkIdRaw != null && typeof checkIdRaw !== "string") return { ok: false, error: "Некорректные данные" };
-
-  if (typeof nameRaw === "string" && nameRaw.trim().length > 120) return { ok: false, error: "Некорректные данные" };
-  if (typeof emailRaw === "string" && emailRaw.trim().length > 200) return { ok: false, error: "Некорректные данные" };
-  if (typeof phoneRaw === "string" && phoneRaw.trim().length > 40) return { ok: false, error: "Некорректные данные" };
-  if (typeof urlRaw === "string" && urlRaw.trim().length > 2048) return { ok: false, error: "Некорректный URL" };
-
-  const name = textField(nameRaw, 120);
-  const email = textField(emailRaw, 200);
-  const phone = textField(phoneRaw, 40);
-  let scanId: string | undefined;
-  if (typeof checkIdRaw === "string" && checkIdRaw.trim()) {
-    scanId = checkIdRaw.trim();
-    if (!isScanId(scanId)) return { ok: false, error: "Некорректные данные" };
-  }
-  const hasContact = Boolean(name || email || phone || scanId);
-
-  if (hasContact && record.consent !== true) {
-    return { ok: false, error: "Нужно согласие на обработку персональных данных" };
-  }
-
-  if (typeof urlRaw !== "string" || !urlRaw.trim()) {
-    return { ok: false, error: "Укажите ссылку на сайт" };
-  }
-  let url: string;
-  try {
-    url = normalizeUrl(urlRaw);
-  } catch {
-    return { ok: false, error: "Некорректный URL" };
-  }
-
-  if (name && name.length < 2) return { ok: false, error: "Укажите имя" };
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, error: "Некорректный email" };
-  }
-  if (phone && /[\r\n]/.test(phone)) return { ok: false, error: "Некорректные данные" };
-  if ((name || scanId) && !email && !phone) {
-    return { ok: false, error: "Укажите телефон или e-mail" };
-  }
-
-  const marketingConsent = record.marketing_consent === true;
-
-  return {
-    ok: true,
-    lead: {
-      url,
-      name,
-      email,
-      phone,
-      marketingConsent,
-      scanId,
-    },
-  };
-}
-
-export function scanCreatePayload(
-  lead: LeadInput,
-  now = new Date(),
-): { url: string; mode: "quick"; scan_id?: string; lead?: Record<string, unknown> } {
-  const payload: { url: string; mode: "quick"; scan_id?: string; lead?: Record<string, unknown> } = {
-    url: lead.url,
-    mode: "quick",
-  };
-  if (lead.scanId) payload.scan_id = lead.scanId;
-  const hasLead = Boolean(lead.name || lead.email || lead.phone || lead.scanId);
-  if (!hasLead) return payload;
-  const contact: Record<string, unknown> = {
-    consent_version: consentVersionFor(lead),
-    consent_at: now.toISOString(),
-    ...marketingConsentForParser(lead.marketingConsent),
-  };
-  if (lead.name) contact.name = lead.name;
-  if (lead.email) contact.email = lead.email;
-  if (lead.phone) contact.phone = lead.phone;
-  payload.lead = contact;
-  return payload;
 }
 
 export function jsonError(status: number, error: string, headers?: HeadersInit): Response {
@@ -221,7 +80,7 @@ export function jsonError(status: number, error: string, headers?: HeadersInit):
     {
       status,
       headers: { "cache-control": "no-store", ...Object.fromEntries(new Headers(headers)) },
-    }
+    },
   );
 }
 
@@ -272,14 +131,6 @@ async function readParserJson(res: Response): Promise<unknown | Response> {
   }
 }
 
-function scanIdFrom(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-  const record = data as Record<string, unknown>;
-  const id = record.scan_id ?? record.id;
-  if (typeof id !== "string" || !isScanId(id)) return null;
-  return id;
-}
-
 export function publicScan(id: string, data: unknown, fallbackUrl = ""): CheckJob {
   const record = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
   const url = typeof record.url === "string" && record.url.length <= 2048 ? record.url : fallbackUrl;
@@ -323,39 +174,6 @@ export function publicScan(id: string, data: unknown, fallbackUrl = ""): CheckJo
   };
 }
 
-export async function readLimitedBody(req: Request, max = LEAD_BODY_LIMIT): Promise<
-  { ok: true; text: string } | { ok: false; response: Response }
-> {
-  const declared = req.headers.get("content-length");
-  if (declared != null) {
-    if (!/^\d+$/.test(declared) || Number(declared) > max) {
-      return { ok: false, response: jsonError(413, "Слишком большой запрос") };
-    }
-  }
-  const reader = req.body?.getReader();
-  if (!reader) return { ok: true, text: "" };
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > max) {
-      await reader.cancel().catch(() => undefined);
-      return { ok: false, response: jsonError(413, "Слишком большой запрос") };
-    }
-    chunks.push(value);
-  }
-  const body = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return { ok: true, text: new TextDecoder().decode(body) };
-}
-
 function parserHeaders(token: string, ip?: string): Headers {
   const headers = new Headers();
   headers.set("authorization", `Bearer ${token}`);
@@ -372,66 +190,6 @@ async function parserFetch(path: string, init: RequestInit): Promise<Response> {
     redirect: "manual",
     signal: AbortSignal.timeout(PARSER_TIMEOUT_MS),
   });
-}
-
-function accepted(): Response {
-  return Response.json({ ok: true }, { status: 200, headers: { "cache-control": "no-store" } });
-}
-
-function openedTicket(body: unknown): string | null {
-  if (!body || typeof body !== "object") return null;
-  const value = (body as Record<string, unknown>)[FORM_OPENED_FIELD];
-  return typeof value === "string" && value ? value : null;
-}
-
-export async function submitLead(req: Request): Promise<Response> {
-  const limited = await readLimitedBody(req);
-  if (!limited.ok) return limited.response;
-  let json: unknown;
-  try {
-    json = limited.text ? JSON.parse(limited.text) : null;
-  } catch {
-    return jsonError(400, "Некорректные данные");
-  }
-  if (isHoneypotTripped(json)) return accepted();
-  const parsed = validateLead(json);
-  if (!parsed.ok) return jsonError(400, parsed.error);
-
-  const ticketSecret = formTicketSecret();
-  if (!ticketSecret.ok) return jsonError(503, "ticket_unavailable");
-  const ticket = openedTicket(json);
-  const opened = ticket ? readFormOpened(ticket, ticketSecret.secret, Date.now()) : { ok: false as const };
-  if (!opened.ok) return jsonError(400, "Некорректные данные");
-  if (formOpenedTooFast(opened.openedAt, Date.now())) return accepted();
-
-  const ip = clientIpFromRealIp(req.headers);
-  if (!ip) return jsonError(400, "Не указан адрес клиента");
-
-  const token = parserApiToken();
-  if (!token) return jsonError(500, "Ошибка сервера");
-
-  let upstream: Response;
-  try {
-    const headers = parserHeaders(token, ip);
-    headers.set("content-type", "application/json");
-    upstream = await parserFetch("/api/scans", {
-      method: "POST",
-      headers,
-      body: JSON.stringify(scanCreatePayload(parsed.lead)),
-    });
-  } catch {
-    return jsonError(502, "Сервис временно недоступен");
-  }
-
-  const forwarded = await responseFromParser(upstream);
-  if (forwarded) return forwarded;
-
-  const data = await readParserJson(upstream);
-  if (data instanceof Response) return data;
-  const id = scanIdFrom(data);
-  if (!id) return jsonError(502, "Сервис временно недоступен");
-  const job = publicScan(id, { url: parsed.lead.url, phase: "queued" }, parsed.lead.url);
-  return Response.json({ ok: true, ...job }, { status: 200, headers: { "cache-control": "no-store" } });
 }
 
 export async function fetchScan(id: string, ip: string): Promise<Response> {

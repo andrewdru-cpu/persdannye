@@ -4,8 +4,9 @@
 
 | Что | Где | Когда уходит запрос |
 | --- | --- | --- |
-| Свой API проверки и заявки | `POST /api/lead`, `GET /api/scan/:id`, `GET /api/scan/:id/pdf` | После отправки формы на сайте. Это тот же origin, не сторонний SDK. |
-| Парсер | `PARSER_API_BASE` на сервере (`lib/lead-bff.ts`) | Только с сервера, заголовок `Authorization: Bearer` и `X-PD-Client-IP`. Браузер к парсеру не ходит. Персональные данные на диск сайта и во внешние мессенджеры не отправляются. |
+| API РФ | `https://api.scanweb.pro/public/lead`, `https://api.scanweb.pro/public/check` | Только если сбор включён. Браузер шлёт форму напрямую. Этот origin тело заявки не читает. |
+| Прокси статуса | `GET /api/scan/:id`, `GET /api/scan/:id/pdf` | Форма проверки их не вызывает. Маршрут принимает id, не поля заявки. |
+| Парсер | `PARSER_API_BASE` на сервере (`lib/lead-bff.ts`) | Только `GET` статуса и PDF с сервера, заголовок `Authorization: Bearer` и `X-PD-Client-IP`. Персональные данные на диск сайта не пишутся и в лог не попадают. |
 | `AnalyticsGate` | `components/layout/AnalyticsGate.tsx` | Скрипт не монтирует. До согласия `analytics === true` ничего не грузит. После согласия в development пишет `console.info`, тега Метрики или GA нет. |
 | Vercel Analytics | пакет `@vercel/analytics` не установлен | Компонент не подключён, запроса нет. |
 | Vercel Speed Insights | пакет `@vercel/speed-insights` не установлен | Компонент не подключён, запроса нет. |

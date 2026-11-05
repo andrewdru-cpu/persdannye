@@ -2,11 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
-import { FormOpenedField, useFormOpened } from "@/components/forms/FormOpenedField";
 import { HoneypotField } from "@/components/forms/HoneypotField";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
-import { LEAD_CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { postRuLead } from "@/lib/ru-api";
 
 export function LeadForm({
   defaultUrl = "",
@@ -28,7 +27,6 @@ export function LeadForm({
   const [consent, setConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [fax, setFax] = useState("");
-  const { ticket, ready } = useFormOpened();
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -46,30 +44,21 @@ export function LeadForm({
       setError("Укажите ссылку на сайт.");
       return;
     }
+    if (fax.trim()) {
+      setStatus("ok");
+      return;
+    }
     setStatus("loading");
     try {
-      const res = await fetch("/api/lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email: mail || undefined,
-          phone: tel || undefined,
-          url: url.trim(),
-          checkId,
-          consent: true,
-          consent_version: LEAD_CONSENT_TEXT_VERSION,
-          source,
-          fax,
-          opened: ticket,
-          marketing_consent: marketingConsent && marketingOptIn ? true : false,
-          ...(marketingConsent && marketingOptIn
-            ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
-            : {}),
-        }),
+      await postRuLead({
+        name,
+        email: mail || undefined,
+        phone: tel || undefined,
+        url: url.trim(),
+        checkId,
+        source,
+        marketing: Boolean(marketingConsent && marketingOptIn && mail),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Ошибка отправки");
       setStatus("ok");
     } catch (err) {
       setStatus("error");
@@ -88,7 +77,6 @@ export function LeadForm({
   return (
     <form onSubmit={onSubmit} className="relative grid gap-3 sm:grid-cols-2">
       <HoneypotField value={fax} onChange={setFax} />
-      <FormOpenedField value={ticket} />
       <input
         required
         value={name}
@@ -142,7 +130,7 @@ export function LeadForm({
       </div>
       {error && <p className="text-sm text-rose-300 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={!consent || !ready || status === "loading"} pulse>
+        <Button type="submit" disabled={!consent || status === "loading"} pulse>
           {status === "loading" ? "Отправляем…" : cta}
         </Button>
       </div>

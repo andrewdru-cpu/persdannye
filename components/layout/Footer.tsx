@@ -42,7 +42,7 @@ export function Footer() {
             <ul className="space-y-1 text-sm text-white/80">
               <li>{published.legalName}</li>
               <li>ИНН {published.inn}</li>
-              <li>ОГРН {published.ogrn}</li>
+              {published.ogrn ? <li>ОГРН {published.ogrn}</li> : null}
               <li>{published.address}</li>
               {privacyContactLabel() ? (
                 <li>
