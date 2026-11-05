@@ -98,6 +98,7 @@ describe("requisites guard", () => {
 
   it("rejects placeholders", () => {
     assert.equal(company.legalName, "");
+    assert.equal(company.fio, "");
     assert.equal(company.inn, "");
     assert.equal(company.kpp, "");
     assert.equal(company.ogrn, "");
@@ -188,8 +189,18 @@ describe("flagged company fields", () => {
       const terms = renderToStaticMarkup(TermsPage());
       const cookies = renderToStaticMarkup(CookiesPage());
       assert.equal(footer.includes("ИНН "), false);
-      assert.equal(footer.includes("ОГРН "), false);
-      assert.match(footer, /Реквизиты не опубликованы/);
+      assert.equal(footer.includes("ОГРН"), false);
+      assert.equal(footer.includes("ООО"), false);
+      assert.equal(footer.includes("ИП"), false);
+      assert.equal(footer.includes("компания"), false);
+      assert.equal(footer.includes("юридическое лицо"), false);
+      assert.equal(footer.includes("Реквизиты не опубликованы"), false);
+      assert.equal(footer.includes("+7"), false);
+      assert.match(footer, /Плательщик налога на профессиональный доход/);
+      assert.match(
+        footer,
+        /Независимый частный сервис, не связан с Роскомнадзором и государственными органами/,
+      );
       assert.match(footer, /ПерсДанные/);
       assert.equal(terms.includes("ИНН "), false);
       assert.equal(terms.includes("ОГРН "), false);
@@ -233,6 +244,33 @@ describe("flagged company fields", () => {
     } finally {
       Object.assign(fields, saved);
       flags.show_requisites = savedFlag;
+    }
+  });
+
+  it("does not render an OGRN line when the payer is NPD", () => {
+    const savedFio = process.env.OPERATOR_FIO;
+    const savedInn = process.env.OPERATOR_INN;
+    process.env.OPERATOR_FIO = "Пример Пример Пример";
+    process.env.OPERATOR_INN = npd.inn ?? "";
+    try {
+      const footer = renderToStaticMarkup(Footer());
+      const lines = footer
+        .replace(/<[^>]+>/g, "\n")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      assert.equal(
+        lines.some((line) => line.includes("ОГРН")),
+        false,
+        lines.filter((line) => line.includes("ОГРН")).join(" | "),
+      );
+      assert.equal(footer.includes("ОГРН"), false);
+      assert.match(footer, /Пример Пример Пример, плательщик налога на профессиональный доход, ИНН /);
+    } finally {
+      if (savedFio === undefined) delete process.env.OPERATOR_FIO;
+      else process.env.OPERATOR_FIO = savedFio;
+      if (savedInn === undefined) delete process.env.OPERATOR_INN;
+      else process.env.OPERATOR_INN = savedInn;
     }
   });
 });

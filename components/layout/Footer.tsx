@@ -1,88 +1,63 @@
 import Link from "next/link";
-import { footerParagraphs } from "@/content/blocks";
-import { flags } from "@/content/flags";
-import { footerBlurb } from "@/content/landing";
-import { visibleFooterDocuments } from "@/content/legal-nav";
-import { fillPlaceholders } from "@/content/placeholders";
 import { DbipAttribution } from "@/components/layout/DbipAttribution";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
+import { footerLegalLinks, footerSectionLinks } from "@/content/footer-nav";
+import { footerBlurb } from "@/content/landing";
+import { CHECK_DISCLAIMER, INDEPENDENT_SERVICE_LINE, npdIdentitySentence } from "@/content/npd";
 import { company, privacyContactLabel } from "@/lib/company";
-import { assertPublishedRequisites } from "@/lib/requisites-guard";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export function Footer() {
-  const published = flags.show_requisites ? assertPublishedRequisites(company) : null;
+  const todos = showPlaceholderTodos();
+  const email = privacyContactLabel();
   return (
     <footer className="border-t border-amber-200/15 bg-ink-975">
       <div className="gold-hairline" />
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 md:grid-cols-3 md:px-6">
-        <div>
-          <div className="mb-3 font-display text-2xl font-semibold text-white">{company.brand}</div>
-          <p className="text-sm leading-relaxed text-white/80">{footerBlurb}</p>
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-6 md:py-10">
+        <div className="max-w-md">
+          <div className="font-display text-2xl font-semibold text-white">{company.brand}</div>
+          <p className="mt-3 text-sm leading-relaxed text-white/75">{footerBlurb}</p>
+          {email ? (
+            <p className="mt-3 text-sm">
+              <PrivacyContactLink className="text-amber-200 hover:underline" />
+            </p>
+          ) : null}
         </div>
-        <div>
-          <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-300/90">
-            Документы
-          </div>
-          <ul className="space-y-2 text-sm text-white/80">
-            {visibleFooterDocuments().map((item) => (
-              <li key={item.href}>
-                <Link href={item.href} className="hover:text-amber-300">
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-300/90">
-            Оператор
-          </div>
-          {published ? (
-            <ul className="space-y-1 text-sm text-white/80">
-              <li>{published.legalName}</li>
-              <li>ИНН {published.inn}</li>
-              {published.ogrn ? <li>ОГРН {published.ogrn}</li> : null}
-              <li>{published.address}</li>
-              {privacyContactLabel() ? (
-                <li>
-                  ДПО: <PrivacyContactLink className="hover:text-amber-300" />
-                </li>
-              ) : null}
-              <li>
-                <a className="hover:text-amber-300" href={published.phoneHref}>
-                  {published.phone}
-                </a>
-              </li>
-            </ul>
-          ) : (
-            <ul className="space-y-1 text-sm text-white/80">
-              {privacyContactLabel() ? (
-                <li>
-                  ДПО: <PrivacyContactLink className="hover:text-amber-300" />
-                </li>
-              ) : (
-                <li>Реквизиты не опубликованы</li>
-              )}
-            </ul>
-          )}
-        </div>
-      </div>
-      <div className="border-t border-white/5 px-4 py-6">
-        <div className="mx-auto max-w-3xl space-y-3 text-left text-xs leading-relaxed text-white/70" role="note">
-          {footerParagraphs(showPlaceholderTodos(), published !== null).map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
-          ))}
-          <p>
-            <Link href={fillPlaceholders("{{policy_url}}", false)} className="text-amber-200 hover:underline">
-              Политика обработки персональных данных
+
+        <nav aria-label="Разделы сайта" className="mt-8 flex flex-wrap gap-x-6 gap-y-2">
+          {footerSectionLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-sm text-white/75 transition hover:text-amber-200"
+            >
+              {item.label}
             </Link>
+          ))}
+        </nav>
+        <nav aria-label="Документы" className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+          {footerLegalLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-sm text-white/75 transition hover:text-amber-200"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+      </div>
+
+      <div className="border-t border-white/10 px-4 py-4 md:px-6">
+        <div className="mx-auto max-w-6xl space-y-1.5 text-xs leading-relaxed text-white/60">
+          <p>
+            © {new Date().getFullYear()} {company.brand}
           </p>
+          <p>{CHECK_DISCLAIMER}</p>
+          <p>{npdIdentitySentence(todos)}.</p>
+          <p>{INDEPENDENT_SERVICE_LINE}</p>
           <DbipAttribution />
         </div>
-        <p className="mt-3 text-center text-xs text-white/80">
-          © {new Date().getFullYear()} {published ? published.legalName : company.brand}. Все права защищены.
-        </p>
       </div>
     </footer>
   );

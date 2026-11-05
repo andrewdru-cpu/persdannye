@@ -1,5 +1,5 @@
 import { company, privacyContactLabel } from "../lib/company";
-import { assertPublishedRequisites } from "../lib/requisites-guard";
+import { configuredRequisites, npdNameAndInn } from "../lib/requisites-guard";
 import { operatorConsentPhrase } from "./consents";
 
 /**
@@ -28,13 +28,12 @@ export const placeholders: Record<string, string> = {
 const token = /\{\{\s*([a-z0-9_]+)\s*\}\}/gi;
 
 function publishedOperatorValue(key: string): string | undefined {
-  const published = assertPublishedRequisites(company);
-  if (!published) return undefined;
+  const identity = npdNameAndInn(configuredRequisites());
+  if (!identity) return undefined;
   if (key === "operator_fio" || key === "operator_full_name" || key === "operator_legal_name") {
-    return published.legalName;
+    return identity.legalName;
   }
-  if (key === "operator_inn") return published.inn;
-  if (key === "operator_address") return published.address;
+  if (key === "operator_inn") return identity.inn;
   return undefined;
 }
 

@@ -5,7 +5,7 @@ import { flags } from "@/content/flags";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
-import { assertPublishedRequisites } from "@/lib/requisites-guard";
+import { assertPublishedRequisites, configuredRequisites } from "@/lib/requisites-guard";
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение",
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
-  const published = flags.show_terms ? assertPublishedRequisites(company) : null;
+  const published = flags.show_terms ? assertPublishedRequisites(configuredRequisites()) : null;
   if (!flags.show_terms) {
     return <LegalPending title="Пользовательское соглашение" />;
   }

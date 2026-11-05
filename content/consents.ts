@@ -1,5 +1,4 @@
-import { company } from "../lib/company";
-import { assertPublishedRequisites } from "../lib/requisites-guard";
+import { configuredRequisites, npdNameAndInn } from "../lib/requisites-guard";
 
 /**
  * Фраза об операторе — плательщик НПД.
@@ -7,11 +6,11 @@ import { assertPublishedRequisites } from "../lib/requisites-guard";
  * ФИО и ИНН берутся только из стража, не из зашитых в репозиторий данных.
  */
 export function operatorConsentPhrase(kind: "full" | "contact"): string {
-  const published = assertPublishedRequisites(company);
+  const published = npdNameAndInn(configuredRequisites());
   if (!published || (kind !== "full" && kind !== "contact")) {
     return "оператору (далее — Оператор)";
   }
-  return `${published.legalName} (ИНН ${published.inn}, адрес: ${published.address}) (далее — Оператор)`;
+  return `${published.legalName}, плательщик налога на профессиональный доход, ИНН ${published.inn} (далее — Оператор)`;
 }
 
 /** Тексты разделов 8.1 и 8.2. Плейсхолдеры заполняет страница. */

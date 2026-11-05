@@ -202,8 +202,8 @@ describe("personal data collection gate", { concurrency: false }, () => {
         assert.equal(rendered.includes(">Отклонить<"), false, page);
         assert.equal(rendered.includes(">Настроить<"), false, page);
         assert.equal(rendered.includes("Политике cookie"), false, page);
-        assert.equal(rendered.includes('href="/cookies"'), false, page);
-        assert.equal(rendered.includes("/cookies"), false, page);
+        assert.equal(rendered.includes('href="/cookies"'), true, page);
+        assert.equal(rendered.includes("https://persdannye.ru/cookies"), false, page);
         assert.equal(rendered.includes(COLLECTION_CLOSED_NOTICE), true, page);
       }
       const names = await treeNames();
@@ -297,11 +297,11 @@ describe("personal data collection gate", { concurrency: false }, () => {
     }
   });
 
-  it("shows the cookies link in the footer and FAQ only when the cookie policy flag is on", async () => {
+  it("keeps the cookies page in the footer and mentions it in the FAQ only when the policy flag is on", async () => {
     flags.show_cookie_policy = false;
     const hidden = await html("home");
-    assert.equal(hidden.includes('href="/cookies"'), false);
-    assert.equal(hidden.includes("/cookies"), false);
+    assert.equal(hidden.includes('href="/cookies"'), true);
+    assert.equal(hidden.includes("https://persdannye.ru/cookies"), false);
 
     flags.show_cookie_policy = true;
     const shown = await html("home");

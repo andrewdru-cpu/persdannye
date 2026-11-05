@@ -4,8 +4,8 @@ import Link from "next/link";
 import { flags } from "@/content/flags";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
-import { company, privacyContactLabel } from "@/lib/company";
-import { assertPublishedRequisites } from "@/lib/requisites-guard";
+import { privacyContactLabel } from "@/lib/company";
+import { assertPublishedRequisites, configuredRequisites } from "@/lib/requisites-guard";
 
 export const metadata: Metadata = {
   title: "Политика cookie",
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default function CookiesPage() {
-  const published = flags.show_cookie_policy ? assertPublishedRequisites(company) : null;
+  const published = flags.show_cookie_policy ? assertPublishedRequisites(configuredRequisites()) : null;
   if (!flags.show_cookie_policy) {
     return <LegalPending title="Политика cookie" />;
   }
