@@ -6,7 +6,7 @@ import { FormOpenedField, useFormOpened } from "@/components/forms/FormOpenedFie
 import { HoneypotField } from "@/components/forms/HoneypotField";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
-import { LEAD_CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "@/lib/consent";
+import { postRuLead } from "@/lib/ru-api";
 
 export function LeadForm({
   defaultUrl = "",
@@ -46,30 +46,21 @@ export function LeadForm({
       setError("Укажите ссылку на сайт.");
       return;
     }
+    if (fax.trim()) {
+      setStatus("ok");
+      return;
+    }
     setStatus("loading");
     try {
-      const res = await fetch("/api/lead", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          email: mail || undefined,
-          phone: tel || undefined,
-          url: url.trim(),
-          checkId,
-          consent: true,
-          consent_version: LEAD_CONSENT_TEXT_VERSION,
-          source,
-          fax,
-          opened: ticket,
-          marketing_consent: marketingConsent && marketingOptIn ? true : false,
-          ...(marketingConsent && marketingOptIn
-            ? { marketing_consent_text_version: MARKETING_CONSENT_TEXT_VERSION }
-            : {}),
-        }),
+      await postRuLead({
+        name,
+        email: mail || undefined,
+        phone: tel || undefined,
+        url: url.trim(),
+        checkId,
+        source,
+        marketing: Boolean(marketingConsent && marketingOptIn && mail),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Ошибка отправки");
       setStatus("ok");
     } catch (err) {
       setStatus("error");

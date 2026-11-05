@@ -153,8 +153,10 @@ describe("personal data collection gate", { concurrency: false }, () => {
       });
       const leadReq = post("/api/lead", probeBody);
       const leadRes = await postLead(leadReq);
-      assert.equal(leadRes.status, 503, String(value));
-      assert.deepEqual(await leadRes.json(), { error: "collection_disabled" });
+      assert.equal(leadRes.status, 410, String(value));
+      const leadText = await leadRes.text();
+      assert.equal(leadText.includes(PROBE_EMAIL), false);
+      assert.deepEqual(JSON.parse(leadText), { error: "gone" });
       assert.equal(leadReq.bodyUsed, false);
 
       const checkReq = post("/api/checks", {
@@ -243,9 +245,11 @@ describe("personal data collection gate", { concurrency: false }, () => {
       try {
         const leadReq = post("/api/lead", { ...probeBody, consent_text_version: CONSENT_SENTINEL });
         const leadRes = await postLead(leadReq);
-        assert.equal(leadRes.status, 503, String(value));
+        assert.equal(leadRes.status, 410, String(value));
         assert.equal(leadReq.bodyUsed, false);
-        assert.equal((await leadRes.text()).includes(CONSENT_SENTINEL), false);
+        const leadText = await leadRes.text();
+        assert.equal(leadText.includes(CONSENT_SENTINEL), false);
+        assert.equal(leadText.includes(PROBE_EMAIL), false);
 
         const checkReq = post("/api/checks", {
           url: "https://probe-secret.example",
@@ -312,12 +316,13 @@ describe("personal data collection gate", { concurrency: false }, () => {
     delete process.env.PARSER_API_BASE;
     delete process.env.PARSER_API_URL;
 
-    const leadRes = await postLead(
-      post("/api/lead", { name: "Анна", email: PROBE_EMAIL, consent: false }),
-    );
-    assert.equal(leadRes.status, 400);
+    const leadReq = post("/api/lead", { name: "Анна", email: PROBE_EMAIL, consent: false });
+    const leadRes = await postLead(leadReq);
+    assert.equal(leadRes.status, 410);
+    assert.equal(leadReq.bodyUsed, false);
     const leadBody = (await leadRes.json()) as { error?: string };
-    assert.equal(leadBody.error, "Нужно согласие на обработку персональных данных");
+    assert.equal(leadBody.error, "gone");
+    assert.equal(JSON.stringify(leadBody).includes(PROBE_EMAIL), false);
 
     const checkRes = await postGone(post("/api/checks", { url: "example.com" }));
     assert.equal(checkRes.status, 410);

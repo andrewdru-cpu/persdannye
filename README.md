@@ -6,7 +6,7 @@ Premium dark B2B landing for Roskomnadzor / 152-FZ website compliance scanning.
 
 - Next.js App Router + TypeScript + Tailwind CSS v4
 - Framer Motion, Zod, clsx / tailwind-merge
-- Standalone Next.js server. Leads go to the parser in the same compose; the site does not store them or send them to Telegram.
+- Standalone Next.js server. The browser sends leads straight to the Russian API (`https://api.scanweb.pro`) and only after collection is enabled. This origin does not accept or store them.
 
 ## Quick start (Windows)
 
@@ -28,17 +28,16 @@ Open http://localhost:3000
 
 ## Parser BFF contract
 
-Client never sees tokens. Browser calls only:
+The browser does not send personal data to this origin. When collection is on, the lead form posts to `https://api.scanweb.pro/public/lead` and the URL check posts to `https://api.scanweb.pro/public/check`. `PD_COLLECTION_ENABLED` stays off until the policy is published, so those requests are not made. Body limit is 16 KiB. The response body is not written to logs.
 
-- `POST /api/lead` — form (url, contacts). The server sets `consent_version` from a code constant and `consent_at` to the current ISO time. `checkId` is sent as top-level `scan_id` next to `url` and `mode: "quick"`, not inside `lead`. Success is **200** with a scan id. Missing `X-Real-IP` is **400**. A signed open-time shorter than 3 seconds returns `{ "ok": true }` and does not call the parser. Body limit is 16 KiB.
+- `POST /api/lead` — **410 Gone**. The handler does not read the body.
 - `GET|POST /api/checks` and nested paths — **410 Gone**
-- `GET /api/scan/[id]` — scan status (poll every 1.5s while active)
-- `GET /api/scan/[id]/pdf` — server-side PDF proxy
+- `GET /api/scan/[id]` and `GET /api/scan/[id]/pdf` — optional status proxy by id. They do not accept a lead body. The check form does not call them.
 - `GET /api/health` — liveness, no parser call
 
-The BFF calls `POST ${PARSER_API_BASE}/api/scans` with `Authorization: Bearer ${PARSER_API_TOKEN}` and `X-PD-Client-IP` taken only from `X-Real-IP` (Caddy). It does not read `X-Forwarded-For`. Default `PARSER_API_BASE` is `http://api:8080`. Parser 400, 429 and 5xx are returned with the same status and a generic body.
+`GET /api/scan/[id]` calls `GET ${PARSER_API_BASE}/api/scans/:id` with `Authorization: Bearer ${PARSER_API_TOKEN}` and `X-PD-Client-IP` taken only from `X-Real-IP` (Caddy). It does not read `X-Forwarded-For`. Default `PARSER_API_BASE` is `http://api:8080`. Parser 400, 429 and 5xx are returned with the same status and a generic body.
 
-Personal data is not written to the site disk and is not sent to Telegram or any other external service. Logs do not contain form fields, the client IP, or the token.
+Personal data is not written to the site disk and is not logged. There is no messenger notification.
 
 ```bash
 docker build -t persdannye-site .
@@ -50,7 +49,7 @@ docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 \
   persdannye-site
 ```
 
-`PARSER_API_TOKEN` and `FORM_TICKET_SECRET` are taken from the shell environment. Do not pass secrets as literals in a committed file. `FORM_TICKET_SECRET` is required only when collection is on (`PD_COLLECTION_ENABLED=true`): then it must be at least 32 bytes and must differ from `PARSER_API_TOKEN`, or the process refuses to start. If collection is on but the key is missing, signing and ticket checks respond with 503. There is no fallback to an empty key or to `PARSER_API_TOKEN`. When collection is off, the site starts without the key, and `/api/form-ticket` and `/api/lead` respond with 503 before any signature work.
+`PARSER_API_TOKEN` and `FORM_TICKET_SECRET` are taken from the shell environment. Do not pass secrets as literals in a committed file. `FORM_TICKET_SECRET` is required only when collection is on (`PD_COLLECTION_ENABLED=true`): then it must be at least 32 bytes and must differ from `PARSER_API_TOKEN`, or the process refuses to start. If collection is on but the key is missing, signing responds with 503. There is no fallback to an empty key or to `PARSER_API_TOKEN`. When collection is off, the site starts without the key, and `/api/form-ticket` responds with 503 before any signature work. `/api/lead` responds with 410 and does not read the body.
 
 ## Сбор персональных данных
 
@@ -65,9 +64,9 @@ docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 \
 
 ## Company / legal
 
-Edit `lib/company.ts` (INN, OGRN, address, emails, phone).
+The operator is an NPD payer. `{{operator_fio}}` and `{{operator_inn}}` stay empty in the repo: do not commit a real name or INN. There is no OGRN.
 
-Routes: `/privacy`, `/cookies`, `/terms`, cookie banner (necessary / analytics / marketing), consent checkbox on the lead form and on URL-check contacts. Leads are accepted only via `POST /api/lead` and are not listed by any page or API route.
+Routes: `/privacy`, `/cookies`, `/terms`, cookie banner (necessary / analytics / marketing), consent checkbox on the lead form and on URL-check contacts. Leads are not accepted by any page or API route on this origin.
 
 ## CI / npm audit
 

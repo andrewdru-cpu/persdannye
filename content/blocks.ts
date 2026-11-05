@@ -1,5 +1,5 @@
 import { flags } from "./flags";
-import { fillPlaceholders, placeholders } from "./placeholders";
+import { fillPlaceholders } from "./placeholders";
 
 export const shortDisclaimer =
   "Информация носит справочный характер и не является юридической консультацией; размер штрафа определяет орган или суд по обстоятельствам дела. Суммы — по ст. 13.11 КоАП РФ в ред. от 04.08.2026.";
@@ -9,17 +9,18 @@ export const footerDisclaimer = [
   "Суммы приведены по ст. 13.11 КоАП РФ в редакции от 04.08.2026 (проверено {{fines_checked_at}}). Пометка «по нашей оценке» означает толкование норм, а не их прямой текст.",
   "В ряде случаев штраф может быть заменён предупреждением (ст. 4.1.1 КоАП РФ) или не назначен.",
   "Автоматическая проверка анализирует публичную часть сайта, доступную на момент проверки. Она не оценивает внутренние процессы компании и не гарантирует отсутствия претензий контролирующих органов.",
-  "Оператор сайта: {{operator_legal_name}}, ИНН {{operator_inn}}.",
+  "Оператор сайта: {{operator_fio}}, ИНН {{operator_inn}}.",
 ] as const;
 
-const privateCompanySentence = `${placeholders.operator_short_name} — частная компания. Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.`;
+const notAGovernmentSentence =
+  "Сервис не является государственным, не связан с Роскомнадзором и иными государственными органами, не действует от их имени и не одобрен ими.";
 
 export function footerParagraphs(todos: boolean, showRequisites = flags.show_requisites): string[] {
   const source = showRequisites
     ? footerDisclaimer
     : footerDisclaimer.filter((paragraph) => !paragraph.includes("{{operator_inn}}"));
   const filled = source.map((paragraph) => fillPlaceholders(paragraph, todos));
-  filled.splice(Math.min(4, filled.length), 0, privateCompanySentence);
+  filled.splice(Math.min(4, filled.length), 0, notAGovernmentSentence);
   return filled;
 }
 

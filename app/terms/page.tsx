@@ -29,7 +29,7 @@ export default function TermsPage() {
       <Sec title="1. Предмет соглашения">
         <p>
           {published
-            ? `Настоящее соглашение является публичной офертой ${published.legalName} (ИНН ${published.inn}, ОГРН ${published.ogrn}) и регулирует использование сайта ${company.website} и сервиса экспресс-проверки сайтов на признаки `
+            ? `Настоящее соглашение является публичной офертой ${published.legalName} (ИНН ${published.inn}) и регулирует использование сайта ${company.website} и сервиса экспресс-проверки сайтов на признаки `
             : `Настоящее соглашение является публичной офертой и регулирует использование сайта ${company.website} и сервиса экспресс-проверки сайтов на признаки `}
           несоответствия требованиям 152-ФЗ и практике Роскомнадзора (далее — Сервис).
         </p>
@@ -108,7 +108,7 @@ export default function TermsPage() {
           <>
             <p>{published.legalName}</p>
             <p>
-              ИНН {published.inn}, ОГРН {published.ogrn}
+              ИНН {published.inn}
             </p>
             <p>{published.address}</p>
             <p>
