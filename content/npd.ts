@@ -26,3 +26,10 @@ export function npdIdentitySentence(todos: boolean): string {
   const clause = npdIdentityClause(todos);
   return clause.charAt(0).toUpperCase() + clause.slice(1);
 }
+
+/** ФИО и ИНН есть. Пустые реквизиты и TODO не возвращаются. */
+export function npdOwnerClause(todos: boolean): string | null {
+  const clause = npdIdentityClause(todos);
+  if (clause.startsWith("TODO:") || !clause.includes(", ИНН ")) return null;
+  return clause;
+}

@@ -11,6 +11,7 @@ import {
   ACCESSIBILITY_STATUS,
 } from "./accessibility.ts";
 import { footerLinks } from "./footer-nav.ts";
+import { operatorConsentPhrase } from "./consents.ts";
 import { npdIdentityClause } from "./npd.ts";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -116,7 +117,9 @@ describe("accessibility statement", () => {
       assert.match(html, /href="\/privacy"/);
       assert.match(html, /href="\/"/);
       assert.match(html, /← на главную/);
-      assert.match(html, /плательщик налога на профессиональный доход/);
+      assert.match(html, /Скрипт аналитики на сайте не используется/);
+      assert.equal(html.includes("Владелец сайта"), false);
+      assert.equal(html.includes("TODO:"), false);
       assert.equal(html.includes("полностью соответствует"), false);
       assert.equal(html.includes("сертифицирован"), false);
       assert.equal(html.includes("доступен для всех"), false);
@@ -138,6 +141,22 @@ describe("accessibility statement", () => {
       );
       const html = renderToStaticMarkup(AccessibilityPage());
       assert.match(html, /Владелец сайта — Пример Пример Пример, плательщик налога на профессиональный доход, ИНН 109876543252/);
+      assert.equal(
+        operatorConsentPhrase("full"),
+        "Пример Пример Пример, плательщик налога на профессиональный доход, ИНН 109876543252 (далее — Оператор)",
+      );
+      assert.equal(operatorConsentPhrase("full").includes(") (далее"), false);
+    });
+  });
+
+  it("does not print TODO in a production render when requisites are empty", () => {
+    withOperatorEnv(undefined, undefined, () => {
+      process.env.VERCEL_ENV = "production";
+      const page = renderToStaticMarkup(AccessibilityPage());
+      const footer = renderToStaticMarkup(Footer());
+      assert.equal(page.includes("TODO:"), false);
+      assert.equal(footer.includes("TODO:"), false);
+      assert.equal(page.includes("Владелец сайта"), false);
     });
   });
 });

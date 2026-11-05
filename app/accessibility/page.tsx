@@ -10,7 +10,7 @@ import {
   accessibilityImplemented,
   accessibilityLimitations,
 } from "@/content/accessibility";
-import { npdIdentityClause } from "@/content/npd";
+import { npdOwnerClause } from "@/content/npd";
 import { privacyContactLabel } from "@/lib/company";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
@@ -22,6 +22,7 @@ export const metadata: Metadata = {
 
 export default function AccessibilityPage() {
   const todos = showPlaceholderTodos();
+  const owner = npdOwnerClause(todos);
   const contact = privacyContactLabel();
   return (
     <article className="mx-auto max-w-5xl px-4 py-14 md:px-6 md:py-20">
@@ -46,9 +47,9 @@ export default function AccessibilityPage() {
 
       <section className="glass-card mt-8 rounded-3xl p-5 md:p-6">
         <h2 className="text-xl font-semibold text-white">Коротко</h2>
-        <p className="mt-3 text-sm leading-relaxed text-white/80">
-          Владелец сайта — {npdIdentityClause(todos)}.
-        </p>
+        {owner ? (
+          <p className="mt-3 text-sm leading-relaxed text-white/80">Владелец сайта — {owner}.</p>
+        ) : null}
         <p className="mt-3 text-sm leading-relaxed text-white/80">{ACCESSIBILITY_STATUS}</p>
       </section>
 
