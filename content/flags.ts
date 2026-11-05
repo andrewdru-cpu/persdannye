@@ -32,6 +32,12 @@ export const flags = {
   show_refund: false as boolean,
   /** Юртекст политики cookie. Ссылка в футере и FAQ — только при включённом флаге. */
   show_cookie_policy: false as boolean,
+  /**
+   * Отдельный чекбокс автосписания на странице счёта.
+   * Выключен. Только счёт физического лица на подписку; организации и ИП его не видят.
+   * Перекрывается NEXT_PUBLIC_ROBOKASSA_RECURRING.
+   */
+  robokassa_recurring: false as boolean,
   /** Пользовательское соглашение и ссылка в футере. */
   show_terms: false as boolean,
   /** Порядок удаления данных и ссылка в футере. Текст не выдумываем. */

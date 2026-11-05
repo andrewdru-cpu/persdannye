@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
-import { LegalPending } from "@/components/legal/LegalPending";
+import { SubscriptionOffer } from "@/components/legal/SubscriptionOffer";
 
-export const metadata: Metadata = { title: "Оферта", robots: { index: false, follow: false } };
+export const dynamic = "force-dynamic";
 
-/** Текст оферты ждёт юриста. Страница не выдумывает условия. */
+export const metadata: Metadata = {
+  title: "Оферта",
+  robots: { index: false, follow: false },
+};
+
+/** Тот же текст, что на /subscription. В меню отдельно не добавляется. */
 export default function OfferPage() {
-  return <LegalPending title="Оферта" />;
+  return <SubscriptionOffer />;
 }

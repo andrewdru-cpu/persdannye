@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
-import { LegalPending } from "@/components/legal/LegalPending";
+import { RefundPolicy } from "@/components/legal/RefundPolicy";
 
-export const metadata: Metadata = { title: "Возврат", robots: { index: false, follow: false } };
+export const dynamic = "force-dynamic";
 
-/** Текст о возврате ждёт юриста. Страница не выдумывает условия. */
+export const metadata: Metadata = {
+  title: "Возврат",
+  robots: { index: false, follow: false },
+};
+
 export default function RefundPage() {
-  return <LegalPending title="Возврат" />;
+  return <RefundPolicy />;
 }
