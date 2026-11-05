@@ -44,12 +44,11 @@ docker build -t persdannye-site .
 docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 \
   -e PARSER_API_BASE=http://api:8080 \
   -e PARSER_API_TOKEN \
-  -e FORM_TICKET_SECRET \
   -e PD_COLLECTION_ENABLED=true \
   persdannye-site
 ```
 
-`PARSER_API_TOKEN` and `FORM_TICKET_SECRET` are taken from the shell environment. Do not pass secrets as literals in a committed file. `FORM_TICKET_SECRET` is required only when collection is on (`PD_COLLECTION_ENABLED=true`): then it must be at least 32 bytes and must differ from `PARSER_API_TOKEN`, or the process refuses to start. If collection is on but the key is missing, signing responds with 503. There is no fallback to an empty key or to `PARSER_API_TOKEN`. When collection is off, the site starts without the key, and `/api/form-ticket` responds with 503 before any signature work. `/api/lead` responds with 410 and does not read the body.
+`PARSER_API_TOKEN` is taken from the shell environment. Do not pass secrets as literals in a committed file. `/api/lead` responds with 410 and does not read the body.
 
 ## Сбор персональных данных
 

@@ -202,4 +202,37 @@ describe("flagged company fields", () => {
       flags.show_cookie_policy = saved.cookies;
     }
   });
+
+  it("does not print an empty OGRN line for an NPD operator", () => {
+    const savedFlag = flags.show_requisites;
+    const fields = company as {
+      legalName: string;
+      inn: string;
+      kpp: string;
+      ogrn: string;
+      address: string;
+      phone: string;
+      phoneHref: string;
+    };
+    const saved = { ...fields };
+    flags.show_requisites = true;
+    Object.assign(fields, {
+      legalName: npd.legalName,
+      inn: npd.inn,
+      kpp: "",
+      ogrn: "",
+      address: npd.address,
+      phone: npd.phone,
+      phoneHref: npd.phoneHref,
+    });
+    try {
+      const footer = renderToStaticMarkup(Footer());
+      assert.match(footer, /Пример Пример Пример/);
+      assert.match(footer, new RegExp(`ИНН ${npd.inn}`));
+      assert.equal(footer.includes("ОГРН"), false);
+    } finally {
+      Object.assign(fields, saved);
+      flags.show_requisites = savedFlag;
+    }
+  });
 });

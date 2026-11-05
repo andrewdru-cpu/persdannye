@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from "react";
 import { PolicyLine, ReportConsentFields } from "@/components/check/ReportConsentFields";
-import { FormOpenedField, useFormOpened } from "@/components/forms/FormOpenedField";
 import { HoneypotField } from "@/components/forms/HoneypotField";
 import { Button } from "@/components/ui/Button";
 import { formCopy } from "@/content/blocks";
@@ -28,7 +27,6 @@ export function LeadForm({
   const [consent, setConsent] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [fax, setFax] = useState("");
-  const { ticket, ready } = useFormOpened();
   const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +77,6 @@ export function LeadForm({
   return (
     <form onSubmit={onSubmit} className="relative grid gap-3 sm:grid-cols-2">
       <HoneypotField value={fax} onChange={setFax} />
-      <FormOpenedField value={ticket} />
       <input
         required
         value={name}
@@ -133,7 +130,7 @@ export function LeadForm({
       </div>
       {error && <p className="text-sm text-rose-300 sm:col-span-2">{error}</p>}
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={!consent || !ready || status === "loading"} pulse>
+        <Button type="submit" disabled={!consent || status === "loading"} pulse>
           {status === "loading" ? "Отправляем…" : cta}
         </Button>
       </div>

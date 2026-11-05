@@ -20,8 +20,7 @@ npm run dev
 См. `.env.example`:
 
 - `PARSER_API_BASE` — URL парсера. Если пусто, сервер использует `http://api:8080`.
-- `PARSER_API_TOKEN` — Bearer для `POST /api/scans`. В репозиторий не кладётся.
-- `FORM_TICKET_SECRET` — секрет подписи метки открытия формы. Нужен только при включённом сборе (`PD_COLLECTION_ENABLED=true`): тогда не короче 32 байт и не равен `PARSER_API_TOKEN`, иначе процесс не стартует. Если сбор включён, а ключа нет, подпись отвечает 503. Запасного ключа нет: ни пустой строки, ни `PARSER_API_TOKEN`. При выключенном сборе сайт стартует без ключа, а `/api/form-ticket` отвечает 503 до любой работы с подписью. `/api/lead` отвечает 410 и не читает тело.
+- `PARSER_API_TOKEN` — Bearer для `GET /api/scans`. В репозиторий не кладётся. `/api/lead` отвечает 410 и не читает тело.
 - `NEXT_PUBLIC_SHOW_FINES=true` — вместе с `approved: true` в `content/fines.ts` показывает таблицу штрафов и калькулятор. Пока юрист не поставил `approved: true`, даже с флагом цифр нет. Без флага блок скрыт целиком.
 - `PD_COLLECTION_ENABLED=true` — серверная переменная без `NEXT_PUBLIC_`. Сбор заявок, проверки URL, Метрики и необязательных cookie включается только вместе с опубликованной политикой (`show_site_legal`) и redeploy. Иначе сбор выключен.
 
@@ -40,7 +39,7 @@ npm run dev
 
 ПДн не пишутся на диск сайта и не попадают в лог. Уведомлений в мессенджеры нет.
 
-Контейнер: `docker build -t persdannye-site .`, затем `docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 -e PARSER_API_BASE -e PARSER_API_TOKEN -e FORM_TICKET_SECRET -e PD_COLLECTION_ENABLED=true persdannye-site`. Каталог `.next/cache` — tmpfs из compose, не симлинк. Секреты берите из окружения, не из файла в git. Образ для compose: `ghcr.io/andrewdru-cpu/persdannye@sha256:...`.
+Контейнер: `docker build -t persdannye-site .`, затем `docker run --rm --read-only --tmpfs /tmp --tmpfs /app/.next/cache -p 3000:3000 -e PARSER_API_BASE -e PARSER_API_TOKEN -e PD_COLLECTION_ENABLED=true persdannye-site`. Каталог `.next/cache` — tmpfs из compose, не симлинк. Секреты берите из окружения, не из файла в git. Образ для compose: `ghcr.io/andrewdru-cpu/persdannye@sha256:...`.
 
 ## Что есть на сайте
 

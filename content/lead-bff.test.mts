@@ -2,25 +2,18 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it, mock } from "node:test";
 import { existsSync, readFileSync } from "node:fs";
 import { POST as postLead } from "../app/api/lead/route.ts";
-import { GET as getTicket } from "../app/api/form-ticket/route.ts";
 import { GET as getGone, POST as postGone } from "../app/api/checks/[[...slug]]/route.ts";
 import { GET as getHealth } from "../app/api/health/route.ts";
 import { GET as getScan } from "../app/api/scan/[id]/route.ts";
 import { GET as getScanPdf } from "../app/api/scan/[id]/pdf/route.ts";
-import {
-  assertFormTicketSecret,
-  enforceFormTicketSecretAtStartup,
-} from "../lib/form-ticket.ts";
 import { flags } from "./flags.ts";
 
 const SCAN_ID = "11111111-1111-4111-8111-111111111111";
 const EMAIL = "anna@example.com";
 const TOKEN = "test-parser-token";
-const TICKET_SECRET = "form-ticket-secret-value-32b-minx";
 
 function enableCollection() {
   process.env.PD_COLLECTION_ENABLED = "true";
-  process.env.FORM_TICKET_SECRET = TICKET_SECRET;
   flags.show_site_legal = true;
 }
 
@@ -53,7 +46,6 @@ describe("lead BFF", { concurrency: false }, () => {
     base: process.env.PARSER_API_BASE,
     token: process.env.PARSER_API_TOKEN,
     collection: process.env.PD_COLLECTION_ENABLED,
-    ticketSecret: process.env.FORM_TICKET_SECRET,
     siteLegal: flags.show_site_legal,
   };
 
@@ -61,8 +53,6 @@ describe("lead BFF", { concurrency: false }, () => {
     flags.show_site_legal = saved.siteLegal;
     if (saved.collection === undefined) delete process.env.PD_COLLECTION_ENABLED;
     else process.env.PD_COLLECTION_ENABLED = saved.collection;
-    if (saved.ticketSecret === undefined) delete process.env.FORM_TICKET_SECRET;
-    else process.env.FORM_TICKET_SECRET = saved.ticketSecret;
     if (saved.base === undefined) delete process.env.PARSER_API_BASE;
     else process.env.PARSER_API_BASE = saved.base;
     if (saved.token === undefined) delete process.env.PARSER_API_TOKEN;
@@ -223,9 +213,16 @@ describe("lead BFF", { concurrency: false }, () => {
     assert.equal(form.includes("consent_at"), false);
     assert.equal(direct.includes("consent_at"), false);
     assert.match(form, /HoneypotField/);
-    assert.match(form, /FormOpenedField/);
+    assert.equal(form.includes("FormOpenedField"), false);
+    assert.equal(form.includes("form-ticket"), false);
     assert.match(checker, /HoneypotField/);
-    assert.match(checker, /FormOpenedField/);
+    assert.equal(checker.includes("FormOpenedField"), false);
+    assert.equal(checker.includes("form-ticket"), false);
+    assert.equal(existsSync(new URL("../app/api/form-ticket/route.ts", import.meta.url)), false);
+    assert.equal(existsSync(new URL("../lib/form-ticket.ts", import.meta.url)), false);
+    assert.equal(existsSync(new URL("../lib/form-open.ts", import.meta.url)), false);
+    assert.equal(existsSync(new URL("../components/forms/FormOpenedField.tsx", import.meta.url)), false);
+    assert.equal(existsSync(new URL("../instrumentation.ts", import.meta.url)), false);
     assert.equal(bff.includes("submitLead"), false);
     assert.equal(existsSync(new URL("../lib/parser-client.ts", import.meta.url)), false);
     assert.equal(existsSync(new URL("../lib/parser-auth.ts", import.meta.url)), false);
@@ -249,90 +246,6 @@ describe("lead BFF", { concurrency: false }, () => {
     assert.match(config, /poweredByHeader:\s*false/);
     assert.equal(form.includes("Сообщение"), false);
     assert.equal(form.includes("message:"), false);
-  });
-
-  it("refuses a short ticket secret and one equal to the parser token", () => {
-    const savedSecret = process.env.FORM_TICKET_SECRET;
-    const savedToken = process.env.PARSER_API_TOKEN;
-    try {
-      process.env.PARSER_API_TOKEN = TOKEN;
-      process.env.FORM_TICKET_SECRET = "short";
-      assert.throws(() => assertFormTicketSecret(), /32 bytes/);
-      process.env.FORM_TICKET_SECRET = "a".repeat(31);
-      assert.throws(() => assertFormTicketSecret(), /32 bytes/);
-      process.env.FORM_TICKET_SECRET = "b".repeat(32);
-      process.env.PARSER_API_TOKEN = "b".repeat(32);
-      assert.throws(() => assertFormTicketSecret(), /PARSER_API_TOKEN/);
-      process.env.FORM_TICKET_SECRET = TICKET_SECRET;
-      process.env.PARSER_API_TOKEN = TOKEN;
-      assert.equal(assertFormTicketSecret(), TICKET_SECRET);
-    } finally {
-      if (savedSecret === undefined) delete process.env.FORM_TICKET_SECRET;
-      else process.env.FORM_TICKET_SECRET = savedSecret;
-      if (savedToken === undefined) delete process.env.PARSER_API_TOKEN;
-      else process.env.PARSER_API_TOKEN = savedToken;
-    }
-  });
-
-  it("starts without a ticket secret when collection is off", async () => {
-    delete process.env.PD_COLLECTION_ENABLED;
-    delete process.env.FORM_TICKET_SECRET;
-    flags.show_site_legal = false;
-    assert.doesNotThrow(() => enforceFormTicketSecretAtStartup());
-    const ticket = await getTicket();
-    assert.equal(ticket.status, 503);
-    assert.equal(ticket.headers.get("cache-control"), "no-store");
-    assert.deepEqual(await ticket.json(), { error: "collection_disabled" });
-    const leadReq = leadRequest(validBody(), { "x-real-ip": "203.0.113.10" });
-    const lead = await postLead(leadReq);
-    assert.equal(lead.status, 410);
-    assert.equal(leadReq.bodyUsed, false);
-    assert.deepEqual(await lead.json(), { error: "gone" });
-  });
-
-  it("returns 503 not 500 when signing is reached without FORM_TICKET_SECRET", async () => {
-    enableCollection();
-    delete process.env.FORM_TICKET_SECRET;
-    process.env.PARSER_API_TOKEN = TOKEN;
-    const fetchMock = mock.method(globalThis, "fetch", async () => {
-      throw new Error("fetch should not run");
-    });
-    const ticket = await getTicket();
-    assert.equal(ticket.status, 503);
-    assert.deepEqual(await ticket.json(), { error: "ticket_unavailable" });
-    const leadReq = leadRequest(validBody(), { "x-real-ip": "203.0.113.10" });
-    const lead = await postLead(leadReq);
-    assert.equal(lead.status, 410);
-    assert.equal(leadReq.bodyUsed, false);
-    assert.equal(fetchMock.mock.calls.length, 0);
-  });
-
-  it("checks the ticket secret at startup only when collection is enabled", () => {
-    delete process.env.PD_COLLECTION_ENABLED;
-    delete process.env.FORM_TICKET_SECRET;
-    assert.doesNotThrow(() => enforceFormTicketSecretAtStartup());
-    process.env.PD_COLLECTION_ENABLED = "false";
-    process.env.FORM_TICKET_SECRET = "short";
-    assert.doesNotThrow(() => enforceFormTicketSecretAtStartup());
-    process.env.PD_COLLECTION_ENABLED = "true";
-    delete process.env.FORM_TICKET_SECRET;
-    process.env.PARSER_API_TOKEN = TOKEN;
-    assert.throws(() => enforceFormTicketSecretAtStartup(), /32 bytes/);
-    process.env.FORM_TICKET_SECRET = "b".repeat(32);
-    process.env.PARSER_API_TOKEN = "b".repeat(32);
-    assert.throws(() => enforceFormTicketSecretAtStartup(), /PARSER_API_TOKEN/);
-  });
-
-  it("returns 503 for the form ticket when collection is off", async () => {
-    flags.show_site_legal = true;
-    for (const value of [undefined, "false", "TRUE", ""]) {
-      if (value === undefined) delete process.env.PD_COLLECTION_ENABLED;
-      else process.env.PD_COLLECTION_ENABLED = value;
-      const res = await getTicket();
-      assert.equal(res.status, 503, String(value));
-      assert.equal(res.headers.get("cache-control"), "no-store");
-      assert.deepEqual(await res.json(), { error: "collection_disabled" });
-    }
   });
 
   it("answers every /api/checks path with 410 and does not read the body", async () => {
