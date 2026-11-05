@@ -19,3 +19,14 @@ export function marketingConsentEnabled(): boolean {
 export function showPlaceholderTodos(): boolean {
   return isPreviewDeployment();
 }
+
+/**
+ * Чекбокс автосписания. Сам по себе превью его не включает.
+ * Только явный флаг или NEXT_PUBLIC_ROBOKASSA_RECURRING=true.
+ */
+export function robokassaRecurringEnabled(): boolean {
+  const override = process.env.NEXT_PUBLIC_ROBOKASSA_RECURRING;
+  if (override === "true") return true;
+  if (override === "false") return false;
+  return flags.robokassa_recurring;
+}
