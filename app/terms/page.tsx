@@ -5,6 +5,7 @@ import { flags } from "@/content/flags";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 
 export const metadata: Metadata = {
   title: "Пользовательское соглашение",
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
+  const published = flags.show_terms ? assertPublishedRequisites(company) : null;
   if (!flags.show_terms) {
     return <LegalPending title="Пользовательское соглашение" />;
   }
@@ -21,14 +23,14 @@ export default function TermsPage() {
         Пользовательское соглашение (публичная оферта)
       </h1>
       <p className="mt-2 text-sm text-white/80">
-        Редакция от 21.09.2026 · {company.legalName}
+        Редакция от 21.09.2026{published ? ` · ${published.legalName}` : ""}
       </p>
 
       <Sec title="1. Предмет соглашения">
         <p>
-          Настоящее соглашение является публичной офертой {company.legalName}
-          (ИНН {company.inn}, ОГРН {company.ogrn}) и регулирует использование сайта
-          {company.website} и сервиса экспресс-проверки сайтов на признаки
+          {published
+            ? `Настоящее соглашение является публичной офертой ${published.legalName} (ИНН ${published.inn}, ОГРН ${published.ogrn}) и регулирует использование сайта ${company.website} и сервиса экспресс-проверки сайтов на признаки `
+            : `Настоящее соглашение является публичной офертой и регулирует использование сайта ${company.website} и сервиса экспресс-проверки сайтов на признаки `}
           несоответствия требованиям 152-ФЗ и практике Роскомнадзора (далее — Сервис).
         </p>
         <p>
@@ -102,17 +104,27 @@ export default function TermsPage() {
       </Sec>
 
       <Sec title="9. Реквизиты">
-        <p>{company.legalName}</p>
-        <p>ИНН {company.inn}, ОГРН {company.ogrn}</p>
-        <p>{company.address}</p>
-        <p>
-          {privacyContactLabel() ? (
-            <>
-              <PrivacyContactLink /> ·{" "}
-            </>
-          ) : null}
-          {company.phone}
-        </p>
+        {published ? (
+          <>
+            <p>{published.legalName}</p>
+            <p>
+              ИНН {published.inn}, ОГРН {published.ogrn}
+            </p>
+            <p>{published.address}</p>
+            <p>
+              {privacyContactLabel() ? (
+                <>
+                  <PrivacyContactLink /> ·{" "}
+                </>
+              ) : null}
+              {published.phone}
+            </p>
+          </>
+        ) : privacyContactLabel() ? (
+          <p>
+            <PrivacyContactLink />
+          </p>
+        ) : null}
       </Sec>
     </article>
   );

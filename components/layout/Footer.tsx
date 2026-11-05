@@ -7,9 +7,11 @@ import { fillPlaceholders } from "@/content/placeholders";
 import { DbipAttribution } from "@/components/layout/DbipAttribution";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 import { showPlaceholderTodos } from "@/lib/runtime-flags";
 
 export function Footer() {
+  const published = flags.show_requisites ? assertPublishedRequisites(company) : null;
   return (
     <footer className="border-t border-amber-200/15 bg-ink-975">
       <div className="gold-hairline" />
@@ -36,20 +38,20 @@ export function Footer() {
           <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-amber-300/90">
             Оператор
           </div>
-          {flags.show_requisites ? (
+          {published ? (
             <ul className="space-y-1 text-sm text-white/80">
-              <li>{company.legalName}</li>
-              <li>ИНН {company.inn}</li>
-              <li>ОГРН {company.ogrn}</li>
-              <li>{company.address}</li>
+              <li>{published.legalName}</li>
+              <li>ИНН {published.inn}</li>
+              <li>ОГРН {published.ogrn}</li>
+              <li>{published.address}</li>
               {privacyContactLabel() ? (
                 <li>
                   ДПО: <PrivacyContactLink className="hover:text-amber-300" />
                 </li>
               ) : null}
               <li>
-                <a className="hover:text-amber-300" href={company.phoneHref}>
-                  {company.phone}
+                <a className="hover:text-amber-300" href={published.phoneHref}>
+                  {published.phone}
                 </a>
               </li>
             </ul>
@@ -68,7 +70,7 @@ export function Footer() {
       </div>
       <div className="border-t border-white/5 px-4 py-6">
         <div className="mx-auto max-w-3xl space-y-3 text-left text-xs leading-relaxed text-white/70" role="note">
-          {footerParagraphs(showPlaceholderTodos()).map((paragraph) => (
+          {footerParagraphs(showPlaceholderTodos(), published !== null).map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
           ))}
           <p>
@@ -79,7 +81,7 @@ export function Footer() {
           <DbipAttribution />
         </div>
         <p className="mt-3 text-center text-xs text-white/80">
-          © {new Date().getFullYear()} {flags.show_requisites ? company.legalName : company.brand}. Все права защищены.
+          © {new Date().getFullYear()} {published ? published.legalName : company.brand}. Все права защищены.
         </p>
       </div>
     </footer>

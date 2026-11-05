@@ -4,10 +4,8 @@
 
 | Что | Где | Когда уходит запрос |
 | --- | --- | --- |
-| Свой API проверки | `POST /api/checks`, `GET /api/checks/:id`, `GET /api/checks/:id/pdf` | После отправки адреса на сайте. Это тот же origin, не сторонний SDK. |
-| Свой API заявок | `POST /api/leads` | После отправки формы с обязательным согласием на обработку. |
-| Парсер | `PARSER_API_BASE` на сервере (`lib/parser-client.ts`) | Только с сервера. Браузер к парсеру не ходит. |
-| Telegram | `TELEGRAM_BOT_TOKEN` на сервере | Только с сервера, если токен задан. В браузер токен не попадает. В сообщении только id, домен, балл и ссылка в кабинет, без имени, email, телефона, компании и комментария. |
+| Свой API проверки и заявки | `POST /api/lead`, `GET /api/scan/:id`, `GET /api/scan/:id/pdf` | После отправки формы на сайте. Это тот же origin, не сторонний SDK. |
+| Парсер | `PARSER_API_BASE` на сервере (`lib/lead-bff.ts`) | Только с сервера, заголовок `Authorization: Bearer` и `X-PD-Client-IP`. Браузер к парсеру не ходит. Персональные данные на диск сайта и во внешние мессенджеры не отправляются. |
 | `AnalyticsGate` | `components/layout/AnalyticsGate.tsx` | Скрипт не монтирует. До согласия `analytics === true` ничего не грузит. После согласия в development пишет `console.info`, тега Метрики или GA нет. |
 | Vercel Analytics | пакет `@vercel/analytics` не установлен | Компонент не подключён, запроса нет. |
 | Vercel Speed Insights | пакет `@vercel/speed-insights` не установлен | Компонент не подключён, запроса нет. |

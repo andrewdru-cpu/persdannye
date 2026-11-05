@@ -17,5 +17,8 @@ export function collectionEnabled(): boolean {
  */
 export function collectionGateResponse(): Response | null {
   if (collectionEnabled()) return null;
-  return Response.json({ error: COLLECTION_DISABLED_ERROR }, { status: 503 });
+  return Response.json(
+    { error: COLLECTION_DISABLED_ERROR },
+    { status: 503, headers: { "cache-control": "no-store" } },
+  );
 }

@@ -5,6 +5,7 @@ import { flags } from "@/content/flags";
 import { LegalPending } from "@/components/legal/LegalPending";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
+import { assertPublishedRequisites } from "@/lib/requisites-guard";
 
 export const metadata: Metadata = {
   title: "Политика cookie",
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default function CookiesPage() {
+  const published = flags.show_cookie_policy ? assertPublishedRequisites(company) : null;
   if (!flags.show_cookie_policy) {
     return <LegalPending title="Политика cookie" />;
   }
@@ -19,7 +21,7 @@ export default function CookiesPage() {
     <article className="mx-auto max-w-3xl px-4 py-14 md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">Политика cookie</h1>
       <p className="mt-2 text-sm text-white/80">
-        Редакция от 21.09.2026 · {company.legalName}
+        Редакция от 21.09.2026{published ? ` · ${published.legalName}` : ""}
       </p>
 
       <Sec title="1. Что такое cookie">
@@ -84,10 +86,10 @@ export default function CookiesPage() {
           {privacyContactLabel() ? (
             <>
               <PrivacyContactLink />
-              {", "}
+              {published ? ", " : null}
             </>
           ) : null}
-          тел. {company.phone}.
+          {published ? `тел. ${published.phone}.` : null}
         </p>
       </Sec>
     </article>

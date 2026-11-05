@@ -1,10 +1,14 @@
 /**
- * Contacts typed next to a URL check. They are forwarded to the parser
- * in the create-scan request and are never written to disk or /tmp.
+ * Нормализация контактов скана в памяти запроса.
+ * На диск сайта контакты не пишутся: их хранит парсер.
  */
 
 import type { ScanContact } from "./types";
 import { CONSENT_TEXT_VERSION, MARKETING_CONSENT_TEXT_VERSION } from "./consent";
+
+export function hasScanContact(contact?: ScanContact | null): boolean {
+  return Boolean(contact && (contact.name || contact.email || contact.phone));
+}
 
 export function normalizeScanContact(
   input?: {
@@ -40,3 +44,35 @@ export function normalizeScanContact(
   }
   return contact;
 }
+
+export function mergeScanContact(
+  primary?: ScanContact | null,
+  fallback?: ScanContact | null
+): ScanContact | null {
+  if (!hasScanContact(primary) && !hasScanContact(fallback)) return null;
+  const consent = primary?.consent === true || fallback?.consent === true;
+  const marketing = primary?.marketing_consent === true || fallback?.marketing_consent === true;
+  return {
+    name: primary?.name || fallback?.name,
+    email: primary?.email || fallback?.email,
+    phone: primary?.phone || fallback?.phone,
+    source: primary?.source || fallback?.source || "landing",
+    ...(consent
+      ? {
+          consent: true as const,
+          consent_text_version:
+            primary?.consent_text_version || fallback?.consent_text_version || CONSENT_TEXT_VERSION,
+        }
+      : {}),
+    ...(marketing
+      ? {
+          marketing_consent: true as const,
+          marketing_consent_text_version:
+            primary?.marketing_consent_text_version ||
+            fallback?.marketing_consent_text_version ||
+            MARKETING_CONSENT_TEXT_VERSION,
+        }
+      : {}),
+  };
+}
+
