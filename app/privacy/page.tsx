@@ -4,7 +4,7 @@ import { flags } from "@/content/flags";
 import { privacySurface, siteLegalPrivacy, subjectsAgeClause } from "@/content/site-legal";
 import { PrivacyContactLink } from "@/components/legal/PrivacyContactLink";
 import { company, privacyContactLabel } from "@/lib/company";
-import { assertPublishedRequisites } from "@/lib/requisites-guard";
+import { assertPublishedRequisites, configuredRequisites } from "@/lib/requisites-guard";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -33,7 +33,7 @@ function identityDetails(requisites: { inn: string }): string {
 
 /** Прежняя политика. Новые тексты site-legal сюда не добавляем. */
 function LegacyPrivacyPolicy() {
-  const requisites = assertPublishedRequisites(company);
+  const requisites = assertPublishedRequisites(configuredRequisites());
   return (
     <article className="mx-auto max-w-3xl px-4 py-14 prose-legal md:px-6 md:py-20">
       <h1 className="text-3xl font-semibold text-white md:text-4xl">

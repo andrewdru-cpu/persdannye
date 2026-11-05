@@ -1,5 +1,9 @@
+import { company } from "./company";
+
 export type PublishedRequisites = {
   legalName: string | null;
+  /** ФИО плательщика НПД, если задано отдельно от legalName. */
+  fio?: string | null;
   inn: string | null;
   /** У плательщика НПД пусто. Непустое значение не публикуется. */
   kpp: string | null;
@@ -98,4 +102,40 @@ export function assertPublishedRequisites(
   if (!addressValid(address) || !phoneValid(phone) || !phoneHrefValid(phoneHref)) return null;
   if (!inn12Valid(inn)) return null;
   return { legalName, inn, kpp: "", ogrn: "", address, phone, phoneHref };
+}
+
+/**
+ * ФИО и ИНН для футера и фразы оператора. Адрес и телефон не требуются.
+ * Непустое ОГРН или КПП не публикуется.
+ */
+export function npdNameAndInn(
+  requisites: Partial<PublishedRequisites> | null | undefined,
+): { legalName: string; inn: string } | null {
+  if (!requisites) return null;
+  const legalName = text(requisites.fio) ?? text(requisites.legalName);
+  const inn = text(requisites.inn);
+  if (!legalName || !inn) return null;
+  if (COMPANY_LABEL.test(legalName)) return null;
+  if (filled(requisites.ogrn) || filled(requisites.kpp)) return null;
+  if (!inn12Valid(inn)) return null;
+  return { legalName, inn };
+}
+
+/**
+ * Реквизиты из кода и окружения. OPERATOR_FIO и OPERATOR_INN не зашиты в репозиторий:
+ * пустые значения остаются пустыми, пока их не зададут.
+ */
+export function configuredRequisites(): PublishedRequisites {
+  const fio = process.env.OPERATOR_FIO?.trim() || company.fio || company.legalName;
+  const inn = process.env.OPERATOR_INN?.trim() || company.inn;
+  return {
+    legalName: fio,
+    fio,
+    inn,
+    kpp: company.kpp,
+    ogrn: company.ogrn,
+    address: company.address,
+    phone: company.phone,
+    phoneHref: company.phoneHref,
+  };
 }
