@@ -1,11 +1,22 @@
 import Link from "next/link";
 import { PayCheckout } from "@/components/pay/PayCheckout";
+import { approvedMonthlyPlan, monthlyPeriodLabel } from "@/content/pay-placeholders";
 import { offerHref, recurringConsent } from "@/lib/pay-offer";
 import { formatInvoiceAmount, type InvoiceLoad } from "@/lib/pay-public";
 import { configuredRequisites, npdNameAndInn } from "@/lib/requisites-guard";
 import { publicContactEmail } from "@/lib/support-email";
 
 const linkClass = "text-amber-300 hover:underline";
+
+function SubscriptionTariffCopy() {
+  const plan = approvedMonthlyPlan();
+  if (!plan) return null;
+  return (
+    <p className="mt-4 text-sm leading-relaxed text-white/80">
+      {`Тариф «${plan.name}»: ${plan.price} ₽ за ${monthlyPeriodLabel(plan.period)}.${plan.features ? ` ${plan.features}.` : ""}`}
+    </p>
+  );
+}
 
 function recipientLine(): string | null {
   const identity = npdNameAndInn(configuredRequisites());
@@ -39,6 +50,7 @@ export function PayInvoiceScreen({ result }: { result: InvoiceLoad }) {
       <h1 className="text-3xl font-semibold text-white md:text-4xl">Оплата счёта</h1>
       <p className="mt-6 text-lg text-white">{invoice.title}</p>
       <p className="mt-2 text-sm text-white/80">Сумма: {formatInvoiceAmount(invoice.amount)}</p>
+      <SubscriptionTariffCopy />
       {recipient ? <p className="mt-4 text-sm text-white/80">Получатель: {recipient}</p> : null}
       <p className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
         <Link href={href} className={linkClass}>

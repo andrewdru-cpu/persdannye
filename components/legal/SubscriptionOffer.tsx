@@ -1,36 +1,41 @@
 import Link from "next/link";
-import { payPlaceholders, publishedCount, publishedPrice } from "@/content/pay-placeholders";
+import {
+  approvedMonthlyPlan,
+  monthlyPeriodLabel,
+  payPlaceholders,
+  publishedCount,
+  publishedPrice,
+} from "@/content/pay-placeholders";
 import { flags } from "@/content/flags";
 import { DataTable, LegalArticle, Sec } from "@/components/legal/LegalArticle";
 import { configuredRequisites, npdNameAndInn } from "@/lib/requisites-guard";
 import { supportEmail } from "@/lib/support-email";
 
 const linkClass = "text-amber-300 hover:underline";
-const edition = "Редакция 2 от 28.10.2026";
+const edition = "Редакция 3 от 05.11.2026";
 
 function priceRows(): string[][] {
-  const plans = [
-    {
-      name: payPlaceholders.plan_1_name,
-      period: payPlaceholders.plan_1_period,
-      price: payPlaceholders.plan_1_price,
-      features: payPlaceholders.plan_1_features,
-    },
-    {
-      name: payPlaceholders.plan_2_name,
-      period: payPlaceholders.plan_2_period,
-      price: payPlaceholders.plan_2_price,
-      features: payPlaceholders.plan_2_features,
-    },
-  ];
-  return plans.flatMap((plan) => {
-    const price = publishedPrice(flags.show_prices, plan.price);
-    if (!plan.name.trim() || !plan.period.trim() || !price || !plan.features.trim()) return [];
-    return [[plan.name, plan.period, `${price} ₽`, plan.features]];
-  });
+  const rows: string[][] = [];
+  const monthly = approvedMonthlyPlan();
+  if (monthly) {
+    rows.push([
+      monthly.name,
+      monthlyPeriodLabel(monthly.period),
+      `${monthly.price} ₽`,
+      monthly.features,
+    ]);
+  }
+  const yearlyPrice = publishedPrice(flags.show_prices, payPlaceholders.plan_2_price);
+  const yearlyName = payPlaceholders.plan_2_name.trim();
+  const yearlyPeriod = payPlaceholders.plan_2_period.trim();
+  const yearlyFeatures = payPlaceholders.plan_2_features.trim();
+  if (yearlyName && yearlyPeriod && yearlyPrice && yearlyFeatures) {
+    rows.push([yearlyName, yearlyPeriod, `${yearlyPrice} ₽`, yearlyFeatures]);
+  }
+  return rows;
 }
 
-/** Оферта на подписку. Редакция юриста от 28.10.2026, без служебных пометок. */
+/** Оферта на подписку. Редакция 3 от 05.11.2026, без служебных пометок. */
 export function SubscriptionOffer() {
   const identity = npdNameAndInn(configuredRequisites());
   const email = supportEmail();
@@ -43,6 +48,7 @@ export function SubscriptionOffer() {
   const retryDays = publishedCount(payPlaceholders.retry_days);
   const retries = retryCount && retryDays ? { count: retryCount, days: retryDays } : null;
   const months = publishedCount(payPlaceholders.liability_months);
+  const monthly = approvedMonthlyPlan();
   const rows = priceRows();
 
   return (
@@ -162,6 +168,13 @@ export function SubscriptionOffer() {
         ) : (
           <p>Тарифы и цены на этой странице не приведены. Сумма оплаты указывается в счёте.</p>
         )}
+        <p>
+          Разовые услуги (вне подписки) — по{" "}
+          <Link href="/offer/one-time" className={linkClass}>
+            оферте разовых услуг
+          </Link>
+          . Цены разовых услуг на этой странице не приведены.
+        </p>
         {trial ? <p>Пробный период: {trial}.</p> : null}
         <p>
           4.2. <strong className="text-white/90">Автоматические списания — только с отдельного согласия.</strong>
@@ -170,8 +183,15 @@ export function SubscriptionOffer() {
           <li>Согласие даётся отдельным чекбоксом, который не отмечен заранее и не объединён с принятием оферты.</li>
           <li>Без согласия Клиент оплачивает один период без автопродления, и все функции тарифа доступны.</li>
           <li>
-            С согласием Исполнитель через Робокассу списывает с карты, которой оплачен первый период, плату за выбранный
-            тариф до отмены.
+            С согласием Исполнитель через Робокассу списывает с карты, которой оплачен первый период,{" "}
+            {monthly ? (
+              <>
+                <strong className="text-white/90">{monthly.price} ₽ раз в календарный месяц</strong> (для месячного
+                тарифа) до отмены.
+              </>
+            ) : (
+              "плату за выбранный тариф до отмены."
+            )}
           </li>
           <li>
             Данные карты вводятся на странице Робокассы. Исполнитель их не получает. Хранятся только идентификатор

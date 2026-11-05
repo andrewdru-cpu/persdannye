@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import Link from "next/link";
+import { monthlyRecurringCharge } from "@/content/pay-placeholders";
 import { formatInvoiceAmount } from "@/lib/pay-public";
 import type { RecurringConsent } from "@/lib/pay-offer";
 
@@ -21,7 +22,17 @@ function messageFor(status: number, error: string): string {
   return "Не удалось перейти к оплате";
 }
 
+function recurringCharge(recurring: RecurringConsent): { phrase: string; planName: string } {
+  const monthly = monthlyRecurringCharge(recurring.period);
+  if (monthly) return monthly;
+  return {
+    phrase: `${formatInvoiceAmount(recurring.amount)} раз в ${recurring.period}`,
+    planName: recurring.planName,
+  };
+}
+
 export function PayCheckout({ invoiceId, offerHref, recurring }: Props) {
+  const charge = recurring ? recurringCharge(recurring) : null;
   const [offer, setOffer] = useState(false);
   const [recurringOn, setRecurringOn] = useState(false);
   const [pending, setPending] = useState(false);
@@ -87,13 +98,10 @@ export function PayCheckout({ invoiceId, offerHref, recurring }: Props) {
           <span>
             Я соглашаюсь, что {recurring.fio} (плательщик НПД, ИНН {recurring.inn}) через Робокассу будет
             автоматически списывать с моей банковской карты{" "}
-            <strong className="text-white/90">
-              {formatInvoiceAmount(recurring.amount)} раз в {recurring.period}
-            </strong>{" "}
-            за подписку «{recurring.planName}», пока я её не отменю. Первое списание — сегодня, следующее —{" "}
-            {recurring.nextChargeDate}. Я получу напоминание на e-mail не позднее чем за 3 дня до каждого
-            списания. Отменить подписку и отвязать карту можно в любой момент одной кнопкой в кабинете («Оплата» →
-            «Отменить подписку и отвязать карту»)
+            <strong className="text-white/90">{charge?.phrase}</strong> за подписку «{charge?.planName}», пока я её не
+            отменю. Первое списание — сегодня, следующее — {recurring.nextChargeDate}. Я получу напоминание на e-mail не
+            позднее чем за 3 дня до каждого списания. Отменить подписку и отвязать карту можно в любой момент одной
+            кнопкой в кабинете («Оплата» → «Отменить подписку и отвязать карту»)
             {recurring.email ? ` или письмом на ${recurring.email}` : ""}. Условия — в{" "}
             <Link href="/subscription" className="text-amber-300 hover:underline">
               оферте на подписку

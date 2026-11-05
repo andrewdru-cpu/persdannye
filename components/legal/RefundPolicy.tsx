@@ -1,20 +1,32 @@
 import Link from "next/link";
-import { payPlaceholders, publishedCount, publishedPrice } from "@/content/pay-placeholders";
+import {
+  approvedMonthlyPlan,
+  monthlyPeriodLabel,
+  payPlaceholders,
+  publishedCount,
+  publishedPrice,
+} from "@/content/pay-placeholders";
 import { flags } from "@/content/flags";
 import { DataTable, LegalArticle, Sec } from "@/components/legal/LegalArticle";
 import { supportEmail } from "@/lib/support-email";
 
 const linkClass = "text-amber-300 hover:underline";
 
-/** Политика возврата. Редакция юриста от 28.10.2026, без служебных пометок. */
+/** Политика возврата. Редакция 3 от 05.11.2026, без служебных пометок. */
 export function RefundPolicy() {
   const email = supportEmail();
-  const period = payPlaceholders.subscription_period.trim();
   const replyDays = publishedCount(payPlaceholders.refund_reply_days);
   const hourly = publishedPrice(flags.show_prices, payPlaceholders.hourly_rate);
+  const monthly = approvedMonthlyPlan();
+  const subscriptionName = monthly
+    ? `Подписка месячная (${monthly.price} ₽ / ${monthlyPeriodLabel(monthly.period)})`
+    : "Подписка";
+  const subscriptionReturn = monthly
+    ? `Пропорционально неиспользованным полным дням оплаченного периода (для месячного: ${monthly.price} ÷ число дней в месяце × неиспользованные дни)`
+    : "Пропорционально неиспользованным полным дням оплаченного периода";
 
   return (
-    <LegalArticle title="Политика возврата денежных средств «ПерсДанные»" edition="Редакция 2 от 28.10.2026">
+    <LegalArticle title="Политика возврата денежных средств «ПерсДанные»" edition="Редакция 3 от 05.11.2026">
       <p className="mt-4 text-sm leading-relaxed text-white/70">
         Документ является частью{" "}
         <Link href="/offer/one-time" className={linkClass}>
@@ -45,11 +57,7 @@ export function RefundPolicy() {
               "100 %",
               "Если Отчёт уже сформирован и доступен, услуга оказана — возврат не производится. Если проверка не завершилась по нашей вине или сайт был недоступен и Отчёт не сформирован, вернём 100 %",
             ],
-            [
-              period ? `Подписка (${period})` : "Подписка",
-              "100 %",
-              "Пропорционально неиспользованным полным дням оплаченного периода",
-            ],
+            [subscriptionName, "100 %", subscriptionReturn],
             [
               "Подготовка документов и иные услуги",
               "100 %",
